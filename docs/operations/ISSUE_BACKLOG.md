@@ -6,32 +6,39 @@ _None currently identified_
 
 ## High Priority
 
-### ISS-001: No session recovery after page refresh
-**Description:** If instructor refreshes the browser mid-session, they lose connection to the active session and must start a new one.
-**Impact:** Disrupts attendance taking, confuses students
-**Related:** P1-01
+_All high priority issues resolved_
 
-### ISS-002: Firebase security rules may be too permissive
+### ~~ISS-001: No session recovery after page refresh~~ RESOLVED
+**Description:** If instructor refreshes the browser mid-session, they lose connection to the active session and must start a new one.
+**Resolution:** Session ID stored in sessionStorage, automatic recovery on page load.
+**Completed:** 2026-01-13
+
+### ~~ISS-002: Firebase security rules may be too permissive~~ DOCUMENTED
 **Description:** Need audit of Firebase Realtime Database rules to ensure students can't read/write arbitrary data.
-**Impact:** Potential data tampering or privacy breach
-**Related:** P3-01
+**Resolution:** Security rules documented in `docs/firebase-security-rules.md` with recommended rules.
+**Completed:** 2026-01-13
 
 ## Medium Priority
 
-### ISS-003: No feedback when Firebase connection lost
+### ~~ISS-003: No feedback when Firebase connection lost~~ RESOLVED
 **Description:** If network drops, UI doesn't indicate offline status. Updates silently fail.
-**Impact:** Instructor thinks attendance is recording when it's not
-**Related:** P1-02
+**Resolution:** Added offline banner with browser online/offline detection and Firebase connection state monitoring.
+**Completed:** 2026-01-13
 
 ### ISS-004: Device fingerprint can be spoofed
 **Description:** Browser-based fingerprinting is client-side and can be manipulated by tech-savvy students.
 **Impact:** Students could potentially bypass device uniqueness check
 **Mitigation:** Accept as known limitation; manual approval flow exists for edge cases
+**Status:** Won't Fix - By Design
 
 ### ISS-005: GPS accuracy varies significantly indoors
 **Description:** Indoor GPS can be off by 20-100m, causing legitimate students to fail location check.
 **Impact:** More failed attempts requiring manual approval
-**Mitigation:** Manual approval flow exists; instructor can adjust radius
+**Mitigation:**
+- Manual approval flow exists
+- Instructor can adjust radius
+- Added "poor signal" warning when accuracy > 50m
+**Status:** Mitigated
 
 ## Low Priority
 
@@ -49,6 +56,11 @@ _None currently identified_
 **Impact:** Incomplete audit trail
 **Related:** P3-04
 
+### ISS-009: Session end while students checking in
+**Description:** If instructor ends session while student is mid-submission, student sees generic error
+**Enhancement:** Could show friendlier "session has ended" message
+**Status:** Improved - better error message added
+
 ## Won't Fix / By Design
 
 ### WF-001: Single active session limitation
@@ -56,3 +68,14 @@ _None currently identified_
 
 ### WF-002: No authentication for instructors
 **Reason:** Intentional simplicity - URL-based access. Security via obscurity acceptable for classroom use.
+
+### WF-003: Device fingerprint spoofing (ISS-004)
+**Reason:** Client-side fingerprinting has inherent limitations. Manual approval flow handles edge cases.
+
+## Resolved Issues Log
+
+| Issue | Description | Resolution Date | Notes |
+|-------|-------------|-----------------|-------|
+| ISS-001 | Session recovery | 2026-01-13 | sessionStorage-based recovery |
+| ISS-002 | Security rules | 2026-01-13 | Documentation with recommendations |
+| ISS-003 | Offline indicator | 2026-01-13 | Banner with connection monitoring |
