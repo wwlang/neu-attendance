@@ -735,8 +735,8 @@ function renderStudentView() {
             ${state.studentLocation ? '' : `<button onclick="acquireStudentLocation()" class="w-full py-2 px-3 bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 rounded text-sm font-medium">Retry Location</button>`}
           </div>
 
-          <button onclick="submitAttendance()" id="submitBtn" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" ${!state.studentLocation ? 'disabled' : ''}>Submit Attendance</button>
-          <p class="text-xs text-gray-400 dark:text-gray-500 text-center">Your location and device ID are recorded to verify physical presence.</p>
+          <button onclick="submitAttendance()" id="submitBtn" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Submit Attendance</button>
+          <p class="text-xs text-gray-400 dark:text-gray-500 text-center">Location is optional but helps verify physical presence.</p>
         </div>
       </div>
     </div>`;
@@ -1148,10 +1148,6 @@ async function submitAttendance() {
     msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Please enter a valid email address</div>';
     return;
   }
-  if (!state.studentLocation) {
-    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Location not available. Please enable location access and tap Retry.</div>';
-    return;
-  }
 
   const btn = document.getElementById('submitBtn');
   btn.disabled = true; btn.textContent = 'Verifying...';
@@ -1165,21 +1161,26 @@ async function submitAttendance() {
     const session = sessionSnapshot.val();
     if (!session) throw new Error('Session has ended. Please ask your instructor to start a new session.');
 
-    const distance = getDistance(state.studentLocation.lat, state.studentLocation.lng, session.location.lat, session.location.lng);
+    // Calculate distance only if location is available
+    const hasLocation = state.studentLocation && state.studentLocation.lat && state.studentLocation.lng;
+    const distance = hasLocation
+      ? getDistance(state.studentLocation.lat, state.studentLocation.lng, session.location.lat, session.location.lng)
+      : null;
 
     const baseRecord = {
       studentId,
       studentName,
       email: studentEmail,
       deviceId: state.deviceId,
-      location: {
+      location: hasLocation ? {
         lat: state.studentLocation.lat,
         lng: state.studentLocation.lng,
         accuracy: state.studentLocation.accuracy
-      },
-      distance: Math.round(distance),
+      } : null,
+      distance: hasLocation ? Math.round(distance) : null,
       allowedRadius: session.radius,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      noGps: !hasLocation
     };
 
     if (enteredCode !== session.code) {
@@ -1193,7 +1194,8 @@ async function submitAttendance() {
       throw new Error('Code expired. Enter the new code. Your attempt has been logged.');
     }
 
-    if (distance > session.radius) {
+    // Only check distance if location is available
+    if (hasLocation && distance > session.radius) {
       await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: `Too far: ${Math.round(distance)}m` });
       throw new Error(`You're ${Math.round(distance)}m away (limit: ${session.radius}m). Your attempt has been logged for instructor review.`);
     }
