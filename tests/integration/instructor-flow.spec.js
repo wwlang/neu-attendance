@@ -17,7 +17,9 @@ const INSTRUCTOR_PIN = '230782';
 test.describe('Instructor Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForTimeout(1000);
+    // Wait for loading spinner to disappear and content to render
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
   });
 
   test('should show mode selection on home page', async ({ page }) => {
@@ -127,10 +129,10 @@ test.describe('Instructor Flow', () => {
     await page.click('button:has-text("Start Session")');
     await page.waitForTimeout(3000);
 
-    // Check stats display
-    await expect(page.locator('text=On Time')).toBeVisible();
-    await expect(page.locator('text=Late')).toBeVisible();
-    await expect(page.locator('text=Failed')).toBeVisible();
+    // Check stats display - use exact match to avoid multiple matches
+    await expect(page.getByText('On Time', { exact: true })).toBeVisible();
+    await expect(page.getByText('Late', { exact: true })).toBeVisible();
+    await expect(page.getByText('Failed', { exact: true }).first()).toBeVisible();
   });
 
   test('should show empty attendance message initially', async ({ page }) => {

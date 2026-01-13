@@ -15,7 +15,9 @@ const { test, expect } = require('@playwright/test');
 test.describe('Student Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForTimeout(1000);
+    // Wait for loading spinner to disappear and content to render
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
   });
 
   test('should navigate to student form when clicking student button', async ({ page }) => {
@@ -42,8 +44,9 @@ test.describe('Student Flow', () => {
     await page.click('button:has-text("I\'m a Student")');
     await page.waitForTimeout(2000);
 
-    await expect(page.locator('text=Your Location')).toBeVisible();
-    await expect(page.locator('text=Device Information')).toBeVisible();
+    // Use more specific selectors to avoid multiple matches
+    await expect(page.getByText('Your Location (Lat, Lng)')).toBeVisible();
+    await expect(page.getByText('Device Information', { exact: false })).toBeVisible();
   });
 
   test('should validate empty fields', async ({ page }) => {

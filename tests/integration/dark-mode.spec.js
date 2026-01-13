@@ -12,12 +12,17 @@ const { test, expect } = require('@playwright/test');
  */
 
 test.describe('Dark Mode', () => {
+  // Increase timeout for dark mode tests due to reload
+  test.setTimeout(45000);
+
   test.beforeEach(async ({ page }) => {
     // Clear localStorage before each test
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
-    await page.reload();
-    await page.waitForTimeout(1000);
+    await page.reload({ waitUntil: 'networkidle' });
+    // Wait for loading spinner to disappear and content to render
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 15000 }).catch(() => {});
+    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 15000 });
   });
 
   test('should show dark mode toggle button', async ({ page }) => {

@@ -28,8 +28,8 @@ module.exports = defineConfig({
 
   /* Shared settings for all the projects below */
   use: {
-    /* Base URL for all tests - can be overridden with ENV */
-    baseURL: process.env.BASE_URL || 'https://wwlang.github.io/neu-attendance/',
+    /* Base URL for all tests - uses local server by default */
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
 
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',
@@ -96,5 +96,13 @@ module.exports = defineConfig({
   /* Expect timeout */
   expect: {
     timeout: 5000
+  },
+
+  /* Run local server before tests */
+  webServer: {
+    command: 'npx serve -l 3000 -n',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 10000,
   },
 });

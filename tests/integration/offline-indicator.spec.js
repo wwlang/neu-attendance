@@ -12,7 +12,9 @@ const { test, expect } = require('@playwright/test');
 test.describe('Offline Indicator', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForTimeout(1000);
+    // Wait for loading spinner to disappear and content to render
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
   });
 
   test('should have offline banner element in DOM', async ({ page }) => {
@@ -67,6 +69,7 @@ test.describe('Offline Indicator', () => {
   test('offline banner should have correct message', async ({ page }) => {
     const banner = page.locator('#offlineBanner');
     const text = await banner.textContent();
-    expect(text).toContain('offline');
+    // Banner text can be "offline" or "Reconnecting" depending on state
+    expect(text.toLowerCase()).toMatch(/offline|reconnect/i);
   });
 });

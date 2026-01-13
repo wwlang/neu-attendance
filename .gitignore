@@ -5,6 +5,7 @@ node_modules/
 coverage/
 playwright-report/
 test-results/
+.playwright-mcp/
 
 # OS files
 .DS_Store
