@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Attendance - NEU</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .code-display { font-family: 'Courier New', monospace; letter-spacing: 0.3em; }
+    @media print { .no-print { display: none !important; } .print-only { display: block !important; } }
+    .print-only { display: none; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+
+<div id="app" class="p-4 max-w-4xl mx-auto">
+  <div class="flex items-center justify-center min-h-screen">
+    <div class="text-center">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+      <p class="text-gray-600">Loading...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAubMSBm8SMIyxFnTIpzAx73F4cZJhA9fU",
+  authDomain: "neu-attendance.firebaseapp.com",
+  databaseURL: "https://neu-attendance-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "neu-attendance",
+  storageBucket: "neu-attendance.firebasestorage.app",
+  messagingSenderId: "330504462930",
+  appId: "1:330504462930:web:44bb4a75740935d379b58b"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const CODE_REFRESH_SECONDS = 120;
+const CODE_GRACE_PERIOD = 60;
+
+let state = {
+  mode: null,
+  session: null,
+  currentCode: '',
+  timeLeft: CODE_REFRESH_SECONDS,
+  attendance: [],
+  failedAttempts: [],
+  teacherLocation: null,
+  studentLocation: null,
+  locationError: null,
+  deviceId: null,
+  codeInterval: null,
+  attendanceListener: null,
+  failedListener: null,
+  showFailed: true
+};
+
+function getBaseUrl() {
+  return window.location.href.split('?')[0].split('#')[0];
+}
+
+function getUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  return { mode: params.get('mode') };
+}
+
+function generateCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+async function generateDeviceId() {
+  const components = [
+    navigator.userAgent,
+    navigator.language,
+    screen.width + 'x' + screen.height,
+    screen.colorDepth,
+    new Date().getTimezoneOffset(),
+    navigator.hardwareConcurrency || 'unknown',
+    navigator.platform
+  ];
+  const str = components.join('|');
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return 'DEV-' + Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+}
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180;
+  const dl = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error('Geolocation not supported')); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+      err => reject(err),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function render() {
+  const app = document.getElementById('app');
+  if (!state.mode) { app.innerHTML = renderModeSelection(); }
+  else if (state.mode === 'teacher') { app.innerHTML = renderTeacherView(); if (state.session && state.currentCode) generateQRCodes(); }
+  else if (state.mode === 'student') { app.innerHTML = renderStudentView(); }
+}
+
+function renderModeSelection() {
+  return `
+    <div class="flex items-center justify-center min-h-screen">
+      <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Quick Attendance</h1>
+        <p class="text-gray-500 text-center mb-8">NEU Geolocation-verified System</p>
+        <div class="space-y-4">
+          <button onclick="setMode('teacher')" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">👨‍🏫 I'm the Instructor</button>
+          <button onclick="setMode('student')" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors">🎓 I'm a Student</button>
+        </div>
+        <div class="mt-8 pt-6 border-t border-gray-200">
+          <p class="text-sm text-gray-500 text-center mb-4">Or scan a QR code:</p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="text-center"><div id="qr-teacher" class="bg-indigo-50 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 mt-2">Instructor</p></div>
+            <div class="text-center"><div id="qr-student" class="bg-emerald-50 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 mt-2">Student</p></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTeacherView() {
+  if (!state.session) {
+    return `
+      <div class="pt-8">
+        <button onclick="setMode(null)" class="mb-4 text-indigo-600 hover:text-indigo-800 font-medium no-print">← Back</button>
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-6">Start Attendance Session</h2>
+          <div class="space-y-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Class Name</label><input type="text" id="className" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Classroom Radius: <span id="radiusValue">50</span>m</label><input type="range" id="radius" min="20" max="200" value="50" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 mt-1">Students must be within this distance</p></div>
+            <div id="locationStatus" class="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">📍 Your location will be captured when you start</div>
+            <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-xl p-8 mt-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">📱 QR Codes for Class</h3>
+          <p class="text-sm text-gray-500 mb-4">Print or display these:</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="text-center p-4 border-2 border-dashed border-emerald-300 rounded-xl"><div id="qr-student-large" class="inline-block bg-white p-2"></div><p class="font-semibold text-emerald-700 mt-2">Student Check-in</p></div>
+            <div class="text-center p-4 border-2 border-dashed border-indigo-300 rounded-xl"><div id="qr-teacher-large" class="inline-block bg-white p-2"></div><p class="font-semibold text-indigo-700 mt-2">Instructor Panel</p></div>
+          </div>
+          <button onclick="window.print()" class="mt-4 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium no-print">🖨️ Print QR Codes</button>
+        </div>
+      </div>`;
+  }
+  
+  return `
+    <div class="pt-8 space-y-6">
+      <div class="flex justify-between items-center no-print">
+        <h2 class="text-xl font-bold text-gray-800">${state.session.className}</h2>
+        <button onclick="endSession()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium">End Session</button>
+      </div>
+      
+      <!-- Code Display -->
+      <div class="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <p class="text-gray-500 mb-2">Current Code</p>
+        <div class="code-display text-6xl md:text-8xl font-bold text-indigo-600 mb-4">${state.currentCode}</div>
+        <div class="flex items-center justify-center gap-2 text-gray-500 mb-6">
+          <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <span>New code in <strong>${formatTime(state.timeLeft)}</strong></span>
+        </div>
+        <div class="bg-emerald-50 rounded-xl p-6 inline-block">
+          <p class="text-emerald-700 font-semibold mb-3">📱 Scan to Check In</p>
+          <div id="qr-student-checkin" class="bg-white p-3 rounded-lg inline-block"></div>
+        </div>
+      </div>
+      
+      <!-- Stats Summary -->
+      <div class="grid grid-cols-2 gap-4 no-print">
+        <div class="bg-emerald-50 rounded-xl p-4 text-center">
+          <p class="text-3xl font-bold text-emerald-700">${state.attendance.length}</p>
+          <p class="text-sm text-emerald-600">Checked In</p>
+        </div>
+        <div class="bg-amber-50 rounded-xl p-4 text-center">
+          <p class="text-3xl font-bold text-amber-700">${state.failedAttempts.length}</p>
+          <p class="text-sm text-amber-600">Failed Attempts</p>
+        </div>
+      </div>
+      
+      <!-- Attendance List -->
+      <div class="bg-white rounded-2xl shadow-xl p-6 no-print">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-800">✅ Attendance</h3>
+          <button onclick="exportCSV()" class="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium text-sm ${state.attendance.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">📥 Export CSV</button>
+        </div>
+        ${state.attendance.length === 0 ? '<p class="text-gray-400 text-center py-6">Waiting for students...</p>' : `
+          <div class="overflow-x-auto max-h-64 overflow-y-auto">
+            <table class="w-full text-sm">
+              <thead class="sticky top-0 bg-white">
+                <tr class="border-b">
+                  <th class="text-left py-2 text-gray-500 font-medium">#</th>
+                  <th class="text-left py-2 text-gray-500 font-medium">Student ID</th>
+                  <th class="text-left py-2 text-gray-500 font-medium">Name</th>
+                  <th class="text-left py-2 text-gray-500 font-medium">Email</th>
+                  <th class="text-left py-2 text-gray-500 font-medium">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.attendance.map((a, i) => `
+                  <tr class="border-b border-gray-100 ${i === state.attendance.length - 1 ? 'bg-emerald-50' : ''}">
+                    <td class="py-2 text-gray-400">${i + 1}</td>
+                    <td class="py-2 font-mono">${a.studentId}</td>
+                    <td class="py-2">${a.studentName}</td>
+                    <td class="py-2 text-gray-500 text-xs">${a.email || ''}</td>
+                    <td class="py-2 text-gray-500">${new Date(a.timestamp).toLocaleTimeString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+      
+      <!-- Failed Attempts -->
+      <div class="bg-white rounded-2xl shadow-xl p-6 no-print border-l-4 border-amber-400">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-800">⚠️ Failed Attempts</h3>
+          <button onclick="state.showFailed = !state.showFailed; render();" class="text-sm text-gray-500 hover:text-gray-700">
+            ${state.showFailed ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        ${!state.showFailed ? '' : state.failedAttempts.length === 0 ? '<p class="text-gray-400 text-center py-4">No failed attempts</p>' : `
+          <p class="text-xs text-gray-500 mb-3">Students who tried to check in but failed verification. You can manually approve if appropriate.</p>
+          <div class="space-y-3 max-h-80 overflow-y-auto">
+            ${state.failedAttempts.map((f, i) => `
+              <div class="border border-amber-200 rounded-lg p-4 bg-amber-50">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-semibold text-gray-800">${f.studentName}</span>
+                      <span class="font-mono text-sm text-gray-500">${f.studentId}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-2">${f.email || 'No email'}</p>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                      <span class="px-2 py-1 bg-red-100 text-red-700 rounded">${f.reason}</span>
+                      <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">Distance: ${f.distance}m</span>
+                      <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">Allowed: ${f.allowedRadius}m</span>
+                      <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">${new Date(f.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Device: ${f.deviceId}</p>
+                  </div>
+                  <button onclick="approveStudent('${f.firebaseKey}')" class="ml-4 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
+                    ✓ Approve
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    </div>
+    
+    <!-- Print version -->
+    <div class="print-only p-8">
+      <h1 class="text-2xl font-bold mb-2">${state.session.className}</h1>
+      <p class="text-gray-600 mb-4">${new Date().toLocaleDateString()} - ${state.attendance.length} students</p>
+      <table class="w-full text-sm border-collapse">
+        <thead><tr class="border-b-2"><th class="text-left py-2">#</th><th class="text-left py-2">Student ID</th><th class="text-left py-2">Name</th><th class="text-left py-2">Email</th><th class="text-left py-2">Time</th></tr></thead>
+        <tbody>${state.attendance.map((a, i) => `<tr class="border-b"><td class="py-1">${i + 1}</td><td class="py-1">${a.studentId}</td><td class="py-1">${a.studentName}</td><td class="py-1">${a.email || ''}</td><td class="py-1">${new Date(a.timestamp).toLocaleTimeString()}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderStudentView() {
+  const locDisplay = state.studentLocation 
+    ? `${state.studentLocation.lat.toFixed(6)}, ${state.studentLocation.lng.toFixed(6)}` 
+    : 'Acquiring...';
+  const accuracyDisplay = state.studentLocation && state.studentLocation.accuracy 
+    ? `±${Math.round(state.studentLocation.accuracy)}m` 
+    : '';
+    
+  return `
+    <div class="flex items-center justify-center min-h-screen py-8">
+      <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <button onclick="setMode(null)" class="mb-4 text-indigo-600 hover:text-indigo-800 font-medium">← Back</button>
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">Mark Attendance</h2>
+        <p class="text-gray-500 text-sm mb-6">Enter your details and the code shown by your instructor</p>
+        <div id="studentMessage"></div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Student Number <span class="text-red-500">*</span></label>
+            <input type="text" id="studentId" placeholder="e.g., 11223344" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Full Name <span class="text-red-500">*</span></label>
+            <input type="text" id="studentName" placeholder="e.g., Nguyen Van A" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
+            <input type="email" id="studentEmail" placeholder="e.g., student@st.neu.edu.vn" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Attendance Code <span class="text-red-500">*</span></label>
+            <input type="text" id="enteredCode" placeholder="XXXXXX" maxlength="6" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-center code-display text-3xl uppercase tracking-widest" oninput="this.value = this.value.toUpperCase()">
+          </div>
+          
+          <!-- Auto-populated device info -->
+          <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Device Information (auto-detected)</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Device ID</label>
+                <div class="px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono text-gray-700">${state.deviceId || 'Loading...'}</div>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Accuracy</label>
+                <div class="px-3 py-2 bg-white border border-gray-200 rounded text-sm text-gray-700">${accuracyDisplay || 'Pending...'}</div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Your Location (Lat, Lng)</label>
+              <div class="px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono text-gray-700 ${state.studentLocation ? 'text-emerald-700' : state.locationError ? 'text-red-600' : 'text-yellow-600'}">
+                ${state.locationError ? '❌ ' + state.locationError : (state.studentLocation ? '✓ ' + locDisplay : '📍 ' + locDisplay)}
+              </div>
+            </div>
+            ${state.studentLocation ? '' : `<button onclick="acquireStudentLocation()" class="w-full py-2 px-3 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded text-sm font-medium">🔄 Retry Location</button>`}
+          </div>
+          
+          <button onclick="submitAttendance()" id="submitBtn" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" ${!state.studentLocation ? 'disabled' : ''}>✓ Submit Attendance</button>
+          <p class="text-xs text-gray-400 text-center">Your location and device ID are recorded to verify physical presence.</p>
+        </div>
+      </div>
+    </div>`;
+}
+
+function setMode(mode) {
+  state.mode = mode; state.session = null; state.attendance = []; state.failedAttempts = []; state.studentLocation = null; state.locationError = null;
+  const url = new URL(window.location);
+  if (mode) { url.searchParams.set('mode', mode); } else { url.searchParams.delete('mode'); }
+  window.history.pushState({}, '', url);
+  if (state.codeInterval) { clearInterval(state.codeInterval); state.codeInterval = null; }
+  if (state.attendanceListener) { state.attendanceListener(); state.attendanceListener = null; }
+  if (state.failedListener) { state.failedListener(); state.failedListener = null; }
+  render();
+  if (!mode) setTimeout(generateModeQRCodes, 100);
+  if (mode === 'student') { acquireStudentLocation(); initDeviceId(); }
+  if (mode === 'teacher' && !state.session) setTimeout(generateSetupQRCodes, 100);
+}
+
+async function initDeviceId() {
+  state.deviceId = await generateDeviceId();
+  render();
+}
+
+function generateModeQRCodes() {
+  const baseUrl = getBaseUrl();
+  const tc = document.getElementById('qr-teacher'), sc = document.getElementById('qr-student');
+  if (tc) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=teacher`, { width: 80 }, (e, c) => { if (!e) { tc.innerHTML = ''; tc.appendChild(c); } });
+  if (sc) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=student`, { width: 80 }, (e, c) => { if (!e) { sc.innerHTML = ''; sc.appendChild(c); } });
+}
+
+function generateSetupQRCodes() {
+  const baseUrl = getBaseUrl();
+  const sl = document.getElementById('qr-student-large'), tl = document.getElementById('qr-teacher-large');
+  if (sl) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=student`, { width: 150 }, (e, c) => { if (!e) { sl.innerHTML = ''; sl.appendChild(c); } });
+  if (tl) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=teacher`, { width: 150 }, (e, c) => { if (!e) { tl.innerHTML = ''; tl.appendChild(c); } });
+}
+
+function generateQRCodes() {
+  const baseUrl = getBaseUrl();
+  const sc = document.getElementById('qr-student-checkin');
+  if (sc) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=student`, { width: 180 }, (e, c) => { if (!e) { sc.innerHTML = ''; sc.appendChild(c); } });
+}
+
+async function acquireStudentLocation() {
+  state.locationError = null;
+  state.studentLocation = null;
+  render();
+  try { 
+    state.studentLocation = await getLocation(); 
+    state.locationError = null; 
+  }
+  catch (err) { 
+    state.locationError = 'Enable location access and tap Retry'; 
+    state.studentLocation = null; 
+  }
+  render();
+}
+
+async function startSession() {
+  const className = document.getElementById('className').value.trim();
+  const radius = parseInt(document.getElementById('radius').value);
+  if (!className) { alert('Please enter a class name'); return; }
+  const btn = document.getElementById('startBtn');
+  btn.disabled = true; btn.textContent = 'Getting location...';
+  try {
+    const location = await getLocation();
+    state.teacherLocation = location;
+    const sessionId = Date.now().toString(36), code = generateCode();
+    const session = { id: sessionId, className, location, radius, code, codeGeneratedAt: Date.now(), createdAt: new Date().toISOString() };
+    await db.ref('sessions/' + sessionId).set(session);
+    await db.ref('activeSession').set(sessionId);
+    state.session = session; state.currentCode = code; state.timeLeft = CODE_REFRESH_SECONDS;
+    
+    // Code rotation interval
+    state.codeInterval = setInterval(async () => {
+      state.timeLeft--;
+      if (state.timeLeft <= 0) {
+        const newCode = generateCode();
+        state.currentCode = newCode; state.timeLeft = CODE_REFRESH_SECONDS;
+        state.session.code = newCode; state.session.codeGeneratedAt = Date.now();
+        await db.ref('sessions/' + state.session.id).update({ code: newCode, codeGeneratedAt: Date.now() });
+      }
+      render();
+    }, 1000);
+    
+    // Listen for attendance
+    state.attendanceListener = db.ref('attendance/' + sessionId).on('value', snapshot => {
+      const data = snapshot.val();
+      state.attendance = data ? Object.values(data).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) : [];
+      render();
+    });
+    
+    // Listen for failed attempts
+    state.failedListener = db.ref('failed/' + sessionId).on('value', snapshot => {
+      const data = snapshot.val();
+      if (data) {
+        state.failedAttempts = Object.entries(data).map(([key, val]) => ({ ...val, firebaseKey: key }))
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      } else {
+        state.failedAttempts = [];
+      }
+      render();
+    });
+    
+    render();
+  } catch (err) {
+    alert('Error: ' + err.message + '\n\nPlease enable location access.');
+    btn.disabled = false; btn.textContent = 'Start Session';
+  }
+}
+
+async function endSession() {
+  if (!confirm('End this session?')) return;
+  if (state.codeInterval) { clearInterval(state.codeInterval); state.codeInterval = null; }
+  if (state.attendanceListener) { db.ref('attendance/' + state.session.id).off('value', state.attendanceListener); state.attendanceListener = null; }
+  if (state.failedListener) { db.ref('failed/' + state.session.id).off('value', state.failedListener); state.failedListener = null; }
+  await db.ref('activeSession').remove();
+  state.session = null; state.currentCode = '';
+  render(); setTimeout(generateSetupQRCodes, 100);
+}
+
+async function approveStudent(firebaseKey) {
+  if (!state.session) return;
+  
+  try {
+    // Get the failed attempt data
+    const snapshot = await db.ref('failed/' + state.session.id + '/' + firebaseKey).once('value');
+    const failedData = snapshot.val();
+    
+    if (!failedData) {
+      alert('Record not found');
+      return;
+    }
+    
+    // Check if student already in attendance
+    const existingSnapshot = await db.ref('attendance/' + state.session.id)
+      .orderByChild('studentId')
+      .equalTo(failedData.studentId)
+      .once('value');
+    
+    if (existingSnapshot.exists()) {
+      alert('This student is already in the attendance list.');
+      // Remove from failed
+      await db.ref('failed/' + state.session.id + '/' + firebaseKey).remove();
+      return;
+    }
+    
+    // Add to attendance
+    await db.ref('attendance/' + state.session.id).push({
+      studentId: failedData.studentId,
+      studentName: failedData.studentName,
+      email: failedData.email,
+      deviceId: failedData.deviceId,
+      location: failedData.location,
+      distance: failedData.distance,
+      timestamp: new Date().toISOString(),
+      manuallyApproved: true,
+      originalFailReason: failedData.reason
+    });
+    
+    // Remove from failed
+    await db.ref('failed/' + state.session.id + '/' + firebaseKey).remove();
+    
+  } catch (err) {
+    alert('Error approving student: ' + err.message);
+  }
+}
+
+async function submitAttendance() {
+  const studentId = document.getElementById('studentId').value.trim();
+  const studentName = document.getElementById('studentName').value.trim();
+  const studentEmail = document.getElementById('studentEmail').value.trim();
+  const enteredCode = document.getElementById('enteredCode').value.trim().toUpperCase();
+  const msgDiv = document.getElementById('studentMessage');
+  
+  if (!studentId || !studentName || !studentEmail || !enteredCode) { 
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">⚠️ Please fill in all fields</div>'; 
+    return; 
+  }
+  if (enteredCode.length !== 6) { 
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">⚠️ Code must be 6 characters</div>'; 
+    return; 
+  }
+  if (!studentEmail.includes('@')) {
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">⚠️ Please enter a valid email address</div>';
+    return;
+  }
+  if (!state.studentLocation) { 
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">⚠️ Location not available. Please enable location access and tap Retry.</div>'; 
+    return; 
+  }
+  
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  
+  try {
+    const activeSnapshot = await db.ref('activeSession').once('value');
+    const activeSessionId = activeSnapshot.val();
+    if (!activeSessionId) throw new Error('No active session. Ask your instructor to start one.');
+    
+    const sessionSnapshot = await db.ref('sessions/' + activeSessionId).once('value');
+    const session = sessionSnapshot.val();
+    if (!session) throw new Error('Session not found.');
+    
+    // Calculate distance first (needed for failed log)
+    const distance = getDistance(state.studentLocation.lat, state.studentLocation.lng, session.location.lat, session.location.lng);
+    
+    // Prepare base record for potential failed log
+    const baseRecord = {
+      studentId,
+      studentName,
+      email: studentEmail,
+      deviceId: state.deviceId,
+      location: {
+        lat: state.studentLocation.lat,
+        lng: state.studentLocation.lng,
+        accuracy: state.studentLocation.accuracy
+      },
+      distance: Math.round(distance),
+      allowedRadius: session.radius,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Check code
+    if (enteredCode !== session.code) {
+      await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: 'Invalid code' });
+      throw new Error('Invalid code. Check the code on screen. Your attempt has been logged.');
+    }
+    
+    // Check code freshness
+    const codeAge = Date.now() - session.codeGeneratedAt;
+    if (codeAge > (CODE_REFRESH_SECONDS + CODE_GRACE_PERIOD) * 1000) {
+      await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: 'Expired code' });
+      throw new Error('Code expired. Enter the new code. Your attempt has been logged.');
+    }
+    
+    // Check location
+    if (distance > session.radius) {
+      await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: `Too far: ${Math.round(distance)}m` });
+      throw new Error(`You're ${Math.round(distance)}m away (limit: ${session.radius}m). Your attempt has been logged for instructor review.`);
+    }
+    
+    // Check for duplicate by student ID
+    const existingSnapshot = await db.ref('attendance/' + activeSessionId).orderByChild('studentId').equalTo(studentId).once('value');
+    if (existingSnapshot.exists()) throw new Error('This Student Number has already checked in.');
+    
+    // Check for duplicate by device ID
+    const deviceSnapshot = await db.ref('attendance/' + activeSessionId).orderByChild('deviceId').equalTo(state.deviceId).once('value');
+    if (deviceSnapshot.exists()) throw new Error('This device has already been used to check in.');
+    
+    // Success - add to attendance
+    await db.ref('attendance/' + activeSessionId).push({ 
+      ...baseRecord,
+      manuallyApproved: false
+    });
+    
+    msgDiv.innerHTML = `<div class="mb-4 p-4 bg-emerald-50 text-emerald-700 rounded-lg"><p class="font-semibold text-lg">✅ Success!</p><p class="text-sm mt-1">Attendance recorded for <strong>${session.className}</strong></p><p class="text-xs mt-2">You can close this page now.</p></div>`;
+    document.getElementById('enteredCode').value = '';
+    btn.textContent = '✓ Submitted'; 
+  } catch (err) {
+    msgDiv.innerHTML = `<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">❌ ${err.message}</div>`;
+    btn.textContent = '✓ Submit Attendance'; btn.disabled = false;
+  }
+}
+
+function exportCSV() {
+  if (!state.attendance.length || !state.session) return;
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Manually Approved', 'Timestamp'];
+  const rows = state.attendance.map((a, i) => [
+    i + 1, 
+    a.studentId, 
+    a.studentName, 
+    a.email || '',
+    a.deviceId || '',
+    a.location ? a.location.lat : '',
+    a.location ? a.location.lng : '',
+    a.distance,
+    a.manuallyApproved ? 'Yes' : 'No',
+    a.timestamp
+  ]);
+  const BOM = '\uFEFF';
+  const csv = BOM + [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `attendance_${state.session.className.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+function init() {
+  const params = getUrlParams();
+  if (params.mode === 'teacher' || params.mode === 'student') {
+    state.mode = params.mode; render();
+    if (params.mode === 'student') { acquireStudentLocation(); initDeviceId(); }
+    if (params.mode === 'teacher') setTimeout(generateSetupQRCodes, 100);
+  } else { render(); setTimeout(generateModeQRCodes, 100); }
+}
+
+window.addEventListener('popstate', () => { const params = getUrlParams(); state.mode = params.mode || null; render(); });
+init();
+</script>
+</body>
+</html>
