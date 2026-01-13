@@ -11,6 +11,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - CSV export (attendance + failed attempts)
 - Dark mode support
 - Instructor PIN protection
+- **Unit and integration test coverage**
 
 ## Phase 1: Stability & Polish (Complete)
 
@@ -34,6 +35,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P2-07 | Dark mode support | both | **Complete** (2026-01-13) |
 | P2-08 | Export failed attempts to CSV | instructor-attendance-session | **Complete** (2026-01-13) |
 | P2-09 | Countdown audio warning | instructor-attendance-session | **Complete** (2026-01-13) |
+| P2-10 | Unit and integration test coverage | both | **Complete** (2026-01-13) |
 
 ## Phase 3: Security & Compliance
 
@@ -71,8 +73,10 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P2-07 | Dark mode support | 2026-01-13 |
 | P2-08 | Export failed attempts | 2026-01-13 |
 | P2-09 | Countdown audio warning | 2026-01-13 |
+| P2-10 | Unit and integration test coverage | 2026-01-13 |
 
 ## Evidence
 
 - PRD validation: `.claude/evidence/prd-validation-2026-01-13.yaml`
 - Firebase rules: `docs/firebase-security-rules.md`
+- Test coverage: `tests/` directory with 46 unit tests and 48 integration tests

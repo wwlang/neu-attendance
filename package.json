@@ -1,0 +1,40 @@
+{
+  "name": "neu-attendance",
+  "version": "1.0.0",
+  "description": "Geolocation-verified attendance system for university classrooms.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:all": "npm run test:unit && npm run test:e2e"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wwlang/neu-attendance.git"
+  },
+  "keywords": [
+    "attendance",
+    "geolocation",
+    "education"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/wwlang/neu-attendance/issues"
+  },
+  "homepage": "https://github.com/wwlang/neu-attendance#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
