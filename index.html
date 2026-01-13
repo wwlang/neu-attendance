@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,15 +8,25 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {}
+      }
+    }
+  </script>
   <style>
     .code-display { font-family: 'Courier New', monospace; letter-spacing: 0.3em; }
     @media print { .no-print { display: none !important; } .print-only { display: block !important; } }
     .print-only { display: none; }
     .offline-banner { animation: pulse 2s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    .late-badge { animation: latePulse 2s infinite; }
+    @keyframes latePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
   </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
 
 <!-- Offline Banner -->
 <div id="offlineBanner" class="hidden fixed top-0 left-0 right-0 bg-amber-500 text-white text-center py-2 text-sm font-medium z-50 offline-banner no-print">
@@ -26,8 +36,8 @@
 <div id="app" class="p-4 max-w-4xl mx-auto">
   <div class="flex items-center justify-center min-h-screen">
     <div class="text-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-      <p class="text-gray-600">Loading...</p>
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
+      <p class="text-gray-600 dark:text-gray-300">Loading...</p>
     </div>
   </div>
 </div>
@@ -49,6 +59,10 @@ const db = firebase.database();
 const CODE_REFRESH_SECONDS = 120;
 const CODE_GRACE_PERIOD = 60;
 const SESSION_STORAGE_KEY = 'neu_attendance_session';
+const DARK_MODE_KEY = 'neu_attendance_dark_mode';
+const INSTRUCTOR_PIN = '230782';
+const DEFAULT_LATE_THRESHOLD_MINUTES = 10;
+const COUNTDOWN_WARNING_SECONDS = 10;
 
 let state = {
   mode: null,
@@ -67,8 +81,116 @@ let state = {
   sessionListener: null,
   showFailed: true,
   isOnline: navigator.onLine,
-  isRecovering: false
+  isRecovering: false,
+  darkMode: false,
+  pinVerified: false,
+  lateThreshold: DEFAULT_LATE_THRESHOLD_MINUTES,
+  sessionHistory: [],
+  showHistory: false,
+  selectedFailedAttempts: new Set(),
+  audioContext: null,
+  lastWarningTime: 0
 };
+
+// Initialize audio context for sounds
+function initAudioContext() {
+  if (!state.audioContext) {
+    state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return state.audioContext;
+}
+
+// Play success beep sound
+function playSuccessSound() {
+  try {
+    const ctx = initAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.frequency.value = 880; // A5 note
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.3);
+  } catch (e) {
+    console.warn('Could not play success sound:', e);
+  }
+}
+
+// Play countdown warning beep
+function playWarningBeep() {
+  try {
+    const ctx = initAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.frequency.value = 440; // A4 note
+    oscillator.type = 'square';
+
+    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.1);
+  } catch (e) {
+    console.warn('Could not play warning beep:', e);
+  }
+}
+
+// Trigger vibration
+function triggerVibration(pattern = [200]) {
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  } catch (e) {
+    console.warn('Vibration not supported:', e);
+  }
+}
+
+// Dark mode functions
+function loadDarkMode() {
+  try {
+    const saved = localStorage.getItem(DARK_MODE_KEY);
+    if (saved !== null) {
+      state.darkMode = saved === 'true';
+    } else {
+      // Check system preference
+      state.darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    applyDarkMode();
+  } catch (e) {
+    console.warn('Could not load dark mode preference:', e);
+  }
+}
+
+function applyDarkMode() {
+  if (state.darkMode) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
+
+function toggleDarkMode() {
+  state.darkMode = !state.darkMode;
+  applyDarkMode();
+  try {
+    localStorage.setItem(DARK_MODE_KEY, state.darkMode.toString());
+  } catch (e) {
+    console.warn('Could not save dark mode preference:', e);
+  }
+  render();
+}
 
 // Offline detection
 function updateOnlineStatus() {
@@ -77,7 +199,6 @@ function updateOnlineStatus() {
   if (banner) {
     banner.classList.toggle('hidden', state.isOnline);
   }
-  // Add padding to app when banner is visible
   const app = document.getElementById('app');
   if (app) {
     app.style.paddingTop = state.isOnline ? '' : '40px';
@@ -91,7 +212,6 @@ window.addEventListener('offline', updateOnlineStatus);
 db.ref('.info/connected').on('value', (snapshot) => {
   const connected = snapshot.val();
   if (connected === false && state.isOnline) {
-    // Browser is online but Firebase is disconnected
     const banner = document.getElementById('offlineBanner');
     if (banner) {
       banner.classList.remove('hidden');
@@ -111,7 +231,7 @@ function getBaseUrl() {
 
 function getUrlParams() {
   const params = new URLSearchParams(window.location.search);
-  return { mode: params.get('mode') };
+  return { mode: params.get('mode'), code: params.get('code') };
 }
 
 function generateCode() {
@@ -166,6 +286,14 @@ function formatTime(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// Check if a check-in is late
+function isLateCheckIn(checkInTimestamp, sessionStartTimestamp, thresholdMinutes) {
+  const checkInTime = new Date(checkInTimestamp).getTime();
+  const sessionStart = new Date(sessionStartTimestamp).getTime();
+  const thresholdMs = thresholdMinutes * 60 * 1000;
+  return (checkInTime - sessionStart) > thresholdMs;
+}
+
 // Session persistence for recovery
 function saveSessionToStorage(sessionId) {
   try {
@@ -183,7 +311,6 @@ function loadSessionFromStorage() {
     const data = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (data) {
       const parsed = JSON.parse(data);
-      // Only use if saved within last 4 hours
       if (Date.now() - parsed.savedAt < 4 * 60 * 60 * 1000) {
         return parsed.sessionId;
       }
@@ -209,29 +336,92 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Dark mode toggle button HTML
+function renderDarkModeToggle() {
+  return `
+    <button onclick="toggleDarkMode()" class="fixed top-4 right-4 z-40 p-2 rounded-full bg-white dark:bg-gray-700 shadow-lg hover:shadow-xl transition-all no-print" title="Toggle dark mode">
+      ${state.darkMode
+        ? '<svg class="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path></svg>'
+        : '<svg class="w-6 h-6 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>'
+      }
+    </button>`;
+}
+
 function render() {
   const app = document.getElementById('app');
-  if (!state.mode) { app.innerHTML = renderModeSelection(); }
-  else if (state.mode === 'teacher') { app.innerHTML = renderTeacherView(); if (state.session && state.currentCode) generateQRCodes(); }
-  else if (state.mode === 'student') { app.innerHTML = renderStudentView(); }
+  let content = renderDarkModeToggle();
+
+  if (!state.mode) {
+    content += renderModeSelection();
+  } else if (state.mode === 'teacher') {
+    if (!state.pinVerified) {
+      content += renderPinEntry();
+    } else {
+      content += renderTeacherView();
+      if (state.session && state.currentCode) {
+        setTimeout(generateQRCodes, 100);
+      }
+    }
+  } else if (state.mode === 'student') {
+    content += renderStudentView();
+  }
+
+  app.innerHTML = content;
   updateOnlineStatus();
+}
+
+function renderPinEntry() {
+  return `
+    <div class="flex items-center justify-center min-h-screen">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back</button>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Instructor Access</h2>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your PIN to access instructor mode</p>
+        <div id="pinMessage"></div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN</label>
+            <input type="password" id="instructorPin" maxlength="10" placeholder="Enter PIN"
+              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white text-center text-2xl tracking-widest"
+              onkeypress="if(event.key === 'Enter') verifyPin()">
+          </div>
+          <button onclick="verifyPin()" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">
+            Access Instructor Mode
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function verifyPin() {
+  const enteredPin = document.getElementById('instructorPin').value;
+  const msgDiv = document.getElementById('pinMessage');
+
+  if (enteredPin === INSTRUCTOR_PIN) {
+    state.pinVerified = true;
+    render();
+    tryRecoverSession();
+    setTimeout(generateSetupQRCodes, 100);
+  } else {
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Incorrect PIN</div>';
+  }
 }
 
 function renderModeSelection() {
   return `
     <div class="flex items-center justify-center min-h-screen">
-      <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Quick Attendance</h1>
-        <p class="text-gray-500 text-center mb-8">NEU Geolocation-verified System</p>
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <h1 class="text-3xl font-bold text-center text-gray-800 dark:text-white mb-2">Quick Attendance</h1>
+        <p class="text-gray-500 dark:text-gray-400 text-center mb-8">NEU Geolocation-verified System</p>
         <div class="space-y-4">
           <button onclick="setMode('teacher')" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">I'm the Instructor</button>
           <button onclick="setMode('student')" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors">I'm a Student</button>
         </div>
-        <div class="mt-8 pt-6 border-t border-gray-200">
-          <p class="text-sm text-gray-500 text-center mb-4">Or scan a QR code:</p>
+        <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <p class="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">Or scan a QR code:</p>
           <div class="grid grid-cols-2 gap-4">
-            <div class="text-center"><div id="qr-teacher" class="bg-indigo-50 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 mt-2">Instructor</p></div>
-            <div class="text-center"><div id="qr-student" class="bg-emerald-50 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 mt-2">Student</p></div>
+            <div class="text-center"><div id="qr-teacher" class="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Instructor</p></div>
+            <div class="text-center"><div id="qr-student" class="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Student</p></div>
           </div>
         </div>
       </div>
@@ -243,98 +433,130 @@ function renderTeacherView() {
     return `
       <div class="flex items-center justify-center min-h-screen">
         <div class="text-center">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p class="text-gray-600">Recovering session...</p>
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
+          <p class="text-gray-600 dark:text-gray-300">Recovering session...</p>
         </div>
       </div>`;
+  }
+
+  // Show history view
+  if (state.showHistory) {
+    return renderHistoryView();
   }
 
   if (!state.session) {
     return `
       <div class="pt-8">
-        <button onclick="setMode(null)" class="mb-4 text-indigo-600 hover:text-indigo-800 font-medium no-print">← Back</button>
-        <div class="bg-white rounded-2xl shadow-xl p-8">
-          <h2 class="text-2xl font-bold text-gray-800 mb-6">Start Attendance Session</h2>
+        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back</button>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Start Attendance Session</h2>
+            <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
+              View History
+            </button>
+          </div>
           <div class="space-y-4">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Class Name</label><input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Classroom Radius: <span id="radiusValue">50</span>m</label><input type="range" id="radius" min="20" max="200" value="50" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 mt-1">Students must be within this distance</p></div>
-            <div id="locationStatus" class="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">Your location will be captured when you start</div>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label><input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"></div>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="radiusValue">50</span>m</label><input type="range" id="radius" min="20" max="200" value="50" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="5" max="30" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
+            <div id="locationStatus" class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300">Your location will be captured when you start</div>
             <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
           </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-xl p-8 mt-6">
-          <h3 class="text-lg font-semibold text-gray-800 mb-4">QR Codes for Class</h3>
-          <p class="text-sm text-gray-500 mb-4">Print or display these:</p>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mt-6">
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">QR Codes for Class</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Print or display these:</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="text-center p-4 border-2 border-dashed border-emerald-300 rounded-xl"><div id="qr-student-large" class="inline-block bg-white p-2"></div><p class="font-semibold text-emerald-700 mt-2">Student Check-in</p></div>
-            <div class="text-center p-4 border-2 border-dashed border-indigo-300 rounded-xl"><div id="qr-teacher-large" class="inline-block bg-white p-2"></div><p class="font-semibold text-indigo-700 mt-2">Instructor Panel</p></div>
+            <div class="text-center p-4 border-2 border-dashed border-emerald-300 dark:border-emerald-600 rounded-xl"><div id="qr-student-large" class="inline-block bg-white p-2 rounded"></div><p class="font-semibold text-emerald-700 dark:text-emerald-400 mt-2">Student Check-in</p></div>
+            <div class="text-center p-4 border-2 border-dashed border-indigo-300 dark:border-indigo-600 rounded-xl"><div id="qr-teacher-large" class="inline-block bg-white p-2 rounded"></div><p class="font-semibold text-indigo-700 dark:text-indigo-400 mt-2">Instructor Panel</p></div>
           </div>
-          <button onclick="window.print()" class="mt-4 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium no-print">Print QR Codes</button>
+          <button onclick="window.print()" class="mt-4 w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium no-print">Print QR Codes</button>
         </div>
       </div>`;
   }
 
-  const connectionStatus = state.isOnline ? '' : '<span class="ml-2 px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs">Offline</span>';
+  const connectionStatus = state.isOnline ? '' : '<span class="ml-2 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-xs">Offline</span>';
+  const lateCount = state.attendance.filter(a => a.isLate).length;
+  const onTimeCount = state.attendance.length - lateCount;
+  const hasSelectedFailed = state.selectedFailedAttempts.size > 0;
+  const allFailedSelected = state.failedAttempts.length > 0 && state.selectedFailedAttempts.size === state.failedAttempts.length;
 
   return `
     <div class="pt-8 space-y-6">
       <div class="flex justify-between items-center no-print">
-        <h2 class="text-xl font-bold text-gray-800">${escapeHtml(state.session.className)}${connectionStatus}</h2>
-        <button onclick="endSession()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium">End Session</button>
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white">${escapeHtml(state.session.className)}${connectionStatus}</h2>
+        <div class="flex gap-2">
+          <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
+            History
+          </button>
+          <button onclick="endSession()" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 font-medium">End Session</button>
+        </div>
       </div>
 
       <!-- Code Display -->
-      <div class="bg-white rounded-2xl shadow-xl p-8 text-center">
-        <p class="text-gray-500 mb-2">Current Code</p>
-        <div class="code-display text-6xl md:text-8xl font-bold text-indigo-600 mb-4">${escapeHtml(state.currentCode)}</div>
-        <div class="flex items-center justify-center gap-2 text-gray-500 mb-6">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+        <p class="text-gray-500 dark:text-gray-400 mb-2">Current Code</p>
+        <div class="code-display text-6xl md:text-8xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">${escapeHtml(state.currentCode)}</div>
+        <div class="flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 mb-6">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-          <span>New code in <strong>${formatTime(state.timeLeft)}</strong></span>
+          <span>New code in <strong class="${state.timeLeft <= COUNTDOWN_WARNING_SECONDS ? 'text-red-600 dark:text-red-400' : ''}">${formatTime(state.timeLeft)}</strong></span>
         </div>
-        <div class="bg-emerald-50 rounded-xl p-6 inline-block">
-          <p class="text-emerald-700 font-semibold mb-3">Scan to Check In</p>
+        <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-6 inline-block">
+          <p class="text-emerald-700 dark:text-emerald-400 font-semibold mb-3">Scan to Check In (includes code)</p>
           <div id="qr-student-checkin" class="bg-white p-3 rounded-lg inline-block"></div>
         </div>
       </div>
 
       <!-- Stats Summary -->
-      <div class="grid grid-cols-2 gap-4 no-print">
-        <div class="bg-emerald-50 rounded-xl p-4 text-center">
-          <p class="text-3xl font-bold text-emerald-700">${state.attendance.length}</p>
-          <p class="text-sm text-emerald-600">Checked In</p>
+      <div class="grid grid-cols-3 gap-4 no-print">
+        <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-4 text-center">
+          <p class="text-3xl font-bold text-emerald-700 dark:text-emerald-400">${onTimeCount}</p>
+          <p class="text-sm text-emerald-600 dark:text-emerald-500">On Time</p>
         </div>
-        <div class="bg-amber-50 rounded-xl p-4 text-center">
-          <p class="text-3xl font-bold text-amber-700">${state.failedAttempts.length}</p>
-          <p class="text-sm text-amber-600">Failed Attempts</p>
+        <div class="bg-orange-50 dark:bg-orange-900/30 rounded-xl p-4 text-center">
+          <p class="text-3xl font-bold text-orange-700 dark:text-orange-400">${lateCount}</p>
+          <p class="text-sm text-orange-600 dark:text-orange-500">Late</p>
+        </div>
+        <div class="bg-amber-50 dark:bg-amber-900/30 rounded-xl p-4 text-center">
+          <p class="text-3xl font-bold text-amber-700 dark:text-amber-400">${state.failedAttempts.length}</p>
+          <p class="text-sm text-amber-600 dark:text-amber-500">Failed</p>
         </div>
       </div>
 
       <!-- Attendance List -->
-      <div class="bg-white rounded-2xl shadow-xl p-6 no-print">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 no-print">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-800">Attendance</h3>
-          <button onclick="exportCSV()" class="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium text-sm ${state.attendance.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">Export CSV</button>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Attendance (${state.attendance.length})</h3>
+          <button onclick="exportCSV()" class="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 font-medium text-sm ${state.attendance.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">Export CSV</button>
         </div>
-        ${state.attendance.length === 0 ? '<p class="text-gray-400 text-center py-6">Waiting for students...</p>' : `
+        ${state.attendance.length === 0 ? '<p class="text-gray-400 dark:text-gray-500 text-center py-6">Waiting for students...</p>' : `
           <div class="overflow-x-auto max-h-64 overflow-y-auto">
             <table class="w-full text-sm">
-              <thead class="sticky top-0 bg-white">
-                <tr class="border-b">
-                  <th class="text-left py-2 text-gray-500 font-medium">#</th>
-                  <th class="text-left py-2 text-gray-500 font-medium">Student ID</th>
-                  <th class="text-left py-2 text-gray-500 font-medium">Name</th>
-                  <th class="text-left py-2 text-gray-500 font-medium">Email</th>
-                  <th class="text-left py-2 text-gray-500 font-medium">Time</th>
+              <thead class="sticky top-0 bg-white dark:bg-gray-800">
+                <tr class="border-b dark:border-gray-700">
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">#</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Student ID</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Name</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Email</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 ${state.attendance.map((a, i) => `
-                  <tr class="border-b border-gray-100 ${i === state.attendance.length - 1 ? 'bg-emerald-50' : ''}">
-                    <td class="py-2 text-gray-400">${i + 1}</td>
-                    <td class="py-2 font-mono">${escapeHtml(a.studentId)}</td>
-                    <td class="py-2">${escapeHtml(a.studentName)}</td>
-                    <td class="py-2 text-gray-500 text-xs">${escapeHtml(a.email || '')}</td>
-                    <td class="py-2 text-gray-500">${new Date(a.timestamp).toLocaleTimeString()}</td>
+                  <tr class="border-b border-gray-100 dark:border-gray-700 ${i === state.attendance.length - 1 ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}">
+                    <td class="py-2 text-gray-400 dark:text-gray-500">${i + 1}</td>
+                    <td class="py-2 font-mono text-gray-800 dark:text-gray-200">${escapeHtml(a.studentId)}</td>
+                    <td class="py-2 text-gray-800 dark:text-gray-200">${escapeHtml(a.studentName)}</td>
+                    <td class="py-2 text-gray-500 dark:text-gray-400 text-xs">${escapeHtml(a.email || '')}</td>
+                    <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(a.timestamp).toLocaleTimeString()}</td>
+                    <td class="py-2">
+                      ${a.isLate
+                        ? '<span class="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs font-medium late-badge">Late</span>'
+                        : '<span class="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded text-xs font-medium">On Time</span>'
+                      }
+                      ${a.manuallyApproved ? '<span class="ml-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs">Manual</span>' : ''}
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -344,34 +566,58 @@ function renderTeacherView() {
       </div>
 
       <!-- Failed Attempts -->
-      <div class="bg-white rounded-2xl shadow-xl p-6 no-print border-l-4 border-amber-400">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 no-print border-l-4 border-amber-400 dark:border-amber-500">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-800">Failed Attempts</h3>
-          <button onclick="state.showFailed = !state.showFailed; render();" class="text-sm text-gray-500 hover:text-gray-700">
-            ${state.showFailed ? 'Hide' : 'Show'}
-          </button>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Failed Attempts (${state.failedAttempts.length})</h3>
+          <div class="flex gap-2">
+            ${state.failedAttempts.length > 0 ? `
+              <button onclick="exportFailedCSV()" class="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 text-sm font-medium">
+                Export Failed
+              </button>
+            ` : ''}
+            <button onclick="state.showFailed = !state.showFailed; render();" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+              ${state.showFailed ? 'Hide' : 'Show'}
+            </button>
+          </div>
         </div>
-        ${!state.showFailed ? '' : state.failedAttempts.length === 0 ? '<p class="text-gray-400 text-center py-4">No failed attempts</p>' : `
-          <p class="text-xs text-gray-500 mb-3">Students who tried to check in but failed verification. You can manually approve if appropriate.</p>
+        ${!state.showFailed ? '' : state.failedAttempts.length === 0 ? '<p class="text-gray-400 dark:text-gray-500 text-center py-4">No failed attempts</p>' : `
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Students who tried to check in but failed verification. You can manually approve if appropriate.</p>
+
+          <!-- Bulk Actions -->
+          <div class="flex gap-2 mb-4">
+            <button onclick="toggleSelectAllFailed()" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
+              ${allFailedSelected ? 'Deselect All' : 'Select All'}
+            </button>
+            ${hasSelectedFailed ? `
+              <button onclick="bulkApproveSelected()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
+                Approve Selected (${state.selectedFailedAttempts.size})
+              </button>
+            ` : ''}
+          </div>
+
           <div class="space-y-3 max-h-80 overflow-y-auto">
             ${state.failedAttempts.map((f, i) => `
-              <div class="border border-amber-200 rounded-lg p-4 bg-amber-50">
-                <div class="flex justify-between items-start">
+              <div class="border border-amber-200 dark:border-amber-700 rounded-lg p-4 bg-amber-50 dark:bg-amber-900/20 ${state.selectedFailedAttempts.has(f.firebaseKey) ? 'ring-2 ring-indigo-500' : ''}">
+                <div class="flex items-start gap-3">
+                  <input type="checkbox"
+                    ${state.selectedFailedAttempts.has(f.firebaseKey) ? 'checked' : ''}
+                    onchange="toggleFailedSelection('${f.firebaseKey}')"
+                    class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 dark:border-gray-600 focus:ring-indigo-500">
                   <div class="flex-1">
                     <div class="flex items-center gap-2 mb-1">
-                      <span class="font-semibold text-gray-800">${escapeHtml(f.studentName)}</span>
-                      <span class="font-mono text-sm text-gray-500">${escapeHtml(f.studentId)}</span>
+                      <span class="font-semibold text-gray-800 dark:text-gray-200">${escapeHtml(f.studentName)}</span>
+                      <span class="font-mono text-sm text-gray-500 dark:text-gray-400">${escapeHtml(f.studentId)}</span>
                     </div>
-                    <p class="text-xs text-gray-500 mb-2">${escapeHtml(f.email || 'No email')}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">${escapeHtml(f.email || 'No email')}</p>
                     <div class="flex flex-wrap gap-2 text-xs">
-                      <span class="px-2 py-1 bg-red-100 text-red-700 rounded">${escapeHtml(f.reason)}</span>
-                      <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">Distance: ${f.distance}m</span>
-                      <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">Allowed: ${f.allowedRadius}m</span>
-                      <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">${new Date(f.timestamp).toLocaleTimeString()}</span>
+                      <span class="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded">${escapeHtml(f.reason)}</span>
+                      <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">Distance: ${f.distance}m</span>
+                      <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">Allowed: ${f.allowedRadius}m</span>
+                      <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">${new Date(f.timestamp).toLocaleTimeString()}</span>
                     </div>
-                    <p class="text-xs text-gray-400 mt-1">Device: ${escapeHtml(f.deviceId)}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Device: ${escapeHtml(f.deviceId)}</p>
                   </div>
-                  <button onclick="approveStudent('${f.firebaseKey}')" class="ml-4 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
+                  <button onclick="approveStudent('${f.firebaseKey}')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
                     Approve
                   </button>
                 </div>
@@ -385,11 +631,44 @@ function renderTeacherView() {
     <!-- Print version -->
     <div class="print-only p-8">
       <h1 class="text-2xl font-bold mb-2">${escapeHtml(state.session.className)}</h1>
-      <p class="text-gray-600 mb-4">${new Date().toLocaleDateString()} - ${state.attendance.length} students</p>
+      <p class="text-gray-600 mb-4">${new Date().toLocaleDateString()} - ${state.attendance.length} students (${lateCount} late)</p>
       <table class="w-full text-sm border-collapse">
-        <thead><tr class="border-b-2"><th class="text-left py-2">#</th><th class="text-left py-2">Student ID</th><th class="text-left py-2">Name</th><th class="text-left py-2">Email</th><th class="text-left py-2">Time</th></tr></thead>
-        <tbody>${state.attendance.map((a, i) => `<tr class="border-b"><td class="py-1">${i + 1}</td><td class="py-1">${escapeHtml(a.studentId)}</td><td class="py-1">${escapeHtml(a.studentName)}</td><td class="py-1">${escapeHtml(a.email || '')}</td><td class="py-1">${new Date(a.timestamp).toLocaleTimeString()}</td></tr>`).join('')}</tbody>
+        <thead><tr class="border-b-2"><th class="text-left py-2">#</th><th class="text-left py-2">Student ID</th><th class="text-left py-2">Name</th><th class="text-left py-2">Email</th><th class="text-left py-2">Time</th><th class="text-left py-2">Status</th></tr></thead>
+        <tbody>${state.attendance.map((a, i) => `<tr class="border-b"><td class="py-1">${i + 1}</td><td class="py-1">${escapeHtml(a.studentId)}</td><td class="py-1">${escapeHtml(a.studentName)}</td><td class="py-1">${escapeHtml(a.email || '')}</td><td class="py-1">${new Date(a.timestamp).toLocaleTimeString()}</td><td class="py-1">${a.isLate ? 'Late' : 'On Time'}</td></tr>`).join('')}</tbody>
       </table>
+    </div>`;
+}
+
+function renderHistoryView() {
+  return `
+    <div class="pt-8">
+      <button onclick="state.showHistory = false; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Session History</h2>
+        ${state.sessionHistory.length === 0
+          ? '<p class="text-gray-400 dark:text-gray-500 text-center py-8">No previous sessions found</p>'
+          : `
+            <div class="space-y-4">
+              ${state.sessionHistory.map(session => `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <h3 class="font-semibold text-gray-800 dark:text-white">${escapeHtml(session.className)}</h3>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">${new Date(session.createdAt).toLocaleDateString()} ${new Date(session.createdAt).toLocaleTimeString()}</p>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">${session.attendanceCount || 0}</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">students</p>
+                    </div>
+                  </div>
+                  ${session.lateCount ? `<p class="text-xs text-orange-600 dark:text-orange-400 mt-2">${session.lateCount} late arrivals</p>` : ''}
+                  ${session.endedAt ? `<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ended: ${new Date(session.endedAt).toLocaleTimeString()}</p>` : '<p class="text-xs text-green-500 mt-1">Currently Active</p>'}
+                </div>
+              `).join('')}
+            </div>
+          `
+        }
+      </div>
     </div>`;
 }
 
@@ -401,65 +680,102 @@ function renderStudentView() {
     ? `${Math.round(state.studentLocation.accuracy)}m`
     : '';
   const accuracyWarning = state.studentLocation && state.studentLocation.accuracy > 50
-    ? '<span class="text-amber-600 text-xs ml-1">(poor signal)</span>'
+    ? '<span class="text-amber-600 dark:text-amber-400 text-xs ml-1">(poor signal)</span>'
     : '';
+
+  // Check for code in URL params
+  const urlParams = getUrlParams();
+  const prefillCode = urlParams.code || '';
 
   return `
     <div class="flex items-center justify-center min-h-screen py-8">
-      <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <button onclick="setMode(null)" class="mb-4 text-indigo-600 hover:text-indigo-800 font-medium">← Back</button>
-        <h2 class="text-2xl font-bold text-gray-800 mb-2">Mark Attendance</h2>
-        <p class="text-gray-500 text-sm mb-6">Enter your details and the code shown by your instructor</p>
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back</button>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Mark Attendance</h2>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your details and the code shown by your instructor</p>
         <div id="studentMessage"></div>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Student Number <span class="text-red-500">*</span></label>
-            <input type="text" id="studentId" placeholder="e.g., 11223344" maxlength="20" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student Number <span class="text-red-500">*</span></label>
+            <input type="text" id="studentId" placeholder="e.g., 11223344" maxlength="20" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Full Name <span class="text-red-500">*</span></label>
-            <input type="text" id="studentName" placeholder="e.g., Nguyen Van A" maxlength="100" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name <span class="text-red-500">*</span></label>
+            <input type="text" id="studentName" placeholder="e.g., Nguyen Van A" maxlength="100" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
-            <input type="email" id="studentEmail" placeholder="e.g., student@st.neu.edu.vn" maxlength="100" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span class="text-red-500">*</span></label>
+            <input type="email" id="studentEmail" placeholder="e.g., student@st.neu.edu.vn" maxlength="100" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Attendance Code <span class="text-red-500">*</span></label>
-            <input type="text" id="enteredCode" placeholder="XXXXXX" maxlength="6" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-center code-display text-3xl uppercase tracking-widest" oninput="this.value = this.value.toUpperCase()">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attendance Code <span class="text-red-500">*</span></label>
+            <input type="text" id="enteredCode" placeholder="XXXXXX" maxlength="6" autocomplete="off" value="${escapeHtml(prefillCode)}" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white text-center code-display text-3xl uppercase tracking-widest" oninput="this.value = this.value.toUpperCase()">
+            ${prefillCode ? '<p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Code auto-filled from QR scan</p>' : ''}
           </div>
 
           <!-- Auto-populated device info -->
-          <div class="bg-gray-50 rounded-lg p-4 space-y-3">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Device Information (auto-detected)</p>
+          <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-3">
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Device Information (auto-detected)</p>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs text-gray-500 mb-1">Device ID</label>
-                <div class="px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono text-gray-700">${state.deviceId || 'Loading...'}</div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Device ID</label>
+                <div class="px-3 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-sm font-mono text-gray-700 dark:text-gray-200">${state.deviceId || 'Loading...'}</div>
               </div>
               <div>
-                <label class="block text-xs text-gray-500 mb-1">Accuracy</label>
-                <div class="px-3 py-2 bg-white border border-gray-200 rounded text-sm text-gray-700">${accuracyDisplay ? '±' + accuracyDisplay : 'Pending...'}${accuracyWarning}</div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Accuracy</label>
+                <div class="px-3 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-sm text-gray-700 dark:text-gray-200">${accuracyDisplay ? '±' + accuracyDisplay : 'Pending...'}${accuracyWarning}</div>
               </div>
             </div>
             <div>
-              <label class="block text-xs text-gray-500 mb-1">Your Location (Lat, Lng)</label>
-              <div class="px-3 py-2 bg-white border border-gray-200 rounded text-sm font-mono text-gray-700 ${state.studentLocation ? 'text-emerald-700' : state.locationError ? 'text-red-600' : 'text-yellow-600'}">
+              <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Your Location (Lat, Lng)</label>
+              <div class="px-3 py-2 bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded text-sm font-mono ${state.studentLocation ? 'text-emerald-700 dark:text-emerald-400' : state.locationError ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}">
                 ${state.locationError ? state.locationError : (state.studentLocation ? locDisplay : locDisplay)}
               </div>
             </div>
-            ${state.studentLocation ? '' : `<button onclick="acquireStudentLocation()" class="w-full py-2 px-3 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded text-sm font-medium">Retry Location</button>`}
+            ${state.studentLocation ? '' : `<button onclick="acquireStudentLocation()" class="w-full py-2 px-3 bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 rounded text-sm font-medium">Retry Location</button>`}
           </div>
 
           <button onclick="submitAttendance()" id="submitBtn" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" ${!state.studentLocation ? 'disabled' : ''}>Submit Attendance</button>
-          <p class="text-xs text-gray-400 text-center">Your location and device ID are recorded to verify physical presence.</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500 text-center">Your location and device ID are recorded to verify physical presence.</p>
         </div>
       </div>
     </div>`;
 }
 
+function toggleFailedSelection(firebaseKey) {
+  if (state.selectedFailedAttempts.has(firebaseKey)) {
+    state.selectedFailedAttempts.delete(firebaseKey);
+  } else {
+    state.selectedFailedAttempts.add(firebaseKey);
+  }
+  render();
+}
+
+function toggleSelectAllFailed() {
+  if (state.selectedFailedAttempts.size === state.failedAttempts.length) {
+    state.selectedFailedAttempts.clear();
+  } else {
+    state.failedAttempts.forEach(f => state.selectedFailedAttempts.add(f.firebaseKey));
+  }
+  render();
+}
+
+async function bulkApproveSelected() {
+  if (state.selectedFailedAttempts.size === 0) return;
+
+  const count = state.selectedFailedAttempts.size;
+  if (!confirm(`Approve ${count} selected student(s)?`)) return;
+
+  const keys = Array.from(state.selectedFailedAttempts);
+  for (const key of keys) {
+    await approveStudent(key, false); // false = don't re-render for each
+  }
+
+  state.selectedFailedAttempts.clear();
+  render();
+}
+
 function setMode(mode) {
-  // Clean up existing listeners
   cleanupListeners();
 
   state.mode = mode;
@@ -469,19 +785,18 @@ function setMode(mode) {
   state.studentLocation = null;
   state.locationError = null;
   state.isRecovering = false;
+  state.pinVerified = false;
+  state.showHistory = false;
+  state.selectedFailedAttempts = new Set();
 
   const url = new URL(window.location);
   if (mode) { url.searchParams.set('mode', mode); } else { url.searchParams.delete('mode'); }
+  url.searchParams.delete('code'); // Clear code param when changing mode
   window.history.pushState({}, '', url);
 
   render();
   if (!mode) setTimeout(generateModeQRCodes, 100);
   if (mode === 'student') { acquireStudentLocation(); initDeviceId(); }
-  if (mode === 'teacher') {
-    // Try to recover existing session
-    tryRecoverSession();
-    setTimeout(generateSetupQRCodes, 100);
-  }
 }
 
 function cleanupListeners() {
@@ -500,6 +815,22 @@ function cleanupListeners() {
   }
 }
 
+async function loadSessionHistory() {
+  try {
+    const snapshot = await db.ref('sessions').orderByChild('createdAt').limitToLast(20).once('value');
+    const sessions = [];
+    snapshot.forEach(child => {
+      sessions.push(child.val());
+    });
+    state.sessionHistory = sessions.reverse(); // Most recent first
+    render();
+  } catch (err) {
+    console.error('Failed to load session history:', err);
+    state.sessionHistory = [];
+    render();
+  }
+}
+
 async function tryRecoverSession() {
   const savedSessionId = loadSessionFromStorage();
   if (!savedSessionId) return;
@@ -508,19 +839,16 @@ async function tryRecoverSession() {
   render();
 
   try {
-    // Check if this session is still active
     const activeSnapshot = await db.ref('activeSession').once('value');
     const activeSessionId = activeSnapshot.val();
 
     if (activeSessionId !== savedSessionId) {
-      // Session is no longer active
       clearSessionStorage();
       state.isRecovering = false;
       render();
       return;
     }
 
-    // Get the session data
     const sessionSnapshot = await db.ref('sessions/' + savedSessionId).once('value');
     const session = sessionSnapshot.val();
 
@@ -531,18 +859,14 @@ async function tryRecoverSession() {
       return;
     }
 
-    // Recover the session
     state.session = session;
     state.currentCode = session.code;
+    state.lateThreshold = session.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
 
-    // Calculate time left based on when code was generated
     const elapsed = Math.floor((Date.now() - session.codeGeneratedAt) / 1000);
     state.timeLeft = Math.max(0, CODE_REFRESH_SECONDS - elapsed);
 
-    // Set up code rotation
     setupCodeRotation();
-
-    // Set up listeners
     setupSessionListeners(savedSessionId);
 
     state.isRecovering = false;
@@ -561,6 +885,16 @@ function setupCodeRotation() {
 
   state.codeInterval = setInterval(async () => {
     state.timeLeft--;
+
+    // Play warning beep at countdown threshold
+    if (state.timeLeft <= COUNTDOWN_WARNING_SECONDS && state.timeLeft > 0) {
+      const now = Date.now();
+      if (now - state.lastWarningTime >= 1000) { // Don't beep more than once per second
+        playWarningBeep();
+        state.lastWarningTime = now;
+      }
+    }
+
     if (state.timeLeft <= 0) {
       const newCode = generateCode();
       state.currentCode = newCode;
@@ -581,14 +915,21 @@ function setupCodeRotation() {
 }
 
 function setupSessionListeners(sessionId) {
-  // Listen for attendance
   state.attendanceListener = db.ref('attendance/' + sessionId).on('value', snapshot => {
     const data = snapshot.val();
-    state.attendance = data ? Object.values(data).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) : [];
+    if (data) {
+      state.attendance = Object.values(data)
+        .map(a => ({
+          ...a,
+          isLate: isLateCheckIn(a.timestamp, state.session.createdAt, state.lateThreshold)
+        }))
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    } else {
+      state.attendance = [];
+    }
     render();
   });
 
-  // Listen for failed attempts
   state.failedListener = db.ref('failed/' + sessionId).on('value', snapshot => {
     const data = snapshot.val();
     if (data) {
@@ -597,14 +938,15 @@ function setupSessionListeners(sessionId) {
     } else {
       state.failedAttempts = [];
     }
+    // Clean up selections for items that no longer exist
+    const validKeys = new Set(state.failedAttempts.map(f => f.firebaseKey));
+    state.selectedFailedAttempts = new Set([...state.selectedFailedAttempts].filter(k => validKeys.has(k)));
     render();
   });
 
-  // Listen for session changes (in case code is updated from another tab)
   state.sessionListener = db.ref('sessions/' + sessionId).on('value', snapshot => {
     const data = snapshot.val();
     if (data && state.session) {
-      // Update code if it changed externally
       if (data.code !== state.session.code) {
         state.session.code = data.code;
         state.currentCode = data.code;
@@ -639,7 +981,9 @@ function generateSetupQRCodes() {
 function generateQRCodes() {
   const baseUrl = getBaseUrl();
   const sc = document.getElementById('qr-student-checkin');
-  if (sc) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=student`, { width: 180 }, (e, c) => { if (!e) { sc.innerHTML = ''; sc.appendChild(c); } });
+  // Include current code in QR for auto-fill
+  const qrUrl = `${baseUrl}?mode=student&code=${state.currentCode}`;
+  if (sc) QRCode.toCanvas(document.createElement('canvas'), qrUrl, { width: 180 }, (e, c) => { if (!e) { sc.innerHTML = ''; sc.appendChild(c); } });
 }
 
 async function acquireStudentLocation() {
@@ -667,18 +1011,24 @@ async function startSession() {
     const location = await getLocation();
     state.teacherLocation = location;
     const sessionId = Date.now().toString(36), code = generateCode();
-    const session = { id: sessionId, className, location, radius, code, codeGeneratedAt: Date.now(), createdAt: new Date().toISOString() };
+    const session = {
+      id: sessionId,
+      className,
+      location,
+      radius,
+      code,
+      codeGeneratedAt: Date.now(),
+      createdAt: new Date().toISOString(),
+      lateThreshold: state.lateThreshold
+    };
     await db.ref('sessions/' + sessionId).set(session);
     await db.ref('activeSession').set(sessionId);
-    state.session = session; state.currentCode = code; state.timeLeft = CODE_REFRESH_SECONDS;
+    state.session = session;
+    state.currentCode = code;
+    state.timeLeft = CODE_REFRESH_SECONDS;
 
-    // Save session ID for recovery
     saveSessionToStorage(sessionId);
-
-    // Set up code rotation
     setupCodeRotation();
-
-    // Set up listeners
     setupSessionListeners(sessionId);
 
     render();
@@ -691,6 +1041,20 @@ async function startSession() {
 async function endSession() {
   if (!confirm('End this session?')) return;
 
+  // Save session summary before ending
+  if (state.session) {
+    const lateCount = state.attendance.filter(a => a.isLate).length;
+    try {
+      await db.ref('sessions/' + state.session.id).update({
+        endedAt: new Date().toISOString(),
+        attendanceCount: state.attendance.length,
+        lateCount: lateCount
+      });
+    } catch (err) {
+      console.error('Failed to save session summary:', err);
+    }
+  }
+
   cleanupListeners();
   clearSessionStorage();
 
@@ -702,37 +1066,36 @@ async function endSession() {
 
   state.session = null;
   state.currentCode = '';
+  state.selectedFailedAttempts = new Set();
   render();
   setTimeout(generateSetupQRCodes, 100);
 }
 
-async function approveStudent(firebaseKey) {
+async function approveStudent(firebaseKey, shouldRender = true) {
   if (!state.session) return;
 
   try {
-    // Get the failed attempt data
     const snapshot = await db.ref('failed/' + state.session.id + '/' + firebaseKey).once('value');
     const failedData = snapshot.val();
 
     if (!failedData) {
-      alert('Record not found');
+      if (shouldRender) alert('Record not found');
       return;
     }
 
-    // Check if student already in attendance
     const existingSnapshot = await db.ref('attendance/' + state.session.id)
       .orderByChild('studentId')
       .equalTo(failedData.studentId)
       .once('value');
 
     if (existingSnapshot.exists()) {
-      alert('This student is already in the attendance list.');
-      // Remove from failed
+      if (shouldRender) alert('This student is already in the attendance list.');
       await db.ref('failed/' + state.session.id + '/' + firebaseKey).remove();
       return;
     }
 
-    // Add to attendance
+    const isLate = isLateCheckIn(new Date().toISOString(), state.session.createdAt, state.lateThreshold);
+
     await db.ref('attendance/' + state.session.id).push({
       studentId: failedData.studentId,
       studentName: failedData.studentName,
@@ -742,14 +1105,17 @@ async function approveStudent(firebaseKey) {
       distance: failedData.distance,
       timestamp: new Date().toISOString(),
       manuallyApproved: true,
-      originalFailReason: failedData.reason
+      originalFailReason: failedData.reason,
+      isLate: isLate
     });
 
-    // Remove from failed
     await db.ref('failed/' + state.session.id + '/' + firebaseKey).remove();
 
+    // Remove from selection
+    state.selectedFailedAttempts.delete(firebaseKey);
+
   } catch (err) {
-    alert('Error approving student: ' + err.message);
+    if (shouldRender) alert('Error approving student: ' + err.message);
   }
 }
 
@@ -758,7 +1124,6 @@ let lastSubmitTime = 0;
 const SUBMIT_DEBOUNCE_MS = 2000;
 
 async function submitAttendance() {
-  // Rate limiting
   const now = Date.now();
   if (now - lastSubmitTime < SUBMIT_DEBOUNCE_MS) {
     return;
@@ -772,19 +1137,19 @@ async function submitAttendance() {
   const msgDiv = document.getElementById('studentMessage');
 
   if (!studentId || !studentName || !studentEmail || !enteredCode) {
-    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">Please fill in all fields</div>';
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Please fill in all fields</div>';
     return;
   }
   if (enteredCode.length !== 6) {
-    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">Code must be 6 characters</div>';
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Code must be 6 characters</div>';
     return;
   }
   if (!studentEmail.includes('@')) {
-    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">Please enter a valid email address</div>';
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Please enter a valid email address</div>';
     return;
   }
   if (!state.studentLocation) {
-    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">Location not available. Please enable location access and tap Retry.</div>';
+    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Location not available. Please enable location access and tap Retry.</div>';
     return;
   }
 
@@ -800,10 +1165,8 @@ async function submitAttendance() {
     const session = sessionSnapshot.val();
     if (!session) throw new Error('Session has ended. Please ask your instructor to start a new session.');
 
-    // Calculate distance first (needed for failed log)
     const distance = getDistance(state.studentLocation.lat, state.studentLocation.lng, session.location.lat, session.location.lng);
 
-    // Prepare base record for potential failed log
     const baseRecord = {
       studentId,
       studentName,
@@ -819,51 +1182,58 @@ async function submitAttendance() {
       timestamp: new Date().toISOString()
     };
 
-    // Check code
     if (enteredCode !== session.code) {
       await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: 'Invalid code' });
       throw new Error('Invalid code. Check the code on screen. Your attempt has been logged.');
     }
 
-    // Check code freshness
     const codeAge = Date.now() - session.codeGeneratedAt;
     if (codeAge > (CODE_REFRESH_SECONDS + CODE_GRACE_PERIOD) * 1000) {
       await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: 'Expired code' });
       throw new Error('Code expired. Enter the new code. Your attempt has been logged.');
     }
 
-    // Check location
     if (distance > session.radius) {
       await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: `Too far: ${Math.round(distance)}m` });
       throw new Error(`You're ${Math.round(distance)}m away (limit: ${session.radius}m). Your attempt has been logged for instructor review.`);
     }
 
-    // Check for duplicate by student ID
     const existingSnapshot = await db.ref('attendance/' + activeSessionId).orderByChild('studentId').equalTo(studentId).once('value');
     if (existingSnapshot.exists()) throw new Error('This Student Number has already checked in.');
 
-    // Check for duplicate by device ID
     const deviceSnapshot = await db.ref('attendance/' + activeSessionId).orderByChild('deviceId').equalTo(state.deviceId).once('value');
     if (deviceSnapshot.exists()) throw new Error('This device has already been used to check in.');
 
-    // Success - add to attendance
+    // Calculate if late
+    const lateThreshold = session.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
+    const isLate = isLateCheckIn(baseRecord.timestamp, session.createdAt, lateThreshold);
+
     await db.ref('attendance/' + activeSessionId).push({
       ...baseRecord,
-      manuallyApproved: false
+      manuallyApproved: false,
+      isLate: isLate
     });
 
-    msgDiv.innerHTML = `<div class="mb-4 p-4 bg-emerald-50 text-emerald-700 rounded-lg"><p class="font-semibold text-lg">Success!</p><p class="text-sm mt-1">Attendance recorded for <strong>${escapeHtml(session.className)}</strong></p><p class="text-xs mt-2">You can close this page now.</p></div>`;
+    // Success feedback
+    playSuccessSound();
+    triggerVibration([200, 100, 200]);
+
+    const lateMessage = isLate
+      ? '<p class="text-xs text-orange-600 dark:text-orange-400 mt-2">Note: You have been marked as late.</p>'
+      : '';
+
+    msgDiv.innerHTML = `<div class="mb-4 p-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg"><p class="font-semibold text-lg">Success!</p><p class="text-sm mt-1">Attendance recorded for <strong>${escapeHtml(session.className)}</strong></p>${lateMessage}<p class="text-xs mt-2">You can close this page now.</p></div>`;
     document.getElementById('enteredCode').value = '';
     btn.textContent = 'Submitted';
   } catch (err) {
-    msgDiv.innerHTML = `<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">${escapeHtml(err.message)}</div>`;
+    msgDiv.innerHTML = `<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">${escapeHtml(err.message)}</div>`;
     btn.textContent = 'Submit Attendance'; btn.disabled = false;
   }
 }
 
 function exportCSV() {
   if (!state.attendance.length || !state.session) return;
-  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Manually Approved', 'Timestamp'];
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Status', 'Manually Approved', 'Timestamp'];
   const rows = state.attendance.map((a, i) => [
     i + 1,
     a.studentId,
@@ -873,6 +1243,7 @@ function exportCSV() {
     a.location ? a.location.lat : '',
     a.location ? a.location.lng : '',
     a.distance,
+    a.isLate ? 'Late' : 'On Time',
     a.manuallyApproved ? 'Yes' : 'No',
     a.timestamp
   ]);
@@ -884,16 +1255,42 @@ function exportCSV() {
   a.click();
 }
 
+function exportFailedCSV() {
+  if (!state.failedAttempts.length || !state.session) return;
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Allowed Radius (m)', 'Failure Reason', 'Timestamp'];
+  const rows = state.failedAttempts.map((f, i) => [
+    i + 1,
+    f.studentId,
+    f.studentName,
+    f.email || '',
+    f.deviceId || '',
+    f.location ? f.location.lat : '',
+    f.location ? f.location.lng : '',
+    f.distance,
+    f.allowedRadius,
+    f.reason,
+    f.timestamp
+  ]);
+  const BOM = '\uFEFF';
+  const csv = BOM + [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `failed_attempts_${state.session.className.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
 function init() {
+  loadDarkMode();
+
   const params = getUrlParams();
   if (params.mode === 'teacher' || params.mode === 'student') {
     state.mode = params.mode;
     render();
-    if (params.mode === 'student') { acquireStudentLocation(); initDeviceId(); }
-    if (params.mode === 'teacher') {
-      tryRecoverSession();
-      setTimeout(generateSetupQRCodes, 100);
+    if (params.mode === 'student') {
+      acquireStudentLocation();
+      initDeviceId();
     }
+    // For teacher mode, PIN will be required first, then recovery happens
   } else {
     render();
     setTimeout(generateModeQRCodes, 100);
@@ -904,13 +1301,12 @@ function init() {
 window.addEventListener('popstate', () => {
   const params = getUrlParams();
   state.mode = params.mode || null;
+  state.pinVerified = false;
   render();
 });
 
-// Handle page visibility changes to maintain session
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && state.mode === 'teacher' && state.session) {
-    // Recalculate time left when page becomes visible again
     const elapsed = Math.floor((Date.now() - state.session.codeGeneratedAt) / 1000);
     const newTimeLeft = CODE_REFRESH_SECONDS - (elapsed % CODE_REFRESH_SECONDS);
     state.timeLeft = newTimeLeft > 0 ? newTimeLeft : CODE_REFRESH_SECONDS;

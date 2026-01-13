@@ -1,9 +1,9 @@
 # NEU Attendance - Session Progress
 
-## Project Status: Tested and Enhanced
+## Project Status: Enhanced with Full Feature Set
 
 ## Current State
-- **Phase:** Phase 1 - Stability & Polish (3/4 tasks complete)
+- **Phase:** Phase 2 - Enhanced Features (Complete)
 - **Deployed:** https://wwlang.github.io/neu-attendance/
 - **Repository:** https://github.com/wwlang/neu-attendance
 
@@ -12,6 +12,8 @@
 - Firebase Realtime Database backend
 - TailwindCSS (CDN) + QRCode.js
 - GitHub Pages hosting
+- Web Audio API for sounds
+- navigator.vibrate() for haptics
 
 ## What's Working
 - [x] Mode selection (instructor/student)
@@ -30,6 +32,18 @@
 - [x] **Input length limits** (edge case handling)
 - [x] **GPS accuracy warning** (poor signal indicator)
 - [x] **Submit rate limiting** (debounce)
+
+### New Features (2026-01-13)
+- [x] **Session-specific QR codes** - QR encodes current attendance code for auto-fill
+- [x] **Sound on successful check-in** - Web Audio API beep (880Hz sine wave)
+- [x] **Vibration on successful check-in** - navigator.vibrate() with pattern
+- [x] **Bulk approve failed attempts** - Select All/multi-select checkboxes + Approve Selected button
+- [x] **Late marking** - Configurable grace period (default 10 min), "Late" badge in attendance list
+- [x] **Session history** - Firebase storage of session summaries, History view for instructors
+- [x] **Instructor PIN protection** - PIN required for instructor mode (default: 230782)
+- [x] **Dark mode** - Tailwind dark mode with toggle, respects system preference, saves to localStorage
+- [x] **Export failed attempts** - Separate CSV export for failed attempts
+- [x] **Countdown audio warning** - Beep at 10 seconds before code rotation
 
 ## Test Status
 PRD test checklist validated on 2026-01-13.
@@ -93,14 +107,41 @@ Key items:
 - ISS-004: Device fingerprint spoofing (accepted limitation)
 - ISS-005: GPS accuracy indoors (mitigated with manual approval)
 
+## Feature Summary (2026-01-13 Enhancement Batch)
+
+### High Impact, Low Effort
+| Feature | Description | Implementation |
+|---------|-------------|----------------|
+| Session-specific QR | QR encodes `?mode=student&code=XXXXXX` | Auto-fills code on scan |
+| Success feedback | Audio beep + haptic vibration | Web Audio API + navigator.vibrate() |
+| Bulk approve | Select All + multi-select checkboxes | Approve Selected button |
+
+### High Impact, Medium Effort
+| Feature | Description | Implementation |
+|---------|-------------|----------------|
+| Late marking | Configurable grace period (5-30 min) | isLate flag, "Late" badge, CSV column |
+| Session history | Past sessions with attendance counts | Firebase sessions node, History view |
+| Instructor PIN | PIN required for instructor mode | Default: 230782, hardcoded |
+
+### Polish
+| Feature | Description | Implementation |
+|---------|-------------|----------------|
+| Dark mode | Tailwind dark: classes + toggle | localStorage, system preference fallback |
+| Export failed | Separate CSV for failed attempts | Export Failed button |
+| Countdown warning | Beep at 10 seconds | Web Audio API square wave |
+
 ## Next Actions
 1. Deploy updated code to GitHub Pages
-2. Consider Phase 2 features
-3. Monitor real-world usage
+2. Monitor real-world usage
+3. Consider Phase 3 features
 
 ## Session Log
 | Date | Activity |
 |------|----------|
+| 2026-01-13 | Implemented 9 enhancement features in single batch |
+| 2026-01-13 | Added: session QR codes, audio/haptic feedback, bulk approve |
+| 2026-01-13 | Added: late marking, session history, instructor PIN |
+| 2026-01-13 | Added: dark mode, export failed, countdown warning |
 | 2026-01-13 | PRD validation complete - 31/36 tests pass |
 | 2026-01-13 | Fixed ISS-001: Session recovery via sessionStorage |
 | 2026-01-13 | Fixed ISS-003: Offline indicator with Firebase connection monitoring |
