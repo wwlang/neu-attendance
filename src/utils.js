@@ -6,6 +6,15 @@
  */
 
 /**
+ * LocalStorage keys for student info persistence
+ */
+const STUDENT_INFO_KEYS = {
+  STUDENT_ID: 'neu_student_id',
+  STUDENT_NAME: 'neu_student_name',
+  STUDENT_EMAIL: 'neu_student_email'
+};
+
+/**
  * Generates a random 6-character alphanumeric code.
  * Uses only uppercase letters (excluding O, I) and numbers (excluding 0, 1) for readability.
  *
@@ -155,6 +164,71 @@ function getBaseUrl(fullUrl) {
   return fullUrl.split('?')[0].split('#')[0];
 }
 
+/**
+ * Saves student info to localStorage for form pre-population on return visits.
+ *
+ * @param {Object} info - Student information
+ * @param {string} info.studentId - Student ID number
+ * @param {string} info.studentName - Student full name
+ * @param {string} info.studentEmail - Student email address
+ * @returns {boolean} True if save was successful
+ */
+function saveStudentInfo(info) {
+  try {
+    localStorage.setItem(STUDENT_INFO_KEYS.STUDENT_ID, info.studentId);
+    localStorage.setItem(STUDENT_INFO_KEYS.STUDENT_NAME, info.studentName);
+    localStorage.setItem(STUDENT_INFO_KEYS.STUDENT_EMAIL, info.studentEmail);
+    return true;
+  } catch (e) {
+    console.warn('Could not save student info to localStorage:', e);
+    return false;
+  }
+}
+
+/**
+ * Loads saved student info from localStorage.
+ *
+ * @returns {Object|null} Student info object or null if not found/incomplete
+ */
+function loadStudentInfo() {
+  try {
+    const studentId = localStorage.getItem(STUDENT_INFO_KEYS.STUDENT_ID);
+    const studentName = localStorage.getItem(STUDENT_INFO_KEYS.STUDENT_NAME);
+    const studentEmail = localStorage.getItem(STUDENT_INFO_KEYS.STUDENT_EMAIL);
+
+    // All fields must exist and be non-empty
+    if (!studentId || !studentName || !studentEmail) {
+      return null;
+    }
+
+    return {
+      studentId,
+      studentName,
+      studentEmail
+    };
+  } catch (e) {
+    console.warn('Could not load student info from localStorage:', e);
+    return null;
+  }
+}
+
+/**
+ * Clears saved student info from localStorage.
+ *
+ * @returns {boolean} True if clear was successful
+ */
+function clearStudentInfo() {
+  try {
+    localStorage.removeItem(STUDENT_INFO_KEYS.STUDENT_ID);
+    localStorage.removeItem(STUDENT_INFO_KEYS.STUDENT_NAME);
+    localStorage.removeItem(STUDENT_INFO_KEYS.STUDENT_EMAIL);
+    return true;
+  } catch (e) {
+    console.warn('Could not clear student info from localStorage:', e);
+    return false;
+  }
+}
+
 // Export for Node.js/Jest
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -167,6 +241,10 @@ if (typeof module !== 'undefined' && module.exports) {
     isValidEmail,
     isValidCode,
     getUrlParams,
-    getBaseUrl
+    getBaseUrl,
+    saveStudentInfo,
+    loadStudentInfo,
+    clearStudentInfo,
+    STUDENT_INFO_KEYS
   };
 }

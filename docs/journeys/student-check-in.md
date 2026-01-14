@@ -17,24 +17,28 @@ Instructor displays attendance code and asks students to check in
 
 ## Flow
 
-### 1. Access Student Mode
-- Scan QR code displayed by instructor, OR
-- Navigate to attendance URL and select "I'm a Student", OR
-- Use `?mode=student` URL parameter
+### 1. Access Student Mode (QR Scan)
+- Scan QR code displayed by instructor
+- QR contains URL with embedded code: `?mode=student&code=ABC123`
+- Code field auto-populated from URL parameter
+- Alternative: Navigate manually and enter code by hand
 
-### 2. Grant Location Permission
-- Browser prompts for location access
+### 2. Check for Saved Student Info
+- System checks localStorage for previously saved details
+- **If saved info found**: Show confirmation dialog with pre-filled form
+  - "Welcome back, [Name]! Use saved info?" -> [Yes] [No, enter new details]
+- **If no saved info**: Show empty form
+
+### 3. Grant Location Permission
+- Browser prompts for location access (if not already granted)
 - System acquires GPS coordinates
 - Location accuracy displayed to student
+- Location is optional but recommended
 
-### 3. Enter Details
-- Enter student number (e.g., "11223344")
-- Enter full name (e.g., "Nguyen Van A")
-- Enter email (e.g., "student@st.neu.edu.vn")
-
-### 4. Enter Attendance Code
-- View code displayed on instructor's screen
-- Enter 6-character code (auto-uppercased)
+### 4. Confirm/Enter Details
+- **Returning student**: Review pre-filled student ID, name, email
+- **New student**: Enter student number, full name, email
+- Code field already populated from QR scan
 
 ### 5. Submit Attendance
 - Click "Submit Attendance"
@@ -51,56 +55,65 @@ Instructor displays attendance code and asks students to check in
 ## Acceptance Criteria
 
 ### AC1: Location Acquisition
-- [ ] Location permission requested on page load
-- [ ] GPS coordinates acquired with accuracy indicator
-- [ ] "Retry Location" button available if acquisition fails
-- [ ] Submit button disabled until location acquired
+- [x] Location permission requested on page load
+- [x] GPS coordinates acquired with accuracy indicator
+- [x] "Retry Location" button available if acquisition fails
+- [x] Submit button works without location (optional GPS)
 
 ### AC2: Device Fingerprinting
-- [ ] Unique device ID generated automatically
-- [ ] Device ID displayed to student (transparency)
-- [ ] Same device cannot check in multiple students
+- [x] Unique device ID generated automatically
+- [x] Device ID displayed to student (transparency)
+- [x] Same device cannot check in multiple students
 
 ### AC3: Form Validation
-- [ ] All fields required (student ID, name, email, code)
-- [ ] Code must be exactly 6 characters
-- [ ] Email must contain @ symbol
-- [ ] Clear error messages for validation failures
+- [x] All fields required (student ID, name, email, code)
+- [x] Code must be exactly 6 characters
+- [x] Email must contain @ symbol
+- [x] Clear error messages for validation failures
 
 ### AC4: Code Verification
-- [ ] Current code accepted
-- [ ] Previous code accepted within grace period (60s)
-- [ ] Invalid code rejected with clear message
-- [ ] Expired code rejected with clear message
+- [x] Current code accepted
+- [x] Previous code accepted within grace period (60s)
+- [x] Invalid code rejected with clear message
+- [x] Expired code rejected with clear message
 
 ### AC5: Location Verification
-- [ ] Distance calculated using Haversine formula
-- [ ] Within radius: check-in succeeds
-- [ ] Beyond radius: check-in fails, logged for instructor review
-- [ ] Distance shown in error message
+- [x] Distance calculated using Haversine formula
+- [x] Within radius: check-in succeeds
+- [x] Beyond radius: check-in fails, logged for instructor review
+- [x] Distance shown in error message
 
 ### AC6: Duplicate Prevention
-- [ ] Same student ID cannot check in twice
-- [ ] Same device ID cannot check in twice
-- [ ] Clear error message for duplicates
+- [x] Same student ID cannot check in twice
+- [x] Same device ID cannot check in twice
+- [x] Clear error message for duplicates
+- [x] If same device ID submits different student ID, flag as potential typo for instructor review
+
+### AC6.1: Remember Student Info (Cookies/LocalStorage)
+- [x] Student ID, name, and email saved to localStorage after successful check-in
+- [x] On return visit, form pre-populated with saved values
+- [x] Welcome banner shows with "Use Saved Info" / "Enter New Details" buttons
+- [x] "Clear saved info" option available (link at bottom of form)
+- [x] Device ID persists across sessions (same device = same fingerprint)
 
 ### AC7: Success Confirmation
-- [ ] Green success message displayed
-- [ ] Class name shown in confirmation
-- [ ] "You can close this page" instruction
-- [ ] Code field cleared after success
+- [x] Green success message displayed
+- [x] Class name shown in confirmation
+- [x] "You can close this page" instruction
+- [x] Code field cleared after success
+- [x] Audio beep and haptic feedback on success
 
 ### AC8: Failed Attempt Logging
-- [ ] Failed attempts logged to Firebase
-- [ ] Includes all student details
-- [ ] Includes failure reason
-- [ ] Available for instructor to manually approve
+- [x] Failed attempts logged to Firebase
+- [x] Includes all student details
+- [x] Includes failure reason
+- [x] Available for instructor to manually approve
 
 ## Error Scenarios
 
 | Scenario | Expected Behavior |
 |----------|-------------------|
-| Location denied | Show error, disable submit, offer retry |
+| Location denied | Show warning, allow submit without location |
 | No active session | "No active session" error message |
 | Wrong code | Log failed attempt, show error |
 | Too far from classroom | Log failed attempt, show distance |

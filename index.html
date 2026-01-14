@@ -60,6 +60,11 @@ const CODE_REFRESH_SECONDS = 120;
 const CODE_GRACE_PERIOD = 60;
 const SESSION_STORAGE_KEY = 'neu_attendance_session';
 const DARK_MODE_KEY = 'neu_attendance_dark_mode';
+const STUDENT_INFO_KEYS = {
+  STUDENT_ID: 'neu_student_id',
+  STUDENT_NAME: 'neu_student_name',
+  STUDENT_EMAIL: 'neu_student_email'
+};
 const INSTRUCTOR_PIN = '230782';
 const DEFAULT_LATE_THRESHOLD_MINUTES = 10;
 const COUNTDOWN_WARNING_SECONDS = 10;
@@ -89,7 +94,10 @@ let state = {
   showHistory: false,
   selectedFailedAttempts: new Set(),
   audioContext: null,
-  lastWarningTime: 0
+  lastWarningTime: 0,
+  savedStudentInfo: null,
+  showSavedInfoBanner: false,
+  isReopenedSession: false
 };
 
 // Initialize audio context for sounds
@@ -190,6 +198,71 @@ function toggleDarkMode() {
     console.warn('Could not save dark mode preference:', e);
   }
   render();
+}
+
+// Student info persistence functions
+function saveStudentInfo(info) {
+  try {
+    localStorage.setItem(STUDENT_INFO_KEYS.STUDENT_ID, info.studentId);
+    localStorage.setItem(STUDENT_INFO_KEYS.STUDENT_NAME, info.studentName);
+    localStorage.setItem(STUDENT_INFO_KEYS.STUDENT_EMAIL, info.studentEmail);
+    return true;
+  } catch (e) {
+    console.warn('Could not save student info:', e);
+    return false;
+  }
+}
+
+function loadStudentInfo() {
+  try {
+    const studentId = localStorage.getItem(STUDENT_INFO_KEYS.STUDENT_ID);
+    const studentName = localStorage.getItem(STUDENT_INFO_KEYS.STUDENT_NAME);
+    const studentEmail = localStorage.getItem(STUDENT_INFO_KEYS.STUDENT_EMAIL);
+
+    if (!studentId || !studentName || !studentEmail) {
+      return null;
+    }
+
+    return { studentId, studentName, studentEmail };
+  } catch (e) {
+    console.warn('Could not load student info:', e);
+    return null;
+  }
+}
+
+function clearStudentInfo() {
+  try {
+    localStorage.removeItem(STUDENT_INFO_KEYS.STUDENT_ID);
+    localStorage.removeItem(STUDENT_INFO_KEYS.STUDENT_NAME);
+    localStorage.removeItem(STUDENT_INFO_KEYS.STUDENT_EMAIL);
+    state.savedStudentInfo = null;
+    state.showSavedInfoBanner = false;
+    return true;
+  } catch (e) {
+    console.warn('Could not clear student info:', e);
+    return false;
+  }
+}
+
+function useSavedStudentInfo() {
+  // The form is already pre-filled, just dismiss the banner
+  state.showSavedInfoBanner = false;
+  render();
+}
+
+function enterNewStudentInfo() {
+  // Clear the saved info and re-render with empty form
+  clearStudentInfo();
+  render();
+  // Clear the form fields
+  setTimeout(() => {
+    const studentIdEl = document.getElementById('studentId');
+    const studentNameEl = document.getElementById('studentName');
+    const studentEmailEl = document.getElementById('studentEmail');
+    if (studentIdEl) studentIdEl.value = '';
+    if (studentNameEl) studentNameEl.value = '';
+    if (studentEmailEl) studentEmailEl.value = '';
+  }, 50);
 }
 
 // Offline detection
@@ -480,16 +553,17 @@ function renderTeacherView() {
   const onTimeCount = state.attendance.length - lateCount;
   const hasSelectedFailed = state.selectedFailedAttempts.size > 0;
   const allFailedSelected = state.failedAttempts.length > 0 && state.selectedFailedAttempts.size === state.failedAttempts.length;
+  const reopenedBadge = state.isReopenedSession ? '<span class="ml-2 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs">Reopened for Late Check-ins</span>' : '';
 
   return `
     <div class="pt-8 space-y-6">
       <div class="flex justify-between items-center no-print">
-        <h2 class="text-xl font-bold text-gray-800 dark:text-white">${escapeHtml(state.session.className)}${connectionStatus}</h2>
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white">${escapeHtml(state.session.className)}${connectionStatus}${reopenedBadge}</h2>
         <div class="flex gap-2">
           <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
             History
           </button>
-          <button onclick="endSession()" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 font-medium">End Session</button>
+          <button onclick="endSession()" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 font-medium">${state.isReopenedSession ? 'Close' : 'End Session'}</button>
         </div>
       </div>
 
@@ -556,6 +630,7 @@ function renderTeacherView() {
                         : '<span class="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded text-xs font-medium">On Time</span>'
                       }
                       ${a.manuallyApproved ? '<span class="ml-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs">Manual</span>' : ''}
+                      ${a.lateCheckIn ? '<span class="ml-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded text-xs">Rejoined</span>' : ''}
                     </td>
                   </tr>
                 `).join('')}
@@ -645,26 +720,36 @@ function renderHistoryView() {
       <button onclick="state.showHistory = false; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
         <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Session History</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Recent sessions from the last 7 days. You can reopen ended sessions to allow late check-ins.</p>
         ${state.sessionHistory.length === 0
           ? '<p class="text-gray-400 dark:text-gray-500 text-center py-8">No previous sessions found</p>'
           : `
             <div class="space-y-4">
-              ${state.sessionHistory.map(session => `
+              ${state.sessionHistory.map(session => {
+                const isEnded = !!session.endedAt;
+                const daysSinceCreated = Math.floor((Date.now() - new Date(session.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+                const canReopen = isEnded && daysSinceCreated <= 7;
+                return `
                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <div class="flex justify-between items-start">
-                    <div>
+                    <div class="flex-1">
                       <h3 class="font-semibold text-gray-800 dark:text-white">${escapeHtml(session.className)}</h3>
                       <p class="text-sm text-gray-500 dark:text-gray-400">${new Date(session.createdAt).toLocaleDateString()} ${new Date(session.createdAt).toLocaleTimeString()}</p>
+                      ${session.endedAt ? `<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ended: ${new Date(session.endedAt).toLocaleTimeString()}</p>` : '<p class="text-xs text-green-500 mt-1">Currently Active</p>'}
+                      ${session.lateCount ? `<p class="text-xs text-orange-600 dark:text-orange-400 mt-1">${session.lateCount} late arrivals</p>` : ''}
                     </div>
-                    <div class="text-right">
+                    <div class="text-right ml-4">
                       <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">${session.attendanceCount || 0}</p>
                       <p class="text-xs text-gray-500 dark:text-gray-400">students</p>
+                      ${canReopen ? `
+                        <button onclick="reopenSession('${session.id}')" class="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 text-sm font-medium">
+                          Reopen for Late
+                        </button>
+                      ` : ''}
                     </div>
                   </div>
-                  ${session.lateCount ? `<p class="text-xs text-orange-600 dark:text-orange-400 mt-2">${session.lateCount} late arrivals</p>` : ''}
-                  ${session.endedAt ? `<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ended: ${new Date(session.endedAt).toLocaleTimeString()}</p>` : '<p class="text-xs text-green-500 mt-1">Currently Active</p>'}
                 </div>
-              `).join('')}
+              `}).join('')}
             </div>
           `
         }
@@ -687,25 +772,55 @@ function renderStudentView() {
   const urlParams = getUrlParams();
   const prefillCode = urlParams.code || '';
 
+  // Get saved info for pre-filling
+  const savedInfo = state.savedStudentInfo;
+  const prefillStudentId = savedInfo ? savedInfo.studentId : '';
+  const prefillStudentName = savedInfo ? savedInfo.studentName : '';
+  const prefillStudentEmail = savedInfo ? savedInfo.studentEmail : '';
+
+  // Welcome banner for returning students
+  const welcomeBanner = state.showSavedInfoBanner && savedInfo ? `
+    <div class="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-700">
+      <p class="text-indigo-800 dark:text-indigo-200 font-semibold mb-2">Welcome back, ${escapeHtml(savedInfo.studentName)}!</p>
+      <p class="text-sm text-indigo-600 dark:text-indigo-400 mb-3">Your information has been pre-filled from your last check-in.</p>
+      <div class="flex gap-2">
+        <button onclick="useSavedStudentInfo()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
+          Use Saved Info
+        </button>
+        <button onclick="enterNewStudentInfo()" class="px-4 py-2 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600">
+          Enter New Details
+        </button>
+      </div>
+    </div>
+  ` : '';
+
+  // Clear saved info button (only show if there's saved info but banner is dismissed)
+  const clearSavedButton = savedInfo && !state.showSavedInfoBanner ? `
+    <button onclick="clearStudentInfo(); render();" class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 underline">
+      Clear saved info
+    </button>
+  ` : '';
+
   return `
     <div class="flex items-center justify-center min-h-screen py-8">
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
         <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back</button>
         <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Mark Attendance</h2>
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your details and the code shown by your instructor</p>
+        ${welcomeBanner}
         <div id="studentMessage"></div>
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student Number <span class="text-red-500">*</span></label>
-            <input type="text" id="studentId" placeholder="e.g., 11223344" maxlength="20" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
+            <input type="text" id="studentId" placeholder="e.g., 11223344" maxlength="20" autocomplete="off" value="${escapeHtml(prefillStudentId)}" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name <span class="text-red-500">*</span></label>
-            <input type="text" id="studentName" placeholder="e.g., Nguyen Van A" maxlength="100" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
+            <input type="text" id="studentName" placeholder="e.g., Nguyen Van A" maxlength="100" autocomplete="off" value="${escapeHtml(prefillStudentName)}" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span class="text-red-500">*</span></label>
-            <input type="email" id="studentEmail" placeholder="e.g., student@st.neu.edu.vn" maxlength="100" autocomplete="off" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
+            <input type="email" id="studentEmail" placeholder="e.g., student@st.neu.edu.vn" maxlength="100" autocomplete="off" value="${escapeHtml(prefillStudentEmail)}" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 dark:bg-gray-700 dark:text-white">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attendance Code <span class="text-red-500">*</span></label>
@@ -736,7 +851,10 @@ function renderStudentView() {
           </div>
 
           <button onclick="submitAttendance()" id="submitBtn" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Submit Attendance</button>
-          <p class="text-xs text-gray-400 dark:text-gray-500 text-center">Location is optional but helps verify physical presence.</p>
+          <div class="flex justify-between items-center">
+            <p class="text-xs text-gray-400 dark:text-gray-500">Location is optional but helps verify physical presence.</p>
+            ${clearSavedButton}
+          </div>
         </div>
       </div>
     </div>`;
@@ -788,6 +906,7 @@ function setMode(mode) {
   state.pinVerified = false;
   state.showHistory = false;
   state.selectedFailedAttempts = new Set();
+  state.isReopenedSession = false;
 
   const url = new URL(window.location);
   if (mode) { url.searchParams.set('mode', mode); } else { url.searchParams.delete('mode'); }
@@ -796,7 +915,14 @@ function setMode(mode) {
 
   render();
   if (!mode) setTimeout(generateModeQRCodes, 100);
-  if (mode === 'student') { acquireStudentLocation(); initDeviceId(); }
+  if (mode === 'student') {
+    acquireStudentLocation();
+    initDeviceId();
+    // Load saved student info
+    state.savedStudentInfo = loadStudentInfo();
+    state.showSavedInfoBanner = !!state.savedStudentInfo;
+    render();
+  }
 }
 
 function cleanupListeners() {
@@ -862,6 +988,7 @@ async function tryRecoverSession() {
     state.session = session;
     state.currentCode = session.code;
     state.lateThreshold = session.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
+    state.isReopenedSession = session.isReopened || false;
 
     const elapsed = Math.floor((Date.now() - session.codeGeneratedAt) / 1000);
     state.timeLeft = Math.max(0, CODE_REFRESH_SECONDS - elapsed);
@@ -875,6 +1002,81 @@ async function tryRecoverSession() {
   } catch (err) {
     console.error('Session recovery failed:', err);
     clearSessionStorage();
+    state.isRecovering = false;
+    render();
+  }
+}
+
+async function reopenSession(sessionId) {
+  if (!confirm('Reopen this session for late check-ins? Students checking in will be marked as late.')) return;
+
+  state.isRecovering = true;
+  state.showHistory = false;
+  render();
+
+  try {
+    // Load the session
+    const sessionSnapshot = await db.ref('sessions/' + sessionId).once('value');
+    const session = sessionSnapshot.val();
+
+    if (!session) {
+      alert('Session not found');
+      state.isRecovering = false;
+      render();
+      return;
+    }
+
+    // Get instructor location
+    let location;
+    try {
+      location = await getLocation();
+    } catch (err) {
+      alert('Location access required to reopen session. Please enable location and try again.');
+      state.isRecovering = false;
+      render();
+      return;
+    }
+
+    // Generate new code
+    const newCode = generateCode();
+
+    // Update session in Firebase
+    await db.ref('sessions/' + sessionId).update({
+      code: newCode,
+      codeGeneratedAt: Date.now(),
+      isReopened: true,
+      reopenedAt: new Date().toISOString(),
+      location: location, // Update to current location
+      endedAt: null // Clear the ended timestamp
+    });
+
+    // Set as active session
+    await db.ref('activeSession').set(sessionId);
+
+    // Update local state
+    state.session = {
+      ...session,
+      code: newCode,
+      codeGeneratedAt: Date.now(),
+      isReopened: true,
+      location: location,
+      endedAt: null
+    };
+    state.currentCode = newCode;
+    state.timeLeft = CODE_REFRESH_SECONDS;
+    state.lateThreshold = session.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
+    state.isReopenedSession = true;
+
+    saveSessionToStorage(sessionId);
+    setupCodeRotation();
+    setupSessionListeners(sessionId);
+
+    state.isRecovering = false;
+    render();
+
+  } catch (err) {
+    console.error('Failed to reopen session:', err);
+    alert('Error reopening session: ' + err.message);
     state.isRecovering = false;
     render();
   }
@@ -917,13 +1119,18 @@ function setupCodeRotation() {
 function setupSessionListeners(sessionId) {
   state.attendanceListener = db.ref('attendance/' + sessionId).on('value', snapshot => {
     const data = snapshot.val();
+    const prevCount = state.attendance.length;
     if (data) {
       state.attendance = Object.values(data)
         .map(a => ({
           ...a,
-          isLate: isLateCheckIn(a.timestamp, state.session.createdAt, state.lateThreshold)
+          isLate: isLateCheckIn(a.timestamp, state.session.createdAt, state.lateThreshold) || a.lateCheckIn
         }))
         .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      // Play sound for new check-ins (instructor side)
+      if (state.attendance.length > prevCount && prevCount > 0) {
+        playSuccessSound();
+      }
     } else {
       state.attendance = [];
     }
@@ -1026,6 +1233,7 @@ async function startSession() {
     state.session = session;
     state.currentCode = code;
     state.timeLeft = CODE_REFRESH_SECONDS;
+    state.isReopenedSession = false;
 
     saveSessionToStorage(sessionId);
     setupCodeRotation();
@@ -1039,7 +1247,8 @@ async function startSession() {
 }
 
 async function endSession() {
-  if (!confirm('End this session?')) return;
+  const action = state.isReopenedSession ? 'close' : 'end';
+  if (!confirm(`${state.isReopenedSession ? 'Close' : 'End'} this session?`)) return;
 
   // Save session summary before ending
   if (state.session) {
@@ -1048,7 +1257,8 @@ async function endSession() {
       await db.ref('sessions/' + state.session.id).update({
         endedAt: new Date().toISOString(),
         attendanceCount: state.attendance.length,
-        lateCount: lateCount
+        lateCount: lateCount,
+        isReopened: false // Clear reopened flag when closing
       });
     } catch (err) {
       console.error('Failed to save session summary:', err);
@@ -1067,6 +1277,7 @@ async function endSession() {
   state.session = null;
   state.currentCode = '';
   state.selectedFailedAttempts = new Set();
+  state.isReopenedSession = false;
   render();
   setTimeout(generateSetupQRCodes, 100);
 }
@@ -1206,25 +1417,32 @@ async function submitAttendance() {
     const deviceSnapshot = await db.ref('attendance/' + activeSessionId).orderByChild('deviceId').equalTo(state.deviceId).once('value');
     if (deviceSnapshot.exists()) throw new Error('This device has already been used to check in.');
 
-    // Calculate if late
+    // Calculate if late (either by time threshold or if session was reopened)
     const lateThreshold = session.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
     const isLate = isLateCheckIn(baseRecord.timestamp, session.createdAt, lateThreshold);
+    const lateCheckIn = session.isReopened || false; // Mark as late if session was reopened
 
     await db.ref('attendance/' + activeSessionId).push({
       ...baseRecord,
       manuallyApproved: false,
-      isLate: isLate
+      isLate: isLate || lateCheckIn,
+      lateCheckIn: lateCheckIn // Additional flag for reopened session check-ins
     });
+
+    // Save student info to localStorage for future visits
+    saveStudentInfo({ studentId, studentName, studentEmail });
+    state.savedStudentInfo = { studentId, studentName, studentEmail };
+    state.showSavedInfoBanner = false;
 
     // Success feedback
     playSuccessSound();
     triggerVibration([200, 100, 200]);
 
-    const lateMessage = isLate
+    const lateMessage = (isLate || lateCheckIn)
       ? '<p class="text-xs text-orange-600 dark:text-orange-400 mt-2">Note: You have been marked as late.</p>'
       : '';
 
-    msgDiv.innerHTML = `<div class="mb-4 p-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg"><p class="font-semibold text-lg">Success!</p><p class="text-sm mt-1">Attendance recorded for <strong>${escapeHtml(session.className)}</strong></p>${lateMessage}<p class="text-xs mt-2">You can close this page now.</p></div>`;
+    msgDiv.innerHTML = `<div class="mb-4 p-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg"><p class="font-semibold text-lg">Success!</p><p class="text-sm mt-1">Attendance recorded for <strong>${escapeHtml(session.className)}</strong></p>${lateMessage}<p class="text-xs mt-2">You can close this page now.</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Your info has been saved for next time.</p></div>`;
     document.getElementById('enteredCode').value = '';
     btn.textContent = 'Submitted';
   } catch (err) {
@@ -1235,7 +1453,7 @@ async function submitAttendance() {
 
 function exportCSV() {
   if (!state.attendance.length || !state.session) return;
-  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Status', 'Manually Approved', 'Timestamp'];
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Status', 'Manually Approved', 'Late Check-in', 'Timestamp'];
   const rows = state.attendance.map((a, i) => [
     i + 1,
     a.studentId,
@@ -1247,6 +1465,7 @@ function exportCSV() {
     a.distance,
     a.isLate ? 'Late' : 'On Time',
     a.manuallyApproved ? 'Yes' : 'No',
+    a.lateCheckIn ? 'Yes' : 'No',
     a.timestamp
   ]);
   const BOM = '\uFEFF';
@@ -1291,6 +1510,10 @@ function init() {
     if (params.mode === 'student') {
       acquireStudentLocation();
       initDeviceId();
+      // Load saved student info
+      state.savedStudentInfo = loadStudentInfo();
+      state.showSavedInfoBanner = !!state.savedStudentInfo;
+      render();
     }
     // For teacher mode, PIN will be required first, then recovery happens
   } else {
