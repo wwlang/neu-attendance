@@ -6,7 +6,20 @@
   <title>Quick Attendance - NEU</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- QRCode library with fallback CDNs -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    // Fallback CDN for QRCode library if primary fails
+    if (typeof QRCode === 'undefined') {
+      document.write('<script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"><\/script>');
+    }
+  </script>
+  <script>
+    // Second fallback: cdnjs
+    if (typeof QRCode === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"><\/script>');
+    }
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -24,6 +37,8 @@
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
     .late-badge { animation: latePulse 2s infinite; }
     @keyframes latePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .qr-fallback { background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; text-align: center; }
+    .qr-fallback-text { color: #6b7280; font-size: 0.875rem; }
   </style>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
@@ -97,8 +112,14 @@ let state = {
   lastWarningTime: 0,
   savedStudentInfo: null,
   showSavedInfoBanner: false,
-  isReopenedSession: false
+  isReopenedSession: false,
+  qrCodeAvailable: typeof QRCode !== 'undefined'
 };
+
+// Check if QRCode library is available
+function isQRCodeAvailable() {
+  return typeof QRCode !== 'undefined' && QRCode !== null;
+}
 
 // Initialize audio context for sounds
 function initAudioContext() {
@@ -1171,18 +1192,57 @@ async function initDeviceId() {
   render();
 }
 
+// Safe QR code generation with fallback for when library fails to load
+function safeQRGenerate(container, url, options, onError) {
+  if (!isQRCodeAvailable()) {
+    console.warn('QRCode library not available. Displaying fallback.');
+    if (container) {
+      container.innerHTML = `<div class="qr-fallback"><p class="qr-fallback-text">QR code unavailable</p><p class="text-xs text-gray-400 mt-1">Use link below</p></div>`;
+    }
+    if (onError) onError(new Error('QRCode library not loaded'));
+    return;
+  }
+
+  try {
+    QRCode.toCanvas(document.createElement('canvas'), url, options, (err, canvas) => {
+      if (err) {
+        console.error('QR generation error:', err);
+        if (container) {
+          container.innerHTML = `<div class="qr-fallback"><p class="qr-fallback-text">QR error</p></div>`;
+        }
+        if (onError) onError(err);
+        return;
+      }
+      if (container) {
+        container.innerHTML = '';
+        container.appendChild(canvas);
+      }
+    });
+  } catch (err) {
+    console.error('QR generation exception:', err);
+    if (container) {
+      container.innerHTML = `<div class="qr-fallback"><p class="qr-fallback-text">QR unavailable</p></div>`;
+    }
+    if (onError) onError(err);
+  }
+}
+
 function generateModeQRCodes() {
   const baseUrl = getBaseUrl();
-  const tc = document.getElementById('qr-teacher'), sc = document.getElementById('qr-student');
-  if (tc) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=teacher`, { width: 80 }, (e, c) => { if (!e) { tc.innerHTML = ''; tc.appendChild(c); } });
-  if (sc) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=student`, { width: 80 }, (e, c) => { if (!e) { sc.innerHTML = ''; sc.appendChild(c); } });
+  const tc = document.getElementById('qr-teacher');
+  const sc = document.getElementById('qr-student');
+
+  safeQRGenerate(tc, `${baseUrl}?mode=teacher`, { width: 80 });
+  safeQRGenerate(sc, `${baseUrl}?mode=student`, { width: 80 });
 }
 
 function generateSetupQRCodes() {
   const baseUrl = getBaseUrl();
-  const sl = document.getElementById('qr-student-large'), tl = document.getElementById('qr-teacher-large');
-  if (sl) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=student`, { width: 150 }, (e, c) => { if (!e) { sl.innerHTML = ''; sl.appendChild(c); } });
-  if (tl) QRCode.toCanvas(document.createElement('canvas'), `${baseUrl}?mode=teacher`, { width: 150 }, (e, c) => { if (!e) { tl.innerHTML = ''; tl.appendChild(c); } });
+  const sl = document.getElementById('qr-student-large');
+  const tl = document.getElementById('qr-teacher-large');
+
+  safeQRGenerate(sl, `${baseUrl}?mode=student`, { width: 150 });
+  safeQRGenerate(tl, `${baseUrl}?mode=teacher`, { width: 150 });
 }
 
 function generateQRCodes() {
@@ -1190,7 +1250,8 @@ function generateQRCodes() {
   const sc = document.getElementById('qr-student-checkin');
   // Include current code in QR for auto-fill
   const qrUrl = `${baseUrl}?mode=student&code=${state.currentCode}`;
-  if (sc) QRCode.toCanvas(document.createElement('canvas'), qrUrl, { width: 180 }, (e, c) => { if (!e) { sc.innerHTML = ''; sc.appendChild(c); } });
+
+  safeQRGenerate(sc, qrUrl, { width: 180 });
 }
 
 async function acquireStudentLocation() {
@@ -1347,6 +1408,14 @@ async function submitAttendance() {
   const enteredCode = document.getElementById('enteredCode').value.trim().toUpperCase();
   const msgDiv = document.getElementById('studentMessage');
 
+  // BUG FIX: Save student info FIRST (before any validation)
+  // This ensures info is saved on ANY submission attempt, not just success
+  // Journey Reference: student-check-in.md AC6.1
+  if (studentId && studentName && studentEmail) {
+    saveStudentInfo({ studentId, studentName, studentEmail });
+    state.savedStudentInfo = { studentId, studentName, studentEmail };
+  }
+
   if (!studentId || !studentName || !studentEmail || !enteredCode) {
     msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Please fill in all fields</div>';
     return;
@@ -1429,9 +1498,8 @@ async function submitAttendance() {
       lateCheckIn: lateCheckIn // Additional flag for reopened session check-ins
     });
 
-    // Save student info to localStorage for future visits
-    saveStudentInfo({ studentId, studentName, studentEmail });
-    state.savedStudentInfo = { studentId, studentName, studentEmail };
+    // Student info was already saved at the beginning of this function
+    // Just update the banner state
     state.showSavedInfoBanner = false;
 
     // Success feedback
@@ -1502,6 +1570,12 @@ function exportFailedCSV() {
 
 function init() {
   loadDarkMode();
+
+  // Update QR code availability status
+  state.qrCodeAvailable = isQRCodeAvailable();
+  if (!state.qrCodeAvailable) {
+    console.warn('QRCode library did not load from any CDN. QR codes will show fallback message.');
+  }
 
   const params = getUrlParams();
   if (params.mode === 'teacher' || params.mode === 'student') {

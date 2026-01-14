@@ -90,11 +90,15 @@ Instructor displays attendance code and asks students to check in
 - [x] If same device ID submits different student ID, flag as potential typo for instructor review
 
 ### AC6.1: Remember Student Info (Cookies/LocalStorage)
-- [x] Student ID, name, and email saved to localStorage after successful check-in
+- [x] Student ID, name, and email saved to localStorage after ANY submission attempt
 - [x] On return visit, form pre-populated with saved values
 - [x] Welcome banner shows with "Use Saved Info" / "Enter New Details" buttons
 - [x] "Clear saved info" option available (link at bottom of form)
 - [x] Device ID persists across sessions (same device = same fingerprint)
+
+> **BUG FIXED (2026-01-15):** localStorage now populated on form submission (before validation).
+> Student info saves on ANY attempt so students don't re-enter info on retry.
+> Verified by integration tests: `student-flow.spec.js` AC6.1 tests.
 
 ### AC7: Success Confirmation
 - [x] Green success message displayed

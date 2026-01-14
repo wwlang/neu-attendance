@@ -372,4 +372,67 @@ test.describe('Student Info Persistence', () => {
     const studentId = await page.inputValue('input#studentId');
     expect(studentId).toBe('');
   });
+
+  /**
+   * BUG FIX TEST: Student info saved on form submission (even when validation fails)
+   * Journey Reference: student-check-in.md AC6.1
+   *
+   * Previously, student info was only saved AFTER successful check-in.
+   * Now it should be saved on ANY form submission attempt with valid student info.
+   */
+  test('should save student info on form submission even when submission fails (AC6.1)', async ({ page }) => {
+    // Navigate to student mode with clean localStorage
+    await page.click('button:has-text("I\'m a Student")');
+    await page.waitForTimeout(1000);
+
+    // Fill in student info
+    await page.fill('input#studentId', '11223344');
+    await page.fill('input#studentName', 'Tran Van B');
+    await page.fill('input#studentEmail', 'tranb@st.neu.edu.vn');
+    await page.fill('input#enteredCode', 'XXXXXX'); // Invalid code - will fail
+
+    // Submit the form (will fail due to invalid code or no active session)
+    await page.click('button:has-text("Submit Attendance")');
+    await page.waitForTimeout(3000);
+
+    // Verify localStorage was saved despite the failed submission
+    const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
+    const storedName = await page.evaluate(() => localStorage.getItem('neu_student_name'));
+    const storedEmail = await page.evaluate(() => localStorage.getItem('neu_student_email'));
+
+    expect(storedId).toBe('11223344');
+    expect(storedName).toBe('Tran Van B');
+    expect(storedEmail).toBe('tranb@st.neu.edu.vn');
+  });
+
+  test('should pre-populate form on page reload after failed submission (session rejoin)', async ({ page }) => {
+    // Navigate to student mode with clean localStorage
+    await page.click('button:has-text("I\'m a Student")');
+    await page.waitForTimeout(1000);
+
+    // Fill in student info and submit (will fail)
+    await page.fill('input#studentId', '55667788');
+    await page.fill('input#studentName', 'Le Thi C');
+    await page.fill('input#studentEmail', 'lethic@st.neu.edu.vn');
+    await page.fill('input#enteredCode', 'BADCOD'); // Invalid code
+    await page.click('button:has-text("Submit Attendance")');
+    await page.waitForTimeout(3000);
+
+    // Reload the page (simulating returning to try again)
+    await page.goto('/?mode=student');
+    await page.waitForTimeout(1000);
+
+    // Form should be pre-populated with previously entered info
+    const studentId = await page.inputValue('input#studentId');
+    const studentName = await page.inputValue('input#studentName');
+    const studentEmail = await page.inputValue('input#studentEmail');
+
+    expect(studentId).toBe('55667788');
+    expect(studentName).toBe('Le Thi C');
+    expect(studentEmail).toBe('lethic@st.neu.edu.vn');
+
+    // Welcome banner should appear for returning user
+    await expect(page.locator('text=Welcome back')).toBeVisible();
+    await expect(page.locator('text=Le Thi C')).toBeVisible();
+  });
 });

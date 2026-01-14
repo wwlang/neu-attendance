@@ -80,10 +80,16 @@ Instructor needs to take attendance for a class session
 ### AC2: QR Code Display & Rotation
 - [x] Large QR code displayed as primary check-in method
 - [x] QR encodes full URL with embedded code: `?mode=student&code=XXXXXX`
-- [x] QR regenerates automatically every 2 minutes with new code
+- [ ] QR regenerates automatically every 2 minutes with new code
 - [x] Text code visible as fallback for manual entry
 - [x] Countdown timer visible showing time until rotation
 - [x] Audio warning beeps at 10 seconds before rotation
+- [x] **QR library loads reliably** (CDN fallback implemented)
+
+> **BUG FIXED (2026-01-15):** QRCode library now loads with CDN fallback chain.
+> Primary: jsDelivr -> Fallback 1: unpkg -> Fallback 2: cdnjs
+> Safe wrapper function `safeQRGenerate()` provides graceful degradation with fallback UI.
+> Verified by integration tests: `qr-code.spec.js` tests.
 
 ### AC3: Real-time Attendance Tracking
 - [x] New check-ins appear within 2 seconds
