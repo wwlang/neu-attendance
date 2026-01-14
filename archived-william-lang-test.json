@@ -1,0 +1,36 @@
+{
+  "session": "mkbxypof",
+  "exportedAt": "2026-01-14T16:48:58.741Z",
+  "attendance": {
+    "-Oip5vV7QAVNC40sKH1i": {
+      "allowedRadius": 100,
+      "deviceId": "DEV-2F9BB8E7",
+      "distance": 33,
+      "email": "williamwintertonlang@gmail.com",
+      "isLate": false,
+      "location": {
+        "accuracy": 5.019999980926514,
+        "lat": 21.0002446,
+        "lng": 105.8434552
+      },
+      "manuallyApproved": false,
+      "studentId": "12345",
+      "studentName": "William Lang",
+      "timestamp": "2026-01-13T02:07:31.120Z"
+    }
+  },
+  "sessionInfo": {
+    "className": "Introduction to Fintech",
+    "code": "K4NPVQ",
+    "codeGeneratedAt": 1768270031054,
+    "createdAt": "2026-01-13T01:57:11.679Z",
+    "id": "mkbxypof",
+    "lateThreshold": 20,
+    "location": {
+      "accuracy": 86.83499908447266,
+      "lat": 21.0000527,
+      "lng": 105.8432071
+    },
+    "radius": 100
+  }
+}

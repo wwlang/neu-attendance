@@ -276,10 +276,10 @@ test.describe('Full Session Lifecycle with History', () => {
 
     // Go to history
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000); // Wait for Firebase to sync
 
-    // Should see our session in history
-    await expect(page.locator(`text=${className}`)).toBeVisible();
+    // Should see our session in history (may need to wait for data load)
+    await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
 
     // Click on the session
     await page.locator(`text=${className}`).click();

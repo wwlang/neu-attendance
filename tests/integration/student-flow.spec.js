@@ -243,7 +243,7 @@ test.describe('Student Info Persistence', () => {
     await expect(page.locator('text=Nguyen Van A')).toBeVisible();
   });
 
-  test('should have enter new details option that clears form and localStorage', async ({ page }) => {
+  test('should have clear saved info option that clears form and localStorage', async ({ page }) => {
     // Set up saved student info
     await page.evaluate(() => {
       localStorage.setItem('neu_student_id', '87654321');
@@ -258,8 +258,18 @@ test.describe('Student Info Persistence', () => {
     // Verify form is pre-filled
     expect(await page.inputValue('input#studentId')).toBe('87654321');
 
-    // Click "Enter New Details" button on the welcome banner
-    await page.click('button:has-text("Enter New Details")');
+    // Welcome banner should be visible (simplified version with dismiss X)
+    await expect(page.locator('text=Welcome back')).toBeVisible();
+
+    // Dismiss the banner first (click X button)
+    await page.click('button[title="Dismiss"]');
+    await page.waitForTimeout(500);
+
+    // Now "Clear saved info" link should be visible
+    await expect(page.locator('text=Clear saved info')).toBeVisible();
+
+    // Click "Clear saved info" to reset
+    await page.click('text=Clear saved info');
     await page.waitForTimeout(500);
 
     // Form fields should be empty
@@ -270,9 +280,6 @@ test.describe('Student Info Persistence', () => {
     expect(studentId).toBe('');
     expect(studentName).toBe('');
     expect(studentEmail).toBe('');
-
-    // Welcome banner should be hidden
-    await expect(page.locator('text=Welcome back')).not.toBeVisible();
 
     // localStorage should be cleared
     const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
@@ -299,8 +306,8 @@ test.describe('Student Info Persistence', () => {
     // Initially, "Clear saved info" link should NOT be visible (banner is shown)
     await expect(page.locator('text=Clear saved info')).not.toBeVisible();
 
-    // Click "Use Saved Info" to dismiss banner
-    await page.click('button:has-text("Use Saved Info")');
+    // Click the X button to dismiss banner (simplified UX)
+    await page.click('button[title="Dismiss"]');
     await page.waitForTimeout(500);
 
     // Now "Clear saved info" link should be visible

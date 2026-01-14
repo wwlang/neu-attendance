@@ -264,27 +264,6 @@ function clearStudentInfo() {
   }
 }
 
-function useSavedStudentInfo() {
-  // The form is already pre-filled, just dismiss the banner
-  state.showSavedInfoBanner = false;
-  render();
-}
-
-function enterNewStudentInfo() {
-  // Clear the saved info and re-render with empty form
-  clearStudentInfo();
-  render();
-  // Clear the form fields
-  setTimeout(() => {
-    const studentIdEl = document.getElementById('studentId');
-    const studentNameEl = document.getElementById('studentName');
-    const studentEmailEl = document.getElementById('studentEmail');
-    if (studentIdEl) studentIdEl.value = '';
-    if (studentNameEl) studentNameEl.value = '';
-    if (studentEmailEl) studentEmailEl.value = '';
-  }, 50);
-}
-
 // Quick Confirm for returning students (AC6.2)
 // Allows one-tap attendance confirmation when student has saved info and code from QR
 function showFullStudentForm() {
@@ -1003,18 +982,16 @@ function renderStudentView() {
   ` : '';
 
   // Welcome banner for returning students (when not in quick confirm mode)
+  // Simplified: just show a dismissible message, form is already pre-filled
   const welcomeBanner = state.showSavedInfoBanner && savedInfo && !prefillCode ? `
-    <div class="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-700">
-      <p class="text-indigo-800 dark:text-indigo-200 font-semibold mb-2">Welcome back, ${escapeHtml(savedInfo.studentName)}!</p>
-      <p class="text-sm text-indigo-600 dark:text-indigo-400 mb-3">Your information has been pre-filled from your last check-in.</p>
-      <div class="flex gap-2">
-        <button onclick="useSavedStudentInfo()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">
-          Use Saved Info
-        </button>
-        <button onclick="enterNewStudentInfo()" class="px-4 py-2 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600">
-          Enter New Details
-        </button>
+    <div class="mb-4 p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg border border-emerald-200 dark:border-emerald-700 flex items-center justify-between">
+      <div>
+        <p class="text-emerald-800 dark:text-emerald-200 font-semibold">Welcome back, ${escapeHtml(savedInfo.studentName)}!</p>
+        <p class="text-sm text-emerald-600 dark:text-emerald-400">Your info is pre-filled. Just enter the code and submit.</p>
       </div>
+      <button onclick="state.showSavedInfoBanner = false; render();" class="text-emerald-400 hover:text-emerald-600 dark:text-emerald-500 dark:hover:text-emerald-300 ml-4" title="Dismiss">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
     </div>
   ` : '';
 
