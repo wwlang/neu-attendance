@@ -83,7 +83,7 @@ Instructor needs to take attendance for a class session
 - [ ] QR regenerates automatically every 2 minutes with new code
 - [x] Text code visible as fallback for manual entry
 - [x] Countdown timer visible showing time until rotation
-- [x] Audio warning beeps at 10 seconds before rotation
+- [x] Vibration warning at 10 seconds before rotation (no audio to avoid disruption)
 - [x] **QR library loads reliably** (CDN fallback implemented)
 
 > **BUG FIXED (2026-01-15):** QRCode library now loads with CDN fallback chain.

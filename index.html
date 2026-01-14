@@ -6,18 +6,12 @@
   <title>Quick Attendance - NEU</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <!-- QRCode library with fallback CDNs -->
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <!-- QRCode library (davidshimjs/qrcodejs) with fallback CDNs -->
+  <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
   <script>
     // Fallback CDN for QRCode library if primary fails
     if (typeof QRCode === 'undefined') {
-      document.write('<script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"><\/script>');
-    }
-  </script>
-  <script>
-    // Second fallback: cdnjs
-    if (typeof QRCode === 'undefined') {
-      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"><\/script>');
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>');
     }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -112,6 +106,7 @@ let state = {
   lastWarningTime: 0,
   savedStudentInfo: null,
   showSavedInfoBanner: false,
+  showFullForm: false,
   isReopenedSession: false,
   qrCodeAvailable: typeof QRCode !== 'undefined'
 };
@@ -152,26 +147,15 @@ function playSuccessSound() {
   }
 }
 
-// Play countdown warning beep
+// Countdown warning - vibrate only (no sound to avoid disruption)
 function playWarningBeep() {
   try {
-    const ctx = initAudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.frequency.value = 440; // A4 note
-    oscillator.type = 'square';
-
-    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.1);
+    // Use vibration pattern: short-pause-short for countdown warning
+    if (navigator.vibrate) {
+      navigator.vibrate([100, 50, 100]);
+    }
   } catch (e) {
-    console.warn('Could not play warning beep:', e);
+    console.warn('Could not trigger warning vibration:', e);
   }
 }
 
@@ -284,6 +268,126 @@ function enterNewStudentInfo() {
     if (studentNameEl) studentNameEl.value = '';
     if (studentEmailEl) studentEmailEl.value = '';
   }, 50);
+}
+
+// Quick Confirm for returning students (AC6.2)
+// Allows one-tap attendance confirmation when student has saved info and code from QR
+function showFullStudentForm() {
+  state.showFullForm = true;
+  render();
+}
+
+async function quickConfirmAttendance() {
+  const savedInfo = state.savedStudentInfo;
+  const urlParams = getUrlParams();
+  const code = urlParams.code;
+
+  if (!savedInfo || !code) {
+    showFullStudentForm();
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Confirming...';
+  }
+
+  // Use saved student info for submission
+  const studentId = savedInfo.studentId;
+  const studentName = savedInfo.studentName;
+  const studentEmail = savedInfo.studentEmail;
+  const deviceId = state.deviceId;
+
+  // Validate saved info
+  if (!studentId || !studentName || !studentEmail || !deviceId) {
+    showMessage('Please enter your details', 'error');
+    showFullStudentForm();
+    return;
+  }
+
+  // Continue with the same submission logic as submitAttendance
+  const sessionsRef = db.ref('sessions');
+  const sessionsSnapshot = await sessionsRef.orderByChild('isActive').equalTo(true).once('value');
+  const sessionsData = sessionsSnapshot.val();
+
+  if (!sessionsData) {
+    showMessage('No active session. Please wait for instructor.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+    return;
+  }
+
+  const sessionId = Object.keys(sessionsData)[0];
+  const session = sessionsData[sessionId];
+
+  // Verify code (current or previous within grace period)
+  const now = Date.now();
+  const codeAge = (now - session.codeGeneratedAt) / 1000;
+  const isCurrentCode = code.toUpperCase() === session.code.toUpperCase();
+  const isPreviousCode = session.previousCode && code.toUpperCase() === session.previousCode.toUpperCase() && codeAge < CODE_GRACE_PERIOD;
+
+  if (!isCurrentCode && !isPreviousCode) {
+    await logFailedAttempt(sessionId, { studentId, studentName, studentEmail, deviceId, code, reason: 'Invalid or expired code', location: state.studentLocation });
+    showMessage('Invalid or expired code. Try again.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+    return;
+  }
+
+  // Check location if available
+  if (state.studentLocation && session.location) {
+    const distance = haversineDistance(state.studentLocation.latitude, state.studentLocation.longitude, session.location.latitude, session.location.longitude);
+    if (distance > session.radius) {
+      await logFailedAttempt(sessionId, { studentId, studentName, studentEmail, deviceId, code, reason: `Too far: ${Math.round(distance)}m`, location: state.studentLocation, distance: Math.round(distance) });
+      showMessage(`You're ${Math.round(distance)}m away (limit: ${session.radius}m). Your attempt has been logged for instructor review.`, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+      return;
+    }
+  }
+
+  // Check for duplicates
+  const attendanceRef = db.ref(`sessions/${sessionId}/attendance`);
+  const existingAttendance = await attendanceRef.once('value');
+  const attendanceData = existingAttendance.val() || {};
+
+  for (const key in attendanceData) {
+    if (attendanceData[key].studentId === studentId) {
+      showMessage('You have already checked in!', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+      return;
+    }
+    if (attendanceData[key].deviceId === deviceId) {
+      await logFailedAttempt(sessionId, { studentId, studentName, studentEmail, deviceId, code, reason: 'Device already used', location: state.studentLocation });
+      showMessage('This device has already been used for check-in.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+      return;
+    }
+  }
+
+  // Determine if late
+  const sessionStart = new Date(session.createdAt).getTime();
+  const lateThreshold = (session.lateThresholdMinutes || DEFAULT_LATE_THRESHOLD_MINUTES) * 60 * 1000;
+  const isLate = now > (sessionStart + lateThreshold);
+  const isLateRejoin = session.isReopenedForLate || false;
+
+  // Success - record attendance
+  await attendanceRef.push({
+    studentId,
+    studentName,
+    studentEmail,
+    deviceId,
+    timestamp: new Date().toISOString(),
+    location: state.studentLocation || null,
+    codeUsed: code.toUpperCase(),
+    isLate,
+    isLateRejoin,
+    quickConfirm: true
+  });
+
+  // Play success sound
+  playSuccessBeep();
+
+  showMessage(`✓ Attendance confirmed for ${session.className}!${isLate ? ' (Late)' : ''} You can close this page.`, 'success');
+  if (btn) { btn.disabled = false; btn.textContent = '✓ Confirmed!'; }
 }
 
 // Offline detection
@@ -799,8 +903,62 @@ function renderStudentView() {
   const prefillStudentName = savedInfo ? savedInfo.studentName : '';
   const prefillStudentEmail = savedInfo ? savedInfo.studentEmail : '';
 
-  // Welcome banner for returning students
-  const welcomeBanner = state.showSavedInfoBanner && savedInfo ? `
+  // QUICK CONFIRM MODE: Returning student with code from QR
+  // Show simplified one-tap confirm screen (AC6.2)
+  const showQuickConfirm = savedInfo && prefillCode && state.showSavedInfoBanner && !state.showFullForm;
+
+  if (showQuickConfirm) {
+    return `
+      <div class="flex items-center justify-center min-h-screen py-8">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <div class="mb-6">
+            <div class="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-10 h-10 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Welcome back!</h2>
+            <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mb-1">${escapeHtml(savedInfo.studentName)}</p>
+            <p class="text-gray-500 dark:text-gray-400">Student ID: ${escapeHtml(savedInfo.studentId)}</p>
+          </div>
+
+          <div id="studentMessage"></div>
+
+          <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Attendance Code</p>
+            <p class="text-3xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-widest">${escapeHtml(prefillCode)}</p>
+          </div>
+
+          <div class="mb-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              ${state.studentLocation
+                ? `<span class="text-emerald-600 dark:text-emerald-400">📍 Location acquired</span>`
+                : `<span class="text-yellow-600 dark:text-yellow-400">📍 Acquiring location...</span>`
+              }
+            </p>
+          </div>
+
+          <button onclick="quickConfirmAttendance()" id="submitBtn" class="w-full py-5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
+            ✓ Confirm Attendance
+          </button>
+
+          <button onclick="showFullStudentForm()" class="mt-4 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 underline">
+            Edit my details
+          </button>
+        </div>
+      </div>`;
+  }
+
+  // FULL FORM MODE: New students or editing details
+  // Clear saved info button (only show if there's saved info but banner is dismissed)
+  const clearSavedButton = savedInfo && !state.showSavedInfoBanner ? `
+    <button onclick="clearStudentInfo(); render();" class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 underline">
+      Clear saved info
+    </button>
+  ` : '';
+
+  // Welcome banner for returning students (when not in quick confirm mode)
+  const welcomeBanner = state.showSavedInfoBanner && savedInfo && !prefillCode ? `
     <div class="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-700">
       <p class="text-indigo-800 dark:text-indigo-200 font-semibold mb-2">Welcome back, ${escapeHtml(savedInfo.studentName)}!</p>
       <p class="text-sm text-indigo-600 dark:text-indigo-400 mb-3">Your information has been pre-filled from your last check-in.</p>
@@ -813,13 +971,6 @@ function renderStudentView() {
         </button>
       </div>
     </div>
-  ` : '';
-
-  // Clear saved info button (only show if there's saved info but banner is dismissed)
-  const clearSavedButton = savedInfo && !state.showSavedInfoBanner ? `
-    <button onclick="clearStudentInfo(); render();" class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 underline">
-      Clear saved info
-    </button>
   ` : '';
 
   return `
@@ -1193,6 +1344,7 @@ async function initDeviceId() {
 }
 
 // Safe QR code generation with fallback for when library fails to load
+// Uses davidshimjs/qrcodejs API: new QRCode(element, { text, width, height })
 function safeQRGenerate(container, url, options, onError) {
   if (!isQRCodeAvailable()) {
     console.warn('QRCode library not available. Displaying fallback.');
@@ -1204,19 +1356,19 @@ function safeQRGenerate(container, url, options, onError) {
   }
 
   try {
-    QRCode.toCanvas(document.createElement('canvas'), url, options, (err, canvas) => {
-      if (err) {
-        console.error('QR generation error:', err);
-        if (container) {
-          container.innerHTML = `<div class="qr-fallback"><p class="qr-fallback-text">QR error</p></div>`;
-        }
-        if (onError) onError(err);
-        return;
-      }
-      if (container) {
-        container.innerHTML = '';
-        container.appendChild(canvas);
-      }
+    // Clear container before generating new QR
+    if (container) {
+      container.innerHTML = '';
+    }
+
+    const size = options?.width || 128;
+    new QRCode(container, {
+      text: url,
+      width: size,
+      height: size,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
     });
   } catch (err) {
     console.error('QR generation exception:', err);
