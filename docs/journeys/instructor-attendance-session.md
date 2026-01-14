@@ -68,6 +68,21 @@ Instructor needs to take attendance for a class session
 - Late students can scan and check in (marked as "Late" + "Rejoined")
 - Click "Close" when done - session returns to ended state
 
+### 9. View & Manage Session History
+- Click "View History" from instructor dashboard
+- Toggle "Show All" to see sessions older than 7 days
+- Click any session to view full attendance details
+- Session detail shows: student list, timestamps, late badges, device IDs
+- Export attendance CSV from any historical session
+- Edit attendance: remove entries, add manual entries, fix typos
+
+### 10. Edit Attendance Records
+- From session detail view, click "Edit" on any student entry
+- Options: Edit details, Remove entry, Add note
+- "Add Student" button for manual entries (missed QR scan)
+- All changes logged with timestamp for audit trail
+- Confirmation required for deletions
+
 ## Acceptance Criteria
 
 ### AC1: Session Creation
@@ -136,6 +151,38 @@ Instructor needs to take attendance for a class session
 - [x] "Rejoined" badge displayed for late session check-ins
 - [x] Instructor can close reopened session without losing data
 - [x] "Reopened for Late Check-ins" badge in session header
+
+### AC8: Session History Management
+**View historical sessions and manage attendance records.**
+
+- [x] Click any session in history to view full attendance list
+- [x] Session detail view shows: all students, timestamps, late status, device IDs
+- [x] "Show All Sessions" toggle to view sessions older than 7 days
+- [x] Search/filter sessions by class name or date
+- [x] Export CSV from any historical session (not just active)
+
+> **IMPLEMENTED (2026-01-15):** Session history now includes:
+> - Clickable sessions that open a detailed view
+> - Full attendance table with Device ID column
+> - "Show All Sessions" checkbox toggle
+> - Search/filter input for class name or date
+> - Export CSV button in session detail view
+
+### AC9: Edit Attendance Records
+**Modify attendance data for corrections and manual adjustments.**
+
+- [x] Remove incorrect attendance entries (with confirmation)
+- [x] Manually add student to attendance (name, ID, email, mark as "Manual Entry")
+- [x] Edit student details (fix typos in name/ID/email)
+- [x] Add notes to attendance record (e.g., "Approved by instructor")
+- [x] Audit trail: changes logged with timestamp and reason
+
+> **IMPLEMENTED (2026-01-15):** Edit attendance features include:
+> - "Add Student" button opens modal for manual entry
+> - Edit/Note/Remove buttons on each attendance row
+> - Note indicator (emoji) shown next to student names with notes
+> - Confirmation prompt with reason required for deletions
+> - All changes logged to `audit/{sessionId}` in Firebase with timestamp
 
 ## Error Scenarios
 

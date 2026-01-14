@@ -33,6 +33,7 @@
     @keyframes latePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .qr-fallback { background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; text-align: center; }
     .qr-fallback-text { color: #6b7280; font-size: 0.875rem; }
+    .modal-backdrop { background: rgba(0,0,0,0.5); }
   </style>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
@@ -41,6 +42,9 @@
 <div id="offlineBanner" class="hidden fixed top-0 left-0 right-0 bg-amber-500 text-white text-center py-2 text-sm font-medium z-50 offline-banner no-print">
   <span>You are offline. Changes may not be saved.</span>
 </div>
+
+<!-- Modal Container -->
+<div id="modalContainer"></div>
 
 <div id="app" class="p-4 max-w-4xl mx-auto">
   <div class="flex items-center justify-center min-h-screen">
@@ -108,7 +112,18 @@ let state = {
   showSavedInfoBanner: false,
   showFullForm: false,
   isReopenedSession: false,
-  qrCodeAvailable: typeof QRCode !== 'undefined'
+  qrCodeAvailable: typeof QRCode !== 'undefined',
+  // AC8: Session History Management
+  selectedHistorySession: null,
+  selectedSessionAttendance: [],
+  showAllHistory: false,
+  historyFilter: '',
+  // AC9: Edit Attendance Records
+  showAddStudentModal: false,
+  showEditStudentModal: false,
+  editingStudent: null,
+  showAddNoteModal: false,
+  noteTargetStudent: null
 };
 
 // Check if QRCode library is available
@@ -566,6 +581,7 @@ function render() {
 
   app.innerHTML = content;
   updateOnlineStatus();
+  renderModals();
 }
 
 function renderPinEntry() {
@@ -840,37 +856,66 @@ function renderTeacherView() {
 }
 
 function renderHistoryView() {
+  // If viewing a specific session's details (AC8)
+  if (state.selectedHistorySession) {
+    return renderSessionDetailView();
+  }
+
+  // Filter sessions based on search and showAllHistory toggle
+  let filteredSessions = state.sessionHistory;
+  if (state.historyFilter) {
+    const filter = state.historyFilter.toLowerCase();
+    filteredSessions = filteredSessions.filter(s => 
+      s.className.toLowerCase().includes(filter) ||
+      new Date(s.createdAt).toLocaleDateString().includes(filter)
+    );
+  }
+  if (!state.showAllHistory) {
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    filteredSessions = filteredSessions.filter(s => new Date(s.createdAt).getTime() > sevenDaysAgo);
+  }
+
   return `
     <div class="pt-8">
-      <button onclick="state.showHistory = false; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
+      <button onclick="state.showHistory = false; state.selectedHistorySession = null; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
-        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Session History</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Recent sessions from the last 7 days. You can reopen ended sessions to allow late check-ins.</p>
-        ${state.sessionHistory.length === 0
-          ? '<p class="text-gray-400 dark:text-gray-500 text-center py-8">No previous sessions found</p>'
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Session History</h2>
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" ${state.showAllHistory ? 'checked' : ''} onchange="state.showAllHistory = this.checked; render();" class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+            <span class="text-gray-600 dark:text-gray-400">Show All Sessions</span>
+          </label>
+        </div>
+        
+        <!-- Search/Filter (AC8) -->
+        <div class="mb-4">
+          <input type="text" placeholder="Search by class name or date..." value="${escapeHtml(state.historyFilter)}" 
+            oninput="state.historyFilter = this.value; render();"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+        </div>
+        
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">${state.showAllHistory ? 'All sessions' : 'Sessions from the last 7 days'}. Click a session to view details.</p>
+        ${filteredSessions.length === 0
+          ? '<p class="text-gray-400 dark:text-gray-500 text-center py-8">No sessions found</p>'
           : `
             <div class="space-y-4">
-              ${state.sessionHistory.map(session => {
+              ${filteredSessions.map(session => {
                 const isEnded = !!session.endedAt;
                 const daysSinceCreated = Math.floor((Date.now() - new Date(session.createdAt).getTime()) / (1000 * 60 * 60 * 24));
                 const canReopen = isEnded && daysSinceCreated <= 7;
                 return `
-                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onclick="viewSessionDetails('${session.id}')">
                   <div class="flex justify-between items-start">
                     <div class="flex-1">
                       <h3 class="font-semibold text-gray-800 dark:text-white">${escapeHtml(session.className)}</h3>
                       <p class="text-sm text-gray-500 dark:text-gray-400">${new Date(session.createdAt).toLocaleDateString()} ${new Date(session.createdAt).toLocaleTimeString()}</p>
-                      ${session.endedAt ? `<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ended: ${new Date(session.endedAt).toLocaleTimeString()}</p>` : '<p class="text-xs text-green-500 mt-1">Currently Active</p>'}
-                      ${session.lateCount ? `<p class="text-xs text-orange-600 dark:text-orange-400 mt-1">${session.lateCount} late arrivals</p>` : ''}
+                      ${session.endedAt ? '<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ended: ' + new Date(session.endedAt).toLocaleTimeString() + '</p>' : '<p class="text-xs text-green-500 mt-1">Currently Active</p>'}
+                      ${session.lateCount ? '<p class="text-xs text-orange-600 dark:text-orange-400 mt-1">' + session.lateCount + ' late arrivals</p>' : ''}
                     </div>
                     <div class="text-right ml-4">
                       <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">${session.attendanceCount || 0}</p>
                       <p class="text-xs text-gray-500 dark:text-gray-400">students</p>
-                      ${canReopen ? `
-                        <button onclick="reopenSession('${session.id}')" class="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 text-sm font-medium">
-                          Reopen for Late
-                        </button>
-                      ` : ''}
+                      ${canReopen ? '<button onclick="event.stopPropagation(); reopenSession(\'' + session.id + '\')" class="mt-2 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 text-sm font-medium">Reopen for Late</button>' : ''}
                     </div>
                   </div>
                 </div>
@@ -1115,10 +1160,13 @@ function cleanupListeners() {
 
 async function loadSessionHistory() {
   try {
-    const snapshot = await db.ref('sessions').orderByChild('createdAt').limitToLast(20).once('value');
+    // Load more sessions for "Show All" feature (AC8)
+    const snapshot = await db.ref('sessions').orderByChild('createdAt').limitToLast(100).once('value');
     const sessions = [];
     snapshot.forEach(child => {
-      sessions.push(child.val());
+      const session = child.val();
+      session.id = child.key; // Ensure ID is set
+      sessions.push(session);
     });
     state.sessionHistory = sessions.reverse(); // Most recent first
     render();
@@ -1718,6 +1766,468 @@ function exportFailedCSV() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = `failed_attempts_${state.session.className.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
+}
+
+
+// ============================================
+// AC8: Session History Management Functions
+// ============================================
+
+// View session details (AC8)
+async function viewSessionDetails(sessionId) {
+  try {
+    // Load session info
+    const sessionSnapshot = await db.ref('sessions/' + sessionId).once('value');
+    const session = sessionSnapshot.val();
+    if (!session) {
+      alert('Session not found');
+      return;
+    }
+    session.id = sessionId;
+    state.selectedHistorySession = session;
+
+    // Load attendance for this session
+    const attendanceSnapshot = await db.ref('attendance/' + sessionId).once('value');
+    const attendanceData = attendanceSnapshot.val() || {};
+    state.selectedSessionAttendance = Object.entries(attendanceData).map(([key, val]) => ({
+      ...val,
+      firebaseKey: key,
+      isLate: isLateCheckIn(val.timestamp, session.createdAt, session.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES) || val.lateCheckIn
+    })).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    render();
+  } catch (err) {
+    console.error('Failed to load session details:', err);
+    alert('Error loading session: ' + err.message);
+  }
+}
+
+// Render session detail view (AC8)
+function renderSessionDetailView() {
+  const session = state.selectedHistorySession;
+  const attendance = state.selectedSessionAttendance;
+  const lateCount = attendance.filter(a => a.isLate).length;
+  const onTimeCount = attendance.length - lateCount;
+
+  return `
+    <div class="pt-8">
+      <button onclick="state.selectedHistorySession = null; state.selectedSessionAttendance = []; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to History</button>
+      
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mb-6">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white">${escapeHtml(session.className)}</h2>
+            <p class="text-gray-500 dark:text-gray-400">${new Date(session.createdAt).toLocaleDateString()} ${new Date(session.createdAt).toLocaleTimeString()}</p>
+            ${session.endedAt ? '<p class="text-sm text-gray-400 dark:text-gray-500">Ended: ' + new Date(session.endedAt).toLocaleTimeString() + '</p>' : '<p class="text-sm text-green-500">Currently Active</p>'}
+          </div>
+          <div class="flex gap-2">
+            <button onclick="openAddStudentModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm">+ Add Student</button>
+            <button onclick="exportHistoryCSV()" class="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 font-medium text-sm">Export CSV</button>
+          </div>
+        </div>
+        
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+          <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-emerald-700 dark:text-emerald-400">${onTimeCount}</p>
+            <p class="text-sm text-emerald-600 dark:text-emerald-500">On Time</p>
+          </div>
+          <div class="bg-orange-50 dark:bg-orange-900/30 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-orange-700 dark:text-orange-400">${lateCount}</p>
+            <p class="text-sm text-orange-600 dark:text-orange-500">Late</p>
+          </div>
+          <div class="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-indigo-700 dark:text-indigo-400">${attendance.length}</p>
+            <p class="text-sm text-indigo-600 dark:text-indigo-500">Total</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Attendance List with Edit Options (AC8 & AC9) -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Attendance List</h3>
+        ${attendance.length === 0 
+          ? '<p class="text-gray-400 dark:text-gray-500 text-center py-6">No attendance records</p>'
+          : `
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white dark:bg-gray-800">
+                  <tr class="border-b dark:border-gray-700">
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">#</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Student ID</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Name</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Email</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Device ID</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${attendance.map((a, i) => `
+                    <tr class="border-b border-gray-100 dark:border-gray-700">
+                      <td class="py-2 text-gray-400 dark:text-gray-500">${i + 1}</td>
+                      <td class="py-2 font-mono text-gray-800 dark:text-gray-200">${escapeHtml(a.studentId)}</td>
+                      <td class="py-2 text-gray-800 dark:text-gray-200">
+                        ${escapeHtml(a.studentName)}
+                        ${a.note ? '<span class="ml-1 text-xs text-gray-400" title="' + escapeHtml(a.note) + '">📝</span>' : ''}
+                      </td>
+                      <td class="py-2 text-gray-500 dark:text-gray-400 text-xs">${escapeHtml(a.email || '')}</td>
+                      <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(a.timestamp).toLocaleTimeString()}</td>
+                      <td class="py-2 text-gray-400 dark:text-gray-500 text-xs font-mono">${escapeHtml(a.deviceId || 'N/A')}</td>
+                      <td class="py-2">
+                        ${a.isLate
+                          ? '<span class="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs font-medium">Late</span>'
+                          : '<span class="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded text-xs font-medium">On Time</span>'
+                        }
+                        ${a.manuallyApproved || a.manualEntry ? '<span class="ml-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs">Manual</span>' : ''}
+                        ${a.lateCheckIn ? '<span class="ml-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded text-xs">Rejoined</span>' : ''}
+                      </td>
+                      <td class="py-2">
+                        <div class="flex gap-1">
+                          <button onclick="openEditStudentModal('${a.firebaseKey}')" class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Edit">Edit</button>
+                          <button onclick="openAddNoteModal('${a.firebaseKey}')" class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Add Note">Note</button>
+                          <button onclick="removeAttendanceEntry('${a.firebaseKey}')" class="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/50" title="Remove">X</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `
+        }
+      </div>
+    </div>`;
+}
+
+// Export CSV from history (AC8)
+function exportHistoryCSV() {
+  if (!state.selectedHistorySession || !state.selectedSessionAttendance.length) return;
+  const session = state.selectedHistorySession;
+  const attendance = state.selectedSessionAttendance;
+  
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Status', 'Manually Approved', 'Late Check-in', 'Note', 'Timestamp'];
+  const rows = attendance.map((a, i) => [
+    i + 1,
+    a.studentId,
+    a.studentName,
+    a.email || '',
+    a.deviceId || '',
+    a.location ? a.location.lat : '',
+    a.location ? a.location.lng : '',
+    a.distance || '',
+    a.isLate ? 'Late' : 'On Time',
+    a.manuallyApproved || a.manualEntry ? 'Yes' : 'No',
+    a.lateCheckIn ? 'Yes' : 'No',
+    a.note || '',
+    a.timestamp
+  ]);
+  const BOM = '\uFEFF';
+  const csv = BOM + [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `attendance_${session.className.replace(/[^a-z0-9]/gi, '_')}_${new Date(session.createdAt).toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ============================================
+// AC9: Edit Attendance Records Functions
+// ============================================
+
+// Modal functions
+function openAddStudentModal() {
+  state.showAddStudentModal = true;
+  renderModals();
+}
+
+function closeAddStudentModal() {
+  state.showAddStudentModal = false;
+  renderModals();
+}
+
+function openEditStudentModal(firebaseKey) {
+  const student = state.selectedSessionAttendance.find(a => a.firebaseKey === firebaseKey);
+  if (student) {
+    state.editingStudent = { ...student };
+    state.showEditStudentModal = true;
+    renderModals();
+  }
+}
+
+function closeEditStudentModal() {
+  state.showEditStudentModal = false;
+  state.editingStudent = null;
+  renderModals();
+}
+
+function openAddNoteModal(firebaseKey) {
+  const student = state.selectedSessionAttendance.find(a => a.firebaseKey === firebaseKey);
+  if (student) {
+    state.noteTargetStudent = { ...student };
+    state.showAddNoteModal = true;
+    renderModals();
+  }
+}
+
+function closeAddNoteModal() {
+  state.showAddNoteModal = false;
+  state.noteTargetStudent = null;
+  renderModals();
+}
+
+// Add student manually (AC9)
+async function submitAddStudent() {
+  const studentId = document.getElementById('addStudentId').value.trim();
+  const studentName = document.getElementById('addStudentName').value.trim();
+  const studentEmail = document.getElementById('addStudentEmail').value.trim();
+  const note = document.getElementById('addStudentNote').value.trim();
+
+  if (!studentId || !studentName || !studentEmail) {
+    alert('Please fill in all required fields');
+    return;
+  }
+  if (!studentEmail.includes('@')) {
+    alert('Please enter a valid email address');
+    return;
+  }
+
+  const sessionId = state.selectedHistorySession.id;
+  
+  try {
+    // Add to attendance
+    const newEntry = {
+      studentId,
+      studentName,
+      email: studentEmail,
+      deviceId: 'MANUAL',
+      timestamp: new Date().toISOString(),
+      manualEntry: true,
+      note: note || 'Manual entry by instructor',
+      location: null,
+      isLate: false
+    };
+    
+    await db.ref('attendance/' + sessionId).push(newEntry);
+    
+    // Log audit trail
+    await logAuditTrail(sessionId, 'ADD_STUDENT', {
+      studentId,
+      studentName,
+      reason: note || 'Manual entry'
+    });
+    
+    closeAddStudentModal();
+    
+    // Refresh the view
+    await viewSessionDetails(sessionId);
+  } catch (err) {
+    alert('Error adding student: ' + err.message);
+  }
+}
+
+// Edit student details (AC9)
+async function submitEditStudent() {
+  const studentId = document.getElementById('editStudentId').value.trim();
+  const studentName = document.getElementById('editStudentName').value.trim();
+  const studentEmail = document.getElementById('editStudentEmail').value.trim();
+
+  if (!studentId || !studentName || !studentEmail) {
+    alert('Please fill in all required fields');
+    return;
+  }
+
+  const sessionId = state.selectedHistorySession.id;
+  const firebaseKey = state.editingStudent.firebaseKey;
+  const oldData = state.editingStudent;
+  
+  try {
+    // Update in Firebase
+    await db.ref('attendance/' + sessionId + '/' + firebaseKey).update({
+      studentId,
+      studentName,
+      email: studentEmail,
+      editedAt: new Date().toISOString()
+    });
+    
+    // Log audit trail
+    await logAuditTrail(sessionId, 'EDIT_STUDENT', {
+      firebaseKey,
+      oldData: { studentId: oldData.studentId, studentName: oldData.studentName, email: oldData.email },
+      newData: { studentId, studentName, email: studentEmail }
+    });
+    
+    closeEditStudentModal();
+    
+    // Refresh the view
+    await viewSessionDetails(sessionId);
+  } catch (err) {
+    alert('Error updating student: ' + err.message);
+  }
+}
+
+// Add note to attendance record (AC9)
+async function submitAddNote() {
+  const note = document.getElementById('studentNote').value.trim();
+  const sessionId = state.selectedHistorySession.id;
+  const firebaseKey = state.noteTargetStudent.firebaseKey;
+  
+  try {
+    await db.ref('attendance/' + sessionId + '/' + firebaseKey).update({
+      note: note,
+      noteAddedAt: new Date().toISOString()
+    });
+    
+    // Log audit trail
+    await logAuditTrail(sessionId, 'ADD_NOTE', {
+      firebaseKey,
+      studentId: state.noteTargetStudent.studentId,
+      note: note
+    });
+    
+    closeAddNoteModal();
+    
+    // Refresh the view
+    await viewSessionDetails(sessionId);
+  } catch (err) {
+    alert('Error adding note: ' + err.message);
+  }
+}
+
+// Remove attendance entry (AC9)
+async function removeAttendanceEntry(firebaseKey) {
+  const student = state.selectedSessionAttendance.find(a => a.firebaseKey === firebaseKey);
+  if (!student) return;
+  
+  const reason = prompt(`Remove ${student.studentName} from attendance?\n\nEnter reason (required):`);
+  if (!reason) return;
+  
+  const sessionId = state.selectedHistorySession.id;
+  
+  try {
+    // Remove from attendance
+    await db.ref('attendance/' + sessionId + '/' + firebaseKey).remove();
+    
+    // Log audit trail
+    await logAuditTrail(sessionId, 'REMOVE_STUDENT', {
+      firebaseKey,
+      studentId: student.studentId,
+      studentName: student.studentName,
+      reason: reason
+    });
+    
+    // Refresh the view
+    await viewSessionDetails(sessionId);
+  } catch (err) {
+    alert('Error removing student: ' + err.message);
+  }
+}
+
+// Audit trail logging (AC9)
+async function logAuditTrail(sessionId, action, details) {
+  try {
+    await db.ref('audit/' + sessionId).push({
+      action,
+      details,
+      timestamp: new Date().toISOString(),
+      performedBy: 'instructor'
+    });
+  } catch (err) {
+    console.error('Failed to log audit trail:', err);
+  }
+}
+
+// Render modals
+function renderModals() {
+  const container = document.getElementById('modalContainer');
+  if (!container) return;
+
+  let modalHtml = '';
+
+  // Add Student Modal (AC9)
+  if (state.showAddStudentModal && state.selectedHistorySession) {
+    modalHtml += `
+      <div class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" onclick="closeAddStudentModal()">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
+          <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Add Student Manually</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Add a student who couldn't check in via QR code.</p>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student ID *</label>
+              <input type="text" id="addStudentId" maxlength="20" placeholder="e.g., 11223344" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name *</label>
+              <input type="text" id="addStudentName" maxlength="100" placeholder="e.g., Nguyen Van A" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+              <input type="email" id="addStudentEmail" maxlength="100" placeholder="e.g., student@st.neu.edu.vn" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (optional)</label>
+              <input type="text" id="addStudentNote" maxlength="200" placeholder="e.g., Approved by instructor" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            </div>
+          </div>
+          <div class="flex gap-3 mt-6">
+            <button onclick="closeAddStudentModal()" class="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium">Cancel</button>
+            <button onclick="submitAddStudent()" class="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium">Add Student</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Edit Student Modal (AC9)
+  if (state.showEditStudentModal && state.editingStudent) {
+    const student = state.editingStudent;
+    modalHtml += `
+      <div class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" onclick="closeEditStudentModal()">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
+          <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Edit Student Details</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student ID *</label>
+              <input type="text" id="editStudentId" maxlength="20" value="${escapeHtml(student.studentId || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name *</label>
+              <input type="text" id="editStudentName" maxlength="100" value="${escapeHtml(student.studentName || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+              <input type="email" id="editStudentEmail" maxlength="100" value="${escapeHtml(student.email || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            </div>
+          </div>
+          <div class="flex gap-3 mt-6">
+            <button onclick="closeEditStudentModal()" class="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium">Cancel</button>
+            <button onclick="submitEditStudent()" class="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Save Changes</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Add Note Modal (AC9)
+  if (state.showAddNoteModal && state.noteTargetStudent) {
+    const student = state.noteTargetStudent;
+    modalHtml += `
+      <div class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" onclick="closeAddNoteModal()">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
+          <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-2">Add Note</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Add a note for ${escapeHtml(student.studentName)}</p>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note</label>
+            <textarea id="studentNote" rows="3" maxlength="500" placeholder="e.g., Approved by instructor, Technical issue during check-in" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">${escapeHtml(student.note || '')}</textarea>
+          </div>
+          ${student.note ? '<p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Current note will be replaced.</p>' : ''}
+          <div class="flex gap-3 mt-6">
+            <button onclick="closeAddNoteModal()" class="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium">Cancel</button>
+            <button onclick="submitAddNote()" class="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Save Note</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  container.innerHTML = modalHtml;
 }
 
 function init() {
