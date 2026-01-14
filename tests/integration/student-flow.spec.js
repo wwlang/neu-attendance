@@ -436,3 +436,141 @@ test.describe('Student Info Persistence', () => {
     await expect(page.locator('text=Le Thi C')).toBeVisible();
   });
 });
+
+test.describe('Quick Confirm Flow (AC6.2)', () => {
+  test('should show Quick Confirm screen when saved info exists and code in URL', async ({ page }) => {
+    // First navigate to page to get access to localStorage
+    await page.goto('/');
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+
+    // Save student info
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', '12345678');
+      localStorage.setItem('neu_student_name', 'Quick Confirm Test');
+      localStorage.setItem('neu_student_email', 'quicktest@st.neu.edu.vn');
+    });
+
+    // Navigate with code in URL (simulating QR scan)
+    await page.goto('/?mode=student&code=ABCD12');
+    await page.waitForTimeout(1000);
+
+    // Should show Quick Confirm screen (not full form)
+    // The Quick Confirm screen shows "Welcome back!" heading with name below
+    await expect(page.locator('h2:has-text("Welcome back!")')).toBeVisible();
+    await expect(page.locator('text=Quick Confirm Test')).toBeVisible();
+    await expect(page.locator('button:has-text("Confirm Attendance")')).toBeVisible();
+
+    // Student ID should be visible
+    await expect(page.locator('text=12345678')).toBeVisible();
+
+    // "Edit my details" link should be available
+    await expect(page.locator('text=Edit my details')).toBeVisible();
+  });
+
+  test('should NOT show Quick Confirm when no code in URL', async ({ page }) => {
+    // First navigate to page to get access to localStorage
+    await page.goto('/');
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+
+    // Save student info
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', '12345678');
+      localStorage.setItem('neu_student_name', 'No Code Test');
+      localStorage.setItem('neu_student_email', 'nocode@st.neu.edu.vn');
+    });
+
+    // Navigate WITHOUT code in URL
+    await page.goto('/?mode=student');
+    await page.waitForTimeout(1000);
+
+    // Should show welcome banner but NOT Quick Confirm
+    await expect(page.locator('text=Welcome back')).toBeVisible();
+
+    // Should still show the full form (code input visible)
+    await expect(page.locator('input#enteredCode')).toBeVisible();
+  });
+
+  test('should NOT show Quick Confirm when no saved info', async ({ page }) => {
+    // First navigate to page to get access to localStorage
+    await page.goto('/');
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+
+    // Clear any saved info
+    await page.evaluate(() => {
+      localStorage.removeItem('neu_student_id');
+      localStorage.removeItem('neu_student_name');
+      localStorage.removeItem('neu_student_email');
+    });
+
+    // Navigate with code in URL
+    await page.goto('/?mode=student&code=ABCD12');
+    await page.waitForTimeout(1000);
+
+    // Should show full form (not Quick Confirm)
+    await expect(page.locator('input#studentId')).toBeVisible();
+    await expect(page.locator('input#studentName')).toBeVisible();
+    await expect(page.locator('input#enteredCode')).toBeVisible();
+
+    // Code should be pre-filled from URL
+    const codeValue = await page.inputValue('input#enteredCode');
+    expect(codeValue).toBe('ABCD12');
+  });
+
+  test('should switch to full form when clicking Edit my details', async ({ page }) => {
+    // First navigate to page to get access to localStorage
+    await page.goto('/');
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+
+    // Save student info
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', '12345678');
+      localStorage.setItem('neu_student_name', 'Edit Details Test');
+      localStorage.setItem('neu_student_email', 'edit@st.neu.edu.vn');
+    });
+
+    // Navigate with code
+    await page.goto('/?mode=student&code=XYZ789');
+    await page.waitForTimeout(1000);
+
+    // Verify Quick Confirm screen
+    await expect(page.locator('button:has-text("Confirm Attendance")')).toBeVisible();
+
+    // Click "Edit my details"
+    await page.click('text=Edit my details');
+    await page.waitForTimeout(500);
+
+    // Should now show full form
+    await expect(page.locator('input#studentId')).toBeVisible();
+    await expect(page.locator('input#studentName')).toBeVisible();
+    await expect(page.locator('input#enteredCode')).toBeVisible();
+
+    // Form should be pre-filled
+    const studentId = await page.inputValue('input#studentId');
+    expect(studentId).toBe('12345678');
+  });
+
+  test('should show Confirm Attendance as primary action button', async ({ page }) => {
+    // First navigate to page to get access to localStorage
+    await page.goto('/');
+    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+
+    // Save student info
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', '99887766');
+      localStorage.setItem('neu_student_name', 'Primary Button Test');
+      localStorage.setItem('neu_student_email', 'primary@st.neu.edu.vn');
+    });
+
+    // Navigate with code
+    await page.goto('/?mode=student&code=TEST01');
+    await page.waitForTimeout(1000);
+
+    // Confirm Attendance button should be large and prominent
+    const confirmButton = page.locator('button:has-text("Confirm Attendance")');
+    await expect(confirmButton).toBeVisible();
+
+    // Button should have emerald/green styling (class contains emerald or green)
+    const buttonClass = await confirmButton.getAttribute('class');
+    expect(buttonClass).toMatch(/emerald|green/);
+  });
+});
