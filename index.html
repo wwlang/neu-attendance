@@ -693,7 +693,7 @@ function renderTeacherView() {
         <div class="code-display text-6xl md:text-8xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">${escapeHtml(state.currentCode)}</div>
         <div class="flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 mb-6">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-          <span>New code in <strong class="${state.timeLeft <= COUNTDOWN_WARNING_SECONDS ? 'text-red-600 dark:text-red-400' : ''}">${formatTime(state.timeLeft)}</strong></span>
+          <span>New code in <strong id="countdown-timer" class="${state.timeLeft <= COUNTDOWN_WARNING_SECONDS ? 'text-red-600 dark:text-red-400' : ''}">${formatTime(state.timeLeft)}</strong></span>
         </div>
         <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-6 inline-block">
           <p class="text-emerald-700 dark:text-emerald-400 font-semibold mb-3">Scan to Check In (includes code)</p>
@@ -1295,6 +1295,7 @@ function setupCodeRotation() {
     }
 
     if (state.timeLeft <= 0) {
+      // Code rotation - need full re-render to update QR code
       const newCode = generateCode();
       state.currentCode = newCode;
       state.timeLeft = CODE_REFRESH_SECONDS;
@@ -1308,9 +1309,26 @@ function setupCodeRotation() {
       } catch (err) {
         console.error('Failed to update code:', err);
       }
+      render(); // Full render only when code changes
+    } else {
+      // Just update the timer display without full re-render
+      updateTimerDisplay();
     }
-    render();
   }, 1000);
+}
+
+// Update only the countdown timer without re-rendering the whole page
+function updateTimerDisplay() {
+  const timerEl = document.getElementById('countdown-timer');
+  if (timerEl) {
+    timerEl.textContent = formatTime(state.timeLeft);
+    // Add/remove warning class
+    if (state.timeLeft <= COUNTDOWN_WARNING_SECONDS) {
+      timerEl.classList.add('text-red-600', 'dark:text-red-400');
+    } else {
+      timerEl.classList.remove('text-red-600', 'dark:text-red-400');
+    }
+  }
 }
 
 function setupSessionListeners(sessionId) {
