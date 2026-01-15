@@ -113,6 +113,7 @@ let state = {
   showFullForm: false,
   isReopenedSession: false,
   qrCodeAvailable: typeof QRCode !== 'undefined',
+  cachedQRCode: null, // { code: 'ABC123', dataUrl: 'data:image/...' }
   // AC8: Session History Management
   selectedHistorySession: null,
   selectedSessionAttendance: [],
@@ -550,7 +551,8 @@ function render() {
       content += renderPinEntry();
     } else {
       content += renderTeacherView();
-      if (state.session && state.currentCode) {
+      // Only regenerate QR codes when the code actually changes
+      if (state.session && state.currentCode && (!state.cachedQRCode || state.cachedQRCode.code !== state.currentCode)) {
         setTimeout(generateQRCodes, 100);
       }
     }
@@ -697,7 +699,11 @@ function renderTeacherView() {
         </div>
         <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-6 inline-block">
           <p class="text-emerald-700 dark:text-emerald-400 font-semibold mb-3">Scan to Check In (includes code)</p>
-          <div id="qr-student-checkin" class="bg-white p-3 rounded-lg inline-block"></div>
+          <div id="qr-student-checkin" class="bg-white p-3 rounded-lg inline-block">${
+            state.cachedQRCode && state.cachedQRCode.code === state.currentCode
+              ? `<img src="${state.cachedQRCode.dataUrl}" width="180" height="180" alt="QR Code">`
+              : ''
+          }</div>
         </div>
       </div>
 
@@ -1443,10 +1449,33 @@ function generateSetupQRCodes() {
 function generateQRCodes() {
   const baseUrl = getBaseUrl();
   const sc = document.getElementById('qr-student-checkin');
+  if (!sc) return;
+
+  // Clear container first
+  sc.innerHTML = '';
+
   // Include current code in QR for auto-fill
   const qrUrl = `${baseUrl}?mode=student&code=${state.currentCode}`;
+  const currentCode = state.currentCode;
 
   safeQRGenerate(sc, qrUrl, { width: 180 });
+
+  // After QR is generated, cache the data URL for future renders
+  setTimeout(() => {
+    const canvas = sc.querySelector('canvas');
+    const img = sc.querySelector('img');
+    let dataUrl = null;
+
+    if (canvas) {
+      dataUrl = canvas.toDataURL('image/png');
+    } else if (img && img.src) {
+      dataUrl = img.src;
+    }
+
+    if (dataUrl) {
+      state.cachedQRCode = { code: currentCode, dataUrl };
+    }
+  }, 50); // Small delay to ensure QR is fully rendered
 }
 
 async function acquireStudentLocation() {
