@@ -61,13 +61,13 @@ test.describe('Instructor Flow', () => {
     await page.click('button:has-text("Access Instructor Mode")');
     await page.waitForTimeout(500);
 
-    // Check radius slider
+    // Check radius slider - updated for larger max value
     const radiusSlider = page.locator('input#radius');
     await expect(radiusSlider).toBeVisible();
     const radiusMin = await radiusSlider.getAttribute('min');
     const radiusMax = await radiusSlider.getAttribute('max');
     expect(radiusMin).toBe('20');
-    expect(radiusMax).toBe('200');
+    expect(radiusMax).toBe('500'); // Updated from 200 to 500
 
     // Check late threshold slider
     const lateSlider = page.locator('input#lateThreshold');

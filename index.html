@@ -70,7 +70,8 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const CODE_REFRESH_SECONDS = 120;
-const CODE_GRACE_PERIOD = 60;
+const CODE_GRACE_PERIOD = 180;
+const RECENTLY_EXPIRED_WINDOW = 30; // Accept codes that expired within the last 30 seconds
 const SESSION_STORAGE_KEY = 'neu_attendance_session';
 const DARK_MODE_KEY = 'neu_attendance_dark_mode';
 const STUDENT_INFO_KEYS = {
@@ -124,7 +125,12 @@ let state = {
   showEditStudentModal: false,
   editingStudent: null,
   showAddNoteModal: false,
-  noteTargetStudent: null
+  noteTargetStudent: null,
+  // Student Attendance Lookup (P4-03)
+  lookupStudentId: '',
+  lookupResults: [],
+  lookupLoading: false,
+  lookupError: null
 };
 
 // Check if QRCode library is available
@@ -558,6 +564,8 @@ function render() {
     }
   } else if (state.mode === 'student') {
     content += renderStudentView();
+  } else if (state.mode === 'lookup') {
+    content += renderLookupView();
   }
 
   app.innerHTML = content;
@@ -611,6 +619,7 @@ function renderModeSelection() {
         <div class="space-y-4">
           <button onclick="setMode('teacher')" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">I'm the Instructor</button>
           <button onclick="setMode('student')" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors">I'm a Student</button>
+          <button onclick="setMode('lookup')" class="w-full py-3 px-6 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors">View My Attendance</button>
         </div>
         <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
           <p class="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">Or scan a QR code:</p>
@@ -652,7 +661,7 @@ function renderTeacherView() {
           </div>
           <div class="space-y-4">
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label><input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"></div>
-            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="radiusValue">50</span>m</label><input type="range" id="radius" min="20" max="200" value="50" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="5" max="30" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
             <div id="locationStatus" class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300">Your location will be captured when you start</div>
             <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
@@ -739,6 +748,7 @@ function renderTeacherView() {
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Name</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Email</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Loc</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
                 </tr>
               </thead>
@@ -750,6 +760,9 @@ function renderTeacherView() {
                     <td class="py-2 text-gray-800 dark:text-gray-200">${escapeHtml(a.studentName)}</td>
                     <td class="py-2 text-gray-500 dark:text-gray-400 text-xs">${escapeHtml(a.email || '')}</td>
                     <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(a.timestamp).toLocaleTimeString()}</td>
+                    <td class="py-2 text-center">
+                      ${a.locationProvided !== false && a.location ? '<span class="text-emerald-600 dark:text-emerald-400" title="Location verified">✓</span>' : '<span class="text-amber-500 dark:text-amber-400" title="No location data">—</span>'}
+                    </td>
                     <td class="py-2">
                       ${a.isLate
                         ? '<span class="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs font-medium late-badge">Late</span>'
@@ -1321,14 +1334,17 @@ function setupCodeRotation() {
 
     if (state.timeLeft <= 0) {
       // Code rotation - need full re-render to update QR code
+      const previousCode = state.currentCode;
       const newCode = generateCode();
       state.currentCode = newCode;
       state.timeLeft = CODE_REFRESH_SECONDS;
+      state.session.previousCode = previousCode;
       state.session.code = newCode;
       state.session.codeGeneratedAt = Date.now();
       try {
         await db.ref('sessions/' + state.session.id).update({
           code: newCode,
+          previousCode: previousCode,
           codeGeneratedAt: Date.now()
         });
       } catch (err) {
@@ -1706,13 +1722,27 @@ async function submitAttendance() {
       noGps: !hasLocation
     };
 
-    if (enteredCode !== session.code) {
+    // Code validation with support for recently expired codes
+    const codeAge = Date.now() - session.codeGeneratedAt;
+    const isCurrentCode = enteredCode === session.code;
+    const isPreviousCode = session.previousCode && enteredCode === session.previousCode.toUpperCase();
+    
+    // Accept previous code if it expired within RECENTLY_EXPIRED_WINDOW seconds ago
+    // The previous code was valid until codeGeneratedAt, so we check if that was recent enough
+    const previousCodeStillAcceptable = isPreviousCode && (codeAge <= RECENTLY_EXPIRED_WINDOW * 1000);
+    
+    if (!isCurrentCode && !previousCodeStillAcceptable) {
+      // Check if they entered the previous code but it's too old
+      if (isPreviousCode) {
+        await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: 'Code expired (too old)' });
+        throw new Error('That code has expired. Please use the current code on screen.');
+      }
       await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: 'Invalid code' });
       throw new Error('Invalid code. Check the code on screen. Your attempt has been logged.');
     }
 
-    const codeAge = Date.now() - session.codeGeneratedAt;
-    if (codeAge > (CODE_REFRESH_SECONDS + CODE_GRACE_PERIOD) * 1000) {
+    // Check if current code is expired (beyond grace period)
+    if (isCurrentCode && codeAge > (CODE_REFRESH_SECONDS + CODE_GRACE_PERIOD) * 1000) {
       await db.ref('failed/' + activeSessionId).push({ ...baseRecord, reason: 'Expired code' });
       throw new Error('Code expired. Enter the new code. Your attempt has been logged.');
     }
@@ -1738,7 +1768,8 @@ async function submitAttendance() {
       ...baseRecord,
       manuallyApproved: false,
       isLate: isLate || lateCheckIn,
-      lateCheckIn: lateCheckIn // Additional flag for reopened session check-ins
+      lateCheckIn: lateCheckIn, // Additional flag for reopened session check-ins
+      locationProvided: hasLocation // Track whether location was provided for instructor review
     });
 
     // Student info was already saved at the beginning of this function
@@ -1764,7 +1795,7 @@ async function submitAttendance() {
 
 function exportCSV() {
   if (!state.attendance.length || !state.session) return;
-  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Status', 'Manually Approved', 'Late Check-in', 'Timestamp'];
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Location Provided', 'Status', 'Manually Approved', 'Late Check-in', 'Timestamp'];
   const rows = state.attendance.map((a, i) => [
     i + 1,
     a.studentId,
@@ -1774,6 +1805,7 @@ function exportCSV() {
     a.location ? a.location.lat : '',
     a.location ? a.location.lng : '',
     a.distance,
+    a.locationProvided !== false && a.location ? 'Yes' : 'No',
     a.isLate ? 'Late' : 'On Time',
     a.manuallyApproved ? 'Yes' : 'No',
     a.lateCheckIn ? 'Yes' : 'No',
@@ -2287,6 +2319,152 @@ function renderModals() {
   container.innerHTML = modalHtml;
 }
 
+// ============================================
+// Student Attendance Lookup (P4-03)
+// ============================================
+
+function renderLookupView() {
+  const savedInfo = loadStudentInfo();
+  const prefillStudentId = savedInfo ? savedInfo.studentId : '';
+  
+  return `
+    <div class="flex items-center justify-center min-h-screen py-8">
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-2xl">
+        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back</button>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">My Attendance History</h2>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your student ID to view all your attendance records</p>
+        
+        <div class="flex gap-3 mb-6">
+          <input type="text" id="lookupStudentId" placeholder="Enter Student ID (e.g., 11223344)" maxlength="20" 
+            value="${state.lookupStudentId || escapeHtml(prefillStudentId)}"
+            class="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+            onkeypress="if(event.key === 'Enter') searchAttendance()">
+          <button onclick="searchAttendance()" id="searchBtn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50">
+            ${state.lookupLoading ? 'Searching...' : 'Search'}
+          </button>
+        </div>
+        
+        ${state.lookupError ? '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">' + escapeHtml(state.lookupError) + '</div>' : ''}
+        
+        ${state.lookupResults.length === 0 && !state.lookupLoading && state.lookupStudentId ? 
+          '<div class="text-center py-8"><p class="text-gray-400 dark:text-gray-500">No attendance records found for this student ID.</p></div>' 
+          : ''}
+        
+        ${state.lookupResults.length > 0 ? renderLookupResults() : ''}
+      </div>
+    </div>`;
+}
+
+function renderLookupResults() {
+  const totalRecords = state.lookupResults.length;
+  const onTimeCount = state.lookupResults.filter(r => !r.isLate).length;
+  const lateCount = totalRecords - onTimeCount;
+  
+  return `
+    <div class="mb-4 grid grid-cols-3 gap-4">
+      <div class="bg-indigo-50 dark:bg-indigo-900/30 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-indigo-700 dark:text-indigo-400">${totalRecords}</p>
+        <p class="text-xs text-indigo-600 dark:text-indigo-500">Total</p>
+      </div>
+      <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-emerald-700 dark:text-emerald-400">${onTimeCount}</p>
+        <p class="text-xs text-emerald-600 dark:text-emerald-500">On Time</p>
+      </div>
+      <div class="bg-orange-50 dark:bg-orange-900/30 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-orange-700 dark:text-orange-400">${lateCount}</p>
+        <p class="text-xs text-orange-600 dark:text-orange-500">Late</p>
+      </div>
+    </div>
+    
+    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0 bg-white dark:bg-gray-800">
+          <tr class="border-b dark:border-gray-700">
+            <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Course</th>
+            <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Date</th>
+            <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
+            <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.lookupResults.map((r, i) => `
+            <tr class="border-b border-gray-100 dark:border-gray-700">
+              <td class="py-2 text-gray-800 dark:text-gray-200 font-medium">${escapeHtml(r.className)}</td>
+              <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(r.timestamp).toLocaleDateString()}</td>
+              <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(r.timestamp).toLocaleTimeString()}</td>
+              <td class="py-2">
+                ${r.isLate
+                  ? '<span class="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs font-medium">Late</span>'
+                  : '<span class="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded text-xs font-medium">On Time</span>'
+                }
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function searchAttendance() {
+  const studentIdInput = document.getElementById('lookupStudentId');
+  const studentId = studentIdInput ? studentIdInput.value.trim() : '';
+  
+  if (!studentId) {
+    state.lookupError = 'Please enter a student ID';
+    state.lookupResults = [];
+    render();
+    return;
+  }
+  
+  state.lookupStudentId = studentId;
+  state.lookupLoading = true;
+  state.lookupError = null;
+  state.lookupResults = [];
+  render();
+  
+  try {
+    // Query all sessions first
+    const sessionsSnapshot = await db.ref('sessions').once('value');
+    const sessions = sessionsSnapshot.val() || {};
+    
+    const results = [];
+    
+    // For each session, check attendance for this student
+    for (const [sessionId, session] of Object.entries(sessions)) {
+      const attendanceSnapshot = await db.ref('attendance/' + sessionId)
+        .orderByChild('studentId')
+        .equalTo(studentId)
+        .once('value');
+      
+      const attendanceData = attendanceSnapshot.val();
+      if (attendanceData) {
+        for (const [key, record] of Object.entries(attendanceData)) {
+          results.push({
+            sessionId,
+            className: session.className || 'Unknown Class',
+            timestamp: record.timestamp,
+            isLate: record.isLate || record.lateCheckIn || false,
+            sessionCreatedAt: session.createdAt
+          });
+        }
+      }
+    }
+    
+    // Sort by timestamp (most recent first)
+    results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    state.lookupResults = results;
+    state.lookupLoading = false;
+    render();
+    
+  } catch (err) {
+    console.error('Attendance lookup failed:', err);
+    state.lookupError = 'Error searching attendance. Please try again.';
+    state.lookupLoading = false;
+    render();
+  }
+}
+
 function init() {
   loadDarkMode();
 
@@ -2297,7 +2475,7 @@ function init() {
   }
 
   const params = getUrlParams();
-  if (params.mode === 'teacher' || params.mode === 'student') {
+  if (params.mode === 'teacher' || params.mode === 'student' || params.mode === 'lookup') {
     state.mode = params.mode;
     render();
     if (params.mode === 'student') {

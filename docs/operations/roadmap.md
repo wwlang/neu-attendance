@@ -52,7 +52,54 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 |---------|-------------|---------|--------|
 | P4-01 | Attendance trends dashboard | instructor-attendance-session | Pending |
 | P4-02 | Course-level attendance aggregation | instructor-attendance-session | Pending |
-| P4-03 | Student attendance history lookup | student-check-in | Pending |
+| P4-03 | Student attendance history lookup | student-check-in | **Complete** (2026-01-20) |
+
+## Phase 5: Identity Verification
+
+| Task ID | Description | Journey | Status |
+|---------|-------------|---------|--------|
+| P5-01 | Live Selfie Validation | student-check-in | Pending |
+
+### P5-01: Live Selfie Validation
+
+**Description:** Students take a selfie during check-in for instructor verification. This adds an additional layer of identity verification beyond GPS and device fingerprinting.
+
+**Acceptance Criteria:**
+
+1. **Student Side (Check-in Flow)**
+   - [ ] AC1: Camera permission request displays when student opens check-in page
+   - [ ] AC2: Live camera preview shows in check-in form
+   - [ ] AC3: Student can capture selfie with single tap
+   - [ ] AC4: Captured selfie displays for confirmation before submission
+   - [ ] AC5: Student can retake selfie before submitting
+   - [ ] AC6: Selfie is uploaded to Firebase Storage with attendance record reference
+   - [ ] AC7: Selfie upload failure does not block check-in (graceful degradation)
+   - [ ] AC8: Selfie is compressed to max 100KB before upload
+
+2. **Instructor Side (Review Flow)**
+   - [ ] AC9: Attendance list shows thumbnail of student selfie
+   - [ ] AC10: Clicking thumbnail opens full-size selfie in modal
+   - [ ] AC11: Instructor can flag suspicious selfies for review
+   - [ ] AC12: Flagged students highlighted in attendance list
+   - [ ] AC13: Selfie timestamp and metadata visible in detail view
+
+3. **Privacy & Compliance**
+   - [ ] AC14: Selfies are stored with session-scoped access (instructor only)
+   - [ ] AC15: Selfies auto-delete after configurable retention period (default: 30 days)
+   - [ ] AC16: Student consent prompt before first selfie capture
+   - [ ] AC17: Students can opt-out (marked in attendance record)
+
+4. **Performance & UX**
+   - [ ] AC18: Camera loads within 2 seconds on mobile
+   - [ ] AC19: Selfie capture works on both front-facing and rear cameras
+   - [ ] AC20: Works in low-light conditions with brightness adjustment hint
+   - [ ] AC21: Offline mode queues selfie for upload when connection restored
+
+**Technical Notes:**
+- Use MediaDevices.getUserMedia() for camera access
+- Store images in Firebase Storage under `/selfies/{sessionId}/{studentId}.jpg`
+- Use Firebase Storage security rules to restrict access to session instructor
+- Consider using canvas for image compression before upload
 
 ## Completed
 
@@ -74,6 +121,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P2-08 | Export failed attempts | 2026-01-13 |
 | P2-09 | Countdown audio warning | 2026-01-13 |
 | P2-10 | Unit and integration test coverage | 2026-01-13 |
+| P4-03 | Student attendance history lookup | 2026-01-20 |
 
 ## Evidence
 
