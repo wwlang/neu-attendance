@@ -1,0 +1,166 @@
+{
+  "rules": {
+    // Active session pointer - read-only for clients
+    "activeSession": {
+      ".read": true,
+      ".write": true,
+      ".validate": "newData.isString()"
+    },
+
+    // Sessions - instructors create, everyone can read (needed for code verification)
+    "sessions": {
+      ".read": true,
+      "$sessionId": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['id', 'className', 'location', 'radius', 'code', 'codeGeneratedAt', 'createdAt', 'active'])",
+
+        "id": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50"
+        },
+        "className": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+        },
+        "radius": {
+          ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 500"
+        },
+        "code": {
+          ".validate": "newData.isString() && newData.val().length == 6 && newData.val().matches(/^[A-Z0-9]+$/)"
+        },
+        "location": {
+          ".validate": "newData.hasChildren(['lat', 'lng'])",
+          "lat": {
+            ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+          },
+          "lng": {
+            ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+          }
+        },
+        "codeGeneratedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "active": {
+          ".validate": "newData.isBoolean()"
+        },
+        "codeRotationInterval": {
+          ".validate": "newData.isNumber() && newData.val() >= 30 && newData.val() <= 600"
+        },
+        "lateThresholdMinutes": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 60"
+        }
+      }
+    },
+
+    // Attendance records - students create their own record
+    "attendance": {
+      ".read": true,
+      "$sessionId": {
+        ".read": true,
+        "$recordId": {
+          ".write": "!data.exists() || data.exists()",
+          ".validate": "newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'location', 'distance', 'timestamp'])",
+
+          "studentId": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 20"
+          },
+          "studentName": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+          },
+          "email": {
+            ".validate": "newData.isString() && newData.val().matches(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/)"
+          },
+          "deviceId": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50"
+          },
+          "location": {
+            ".validate": "newData.hasChildren(['lat', 'lng'])",
+            "lat": {
+              ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+            },
+            "lng": {
+              ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+            }
+          },
+          "distance": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          },
+          "manuallyApproved": {
+            ".validate": "newData.isBoolean()"
+          },
+          "participation": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "isLate": {
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      }
+    },
+
+    // Failed attempts - students can create, instructors can delete
+    "failed": {
+      ".read": true,
+      "$sessionId": {
+        ".read": true,
+        "$recordId": {
+          ".write": true,
+          ".validate": "!newData.exists() || newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'location', 'distance', 'reason', 'allowedRadius', 'timestamp'])",
+
+          "studentId": {
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          },
+          "studentName": {
+            ".validate": "newData.isString() && newData.val().length <= 100"
+          },
+          "email": {
+            ".validate": "newData.isString()"
+          },
+          "distance": {
+            ".validate": "newData.isNumber()"
+          },
+          "allowedRadius": {
+            ".validate": "newData.isNumber()"
+          },
+          "reason": {
+            ".validate": "newData.isString()"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
+
+    // Audit trail for manual approvals
+    "audit": {
+      ".read": true,
+      "$sessionId": {
+        "$recordId": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['action', 'studentId', 'timestamp'])",
+
+          "action": {
+            ".validate": "newData.isString() && (newData.val() == 'manual_approve' || newData.val() == 'increment_participation' || newData.val() == 'decrement_participation')"
+          },
+          "studentId": {
+            ".validate": "newData.isString()"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
+
+    // Deny all other paths
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
