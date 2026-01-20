@@ -71,6 +71,12 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// Firebase Emulator detection - connect to local emulator when running tests
+if (location.hostname === 'localhost' && new URLSearchParams(location.search).get('emulator') === 'true') {
+  db.useEmulator('localhost', 9000);
+  console.log('Using Firebase Emulator');
+}
+
 const CODE_REFRESH_SECONDS = 120;
 const CODE_GRACE_PERIOD = 180;
 const RECENTLY_EXPIRED_WINDOW = 30; // Accept codes that expired within the last 30 seconds
@@ -772,6 +778,7 @@ function renderTeacherView() {
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Email</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Loc</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Participation</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
                 </tr>
               </thead>
@@ -785,6 +792,13 @@ function renderTeacherView() {
                     <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(a.timestamp).toLocaleTimeString()}</td>
                     <td class="py-2 text-center">
                       ${a.locationProvided !== false && a.location ? '<span class="text-emerald-600 dark:text-emerald-400" title="Location verified">✓</span>' : '<span class="text-amber-500 dark:text-amber-400" title="No location data">—</span>'}
+                    </td>
+                    <td class="py-2">
+                      <div class="flex items-center gap-1">
+                        <button data-action="decrement-participation" onclick="decrementParticipation('${a.firebaseKey}')" class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400 font-bold text-sm" title="Decrease participation">-</button>
+                        <span data-testid="participation-count" class="w-8 text-center font-medium text-gray-800 dark:text-gray-200">${a.participation || 0}</span>
+                        <button data-action="increment-participation" onclick="incrementParticipation('${a.firebaseKey}')" class="w-6 h-6 flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 rounded text-emerald-700 dark:text-emerald-400 font-bold text-sm" title="Increase participation">+</button>
+                      </div>
                     </td>
                     <td class="py-2">
                       ${a.isLate
@@ -1818,7 +1832,7 @@ async function submitAttendance() {
 
 function exportCSV() {
   if (!state.attendance.length || !state.session) return;
-  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Location Provided', 'Status', 'Manually Approved', 'Late Check-in', 'Timestamp'];
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Location Provided', 'Participation', 'Status', 'Manually Approved', 'Late Check-in', 'Timestamp'];
   const rows = state.attendance.map((a, i) => [
     i + 1,
     a.studentId,
@@ -1829,6 +1843,7 @@ function exportCSV() {
     a.location ? a.location.lng : '',
     a.distance,
     a.locationProvided !== false && a.location ? 'Yes' : 'No',
+    a.participation || 0,
     a.isLate ? 'Late' : 'On Time',
     a.manuallyApproved ? 'Yes' : 'No',
     a.lateCheckIn ? 'Yes' : 'No',
@@ -1971,6 +1986,7 @@ function renderSessionDetailView() {
                     <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Email</th>
                     <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
                     <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Device ID</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Participation</th>
                     <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
                     <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Actions</th>
                   </tr>
@@ -1987,6 +2003,13 @@ function renderSessionDetailView() {
                       <td class="py-2 text-gray-500 dark:text-gray-400 text-xs">${escapeHtml(a.email || '')}</td>
                       <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(a.timestamp).toLocaleTimeString()}</td>
                       <td class="py-2 text-gray-400 dark:text-gray-500 text-xs font-mono">${escapeHtml(a.deviceId || 'N/A')}</td>
+                      <td class="py-2">
+                        <div class="flex items-center gap-1">
+                          <button data-action="decrement-participation-history" onclick="decrementParticipationHistory('${a.firebaseKey}')" class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400 font-bold text-sm" title="Decrease participation">-</button>
+                          <span data-testid="participation-count-history" class="w-8 text-center font-medium text-gray-800 dark:text-gray-200">${a.participation || 0}</span>
+                          <button data-action="increment-participation-history" onclick="incrementParticipationHistory('${a.firebaseKey}')" class="w-6 h-6 flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 rounded text-emerald-700 dark:text-emerald-400 font-bold text-sm" title="Increase participation">+</button>
+                        </div>
+                      </td>
                       <td class="py-2">
                         ${a.isLate
                           ? '<span class="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs font-medium">Late</span>'
@@ -2019,7 +2042,7 @@ function exportHistoryCSV() {
   const session = state.selectedHistorySession;
   const attendance = state.selectedSessionAttendance;
   
-  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Status', 'Manually Approved', 'Late Check-in', 'Note', 'Timestamp'];
+  const headers = ['#', 'Student Number', 'Name', 'Email', 'Device ID', 'Latitude', 'Longitude', 'Distance (m)', 'Participation', 'Status', 'Manually Approved', 'Late Check-in', 'Note', 'Timestamp'];
   const rows = attendance.map((a, i) => [
     i + 1,
     a.studentId,
@@ -2029,6 +2052,7 @@ function exportHistoryCSV() {
     a.location ? a.location.lat : '',
     a.location ? a.location.lng : '',
     a.distance || '',
+    a.participation || 0,
     a.isLate ? 'Late' : 'On Time',
     a.manuallyApproved || a.manualEntry ? 'Yes' : 'No',
     a.lateCheckIn ? 'Yes' : 'No',
@@ -2407,6 +2431,7 @@ function renderLookupResults() {
             <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Date</th>
             <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
             <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
+            <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Participation</th>
           </tr>
         </thead>
         <tbody>
@@ -2421,6 +2446,7 @@ function renderLookupResults() {
                   : '<span class="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded text-xs font-medium">On Time</span>'
                 }
               </td>
+              <td class="py-2 text-center text-gray-800 dark:text-gray-200">${r.participation || 0}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2467,7 +2493,8 @@ async function searchAttendance() {
             className: session.className || 'Unknown Class',
             timestamp: record.timestamp,
             isLate: record.isLate || record.lateCheckIn || false,
-            sessionCreatedAt: session.createdAt
+            sessionCreatedAt: session.createdAt,
+            participation: record.participation || 0,
           });
         }
       }
@@ -2488,6 +2515,98 @@ async function searchAttendance() {
   }
 }
 
+
+
+// ============================================
+// Participation Counter Functions (AC13)
+// ============================================
+
+/**
+ * Increment participation count for a student
+ * @param {string} firebaseKey - The attendance record key
+ */
+async function incrementParticipation(firebaseKey) {
+  if (!state.session || !firebaseKey) return;
+
+  try {
+    const ref = db.ref('attendance/' + state.session.id + '/' + firebaseKey);
+    const snapshot = await ref.once('value');
+    const current = snapshot.val()?.participation || 0;
+    await ref.update({ participation: current + 1 });
+  } catch (err) {
+    console.error('Failed to increment participation:', err);
+  }
+}
+
+/**
+ * Decrement participation count for a student (minimum 0)
+ * @param {string} firebaseKey - The attendance record key
+ */
+async function decrementParticipation(firebaseKey) {
+  if (!state.session || !firebaseKey) return;
+
+  try {
+    const ref = db.ref('attendance/' + state.session.id + '/' + firebaseKey);
+    const snapshot = await ref.once('value');
+    const current = snapshot.val()?.participation || 0;
+    const newValue = Math.max(0, current - 1);
+    await ref.update({ participation: newValue });
+  } catch (err) {
+    console.error('Failed to decrement participation:', err);
+  }
+}
+
+
+/**
+ * Increment participation count for a student in historical session
+ * @param {string} firebaseKey - The attendance record key
+ */
+async function incrementParticipationHistory(firebaseKey) {
+  if (!state.selectedHistorySession || !firebaseKey) return;
+
+  try {
+    const sessionId = state.selectedHistorySession.id;
+    const ref = db.ref('attendance/' + sessionId + '/' + firebaseKey);
+    const snapshot = await ref.once('value');
+    const current = snapshot.val()?.participation || 0;
+    await ref.update({ participation: current + 1 });
+    
+    // Update local state for immediate UI feedback
+    const attendanceIndex = state.selectedSessionAttendance.findIndex(a => a.firebaseKey === firebaseKey);
+    if (attendanceIndex !== -1) {
+      state.selectedSessionAttendance[attendanceIndex].participation = current + 1;
+      render();
+    }
+  } catch (err) {
+    console.error('Failed to increment participation in history:', err);
+  }
+}
+
+/**
+ * Decrement participation count for a student in historical session (minimum 0)
+ * @param {string} firebaseKey - The attendance record key
+ */
+async function decrementParticipationHistory(firebaseKey) {
+  if (!state.selectedHistorySession || !firebaseKey) return;
+
+  try {
+    const sessionId = state.selectedHistorySession.id;
+    const ref = db.ref('attendance/' + sessionId + '/' + firebaseKey);
+    const snapshot = await ref.once('value');
+    const current = snapshot.val()?.participation || 0;
+    const newValue = Math.max(0, current - 1);
+    await ref.update({ participation: newValue });
+    
+    // Update local state for immediate UI feedback
+    const attendanceIndex = state.selectedSessionAttendance.findIndex(a => a.firebaseKey === firebaseKey);
+    if (attendanceIndex !== -1) {
+      state.selectedSessionAttendance[attendanceIndex].participation = newValue;
+      render();
+    }
+  } catch (err) {
+    console.error('Failed to decrement participation in history:', err);
+  }
+}
 
 // ============================================
 // Analytics Dashboard Functions

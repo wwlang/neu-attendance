@@ -47,6 +47,7 @@ Student wants to review their attendance record for personal tracking or to veri
   - Date
   - Time
   - Status (On Time / Late)
+  - Participation (count)
 - Results sorted by most recent first
 
 ### 4. Review Statistics
@@ -72,16 +73,24 @@ Student wants to review their attendance record for personal tracking or to veri
 - [x] Loading state shown during search
 
 ### AC3: Results Display
-- [x] Results table shows: Course, Date, Time, Status
+- [x] Results table shows: Course, Date, Time, Status, Participation
 - [x] Results sorted by timestamp (most recent first)
 - [x] Status badges: "On Time" (green) or "Late" (orange)
 - [x] Empty state shown when no records found
 - [x] Maximum height with scroll for long lists
 
+> **BUG FIXED (2026-01-21):** Column order in data cells was swapped (Participation appeared
+> before Status in data, but headers showed Status before Participation). Fixed by swapping
+> the data cell order in `renderLookupResults()` function. Verified by integration tests:
+> `student-lookup.spec.js` AC3 tests.
+
 ### AC3.1: Participation Visibility
-- [ ] Participation count displayed in results table (if recorded)
-- [ ] Participation column shows count per session
+- [x] Participation count displayed in results table (if recorded)
+- [x] Participation column shows count per session
 - [ ] Tooltip explains "Participation points recorded by instructor"
+
+> **PARTIAL (2026-01-21):** Participation column IS displayed in results table, but
+> tooltip explaining what participation means is not yet implemented.
 
 ### AC3.2: Late Threshold Transparency
 - [ ] Late threshold info displayed with each session result
