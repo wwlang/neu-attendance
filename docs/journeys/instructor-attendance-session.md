@@ -1,7 +1,7 @@
 # Journey: Instructor Runs Attendance Session
 
 ## Overview
-An instructor starts a class session, displays a rotating attendance code, monitors student check-ins in real-time, handles failed attempts, and exports the final attendance list. Sessions can be reopened to allow late students to check in.
+An instructor starts a class session, displays a rotating attendance code, monitors student check-ins in real-time, handles failed attempts, tracks student participation, and exports the final attendance list. Sessions can be reopened to allow late students to check in.
 
 ## Actor
 University instructor/lecturer
@@ -45,22 +45,30 @@ Instructor needs to take attendance for a class session
 ### 5. Monitor Attendance (Real-time)
 - Watch attendance list populate as students check in
 - See student count, names, IDs, timestamps, **location indicator (Loc column)**
+- **Track participation with +/- buttons for each student**
 - Review failed attempts panel for verification issues
 - Statistics show: On Time / Late / Failed counts
 
-### 6. Handle Failed Attempts
+### 6. Track Student Participation
+- Each student in attendance list has +/- buttons in Participation column
+- Click "+" to increment participation count (no limit)
+- Click "-" to decrement participation count (minimum 0)
+- Participation updates in real-time via Firebase
+- Use to track class contributions, questions answered, etc.
+
+### 7. Handle Failed Attempts
 - Review students who failed location/code verification
 - See failure reason (wrong code, too far, expired code)
 - Manually approve legitimate students with GPS issues
 - Bulk select and approve multiple students at once
 
-### 7. End Session
+### 8. End Session
 - Click "End Session" when attendance is complete
-- Export attendance to CSV if needed
+- Export attendance to CSV if needed (includes participation counts)
 - Session marked as ended but data preserved
 - Session summary saved with attendance and late counts
 
-### 8. Rejoin Session for Late Students
+### 9. Rejoin Session for Late Students
 - From session history, select a recent session
 - Click "Reopen for Late Check-ins"
 - System requests location, generates new code
@@ -68,20 +76,37 @@ Instructor needs to take attendance for a class session
 - Late students can scan and check in (marked as "Late" + "Rejoined")
 - Click "Close" when done - session returns to ended state
 
-### 9. View & Manage Session History
+### 10. View & Manage Session History
 - Click "View History" from instructor dashboard
 - Toggle "Show All" to see sessions older than 7 days
 - Click any session to view full attendance details
-- Session detail shows: student list, timestamps, late badges, device IDs
+- Session detail shows: student list, timestamps, late badges, device IDs, **participation counts**
 - Export attendance CSV from any historical session
 - Edit attendance: remove entries, add manual entries, fix typos
+- **Edit session names** via pencil icon next to class name
+- **Archive sessions** to hide them from main view
 
-### 10. Edit Attendance Records
+### 11. Edit Attendance Records
 - From session detail view, click "Edit" on any student entry
 - Options: Edit details, Remove entry, Add note
 - "Add Student" button for manual entries (missed QR scan)
 - All changes logged with timestamp for audit trail
 - Confirmation required for deletions
+
+### 12. Edit Session Names
+- From history view, click pencil icon next to any session name
+- Modal opens with current session name pre-filled
+- Enter new name (max 100 characters)
+- Click "Save" to update or "Cancel" to discard
+- Changes are logged to audit trail
+
+### 13. Archive/Unarchive Sessions
+- From history view, click archive icon (box-archive) on any session card
+- Archived sessions are hidden from main history view by default
+- Toggle "Show Archived" to view archived sessions
+- Archived sessions display "Unarchive" button instead of "Archive"
+- Click "Unarchive" to restore session to main view
+- Can also archive/unarchive from session detail view
 
 ## Session Settings Reference
 
@@ -152,6 +177,7 @@ Instructor needs to take attendance for a class session
 ### AC5: Data Export
 - [x] CSV export includes all collected fields
 - [x] **CSV includes location columns**: Latitude, Longitude, Distance, Location Provided
+- [x] **CSV includes Participation column** with count per student
 - [x] Filename includes class name and date
 - [x] UTF-8 encoding with BOM for Excel compatibility
 - [x] Separate export for failed attempts
@@ -177,7 +203,7 @@ Instructor needs to take attendance for a class session
 **View historical sessions and manage attendance records.**
 
 - [x] Click any session in history to view full attendance list
-- [x] Session detail view shows: all students, timestamps, late status, device IDs
+- [x] Session detail view shows: all students, timestamps, late status, device IDs, **participation counts**
 - [x] "Show All Sessions" toggle to view sessions older than 7 days
 - [x] Search/filter sessions by class name or date
 - [x] Export CSV from any historical session (not just active)
@@ -218,6 +244,66 @@ Instructor needs to take attendance for a class session
 > - Previous code: Valid for 180s after new code generated
 > - Recently expired: Valid for 30s after expiration (covers edge cases)
 
+### AC11: Edit Session Names
+**Rename sessions from history view for better organization.**
+
+- [x] Pencil icon (edit button) displayed next to session name in history list
+- [x] Click opens modal with current name pre-filled
+- [x] Can edit session name (max 100 characters)
+- [x] Save updates `className` in Firebase
+- [x] Cancel closes modal without changes
+- [x] Audit trail: name change logged with old/new values and timestamp
+
+> **IMPLEMENTED (2026-01-20):** Edit session name features include:
+> - Pencil icon button on each session card in history view
+> - Modal with pre-filled current session name
+> - Save/Cancel buttons with validation
+> - Changes logged to `audit/{sessionId}` with EDIT_SESSION_NAME action
+> - Local state updated immediately for responsive UI
+
+### AC12: Archive/Unarchive Sessions
+**Hide sessions from main history view for better organization.**
+
+- [x] Archive button (box-archive icon) displayed on each session card in history view
+- [x] Clicking archive sets `archived: true` in Firebase for that session
+- [x] Archived sessions are hidden from main history view by default
+- [x] "Show Archived" toggle/filter to display archived sessions
+- [x] Archived sessions show "Unarchive" button instead of "Archive"
+- [x] Clicking unarchive sets `archived: false` in Firebase
+- [x] Archive/unarchive also available from session detail view
+- [x] Active sessions cannot be archived (must end first)
+- [x] Search/filter still works on archived sessions when shown
+
+> **IMPLEMENTED (2026-01-20):** Archive/unarchive features include:
+> - Archive button (box-archive icon) on each ended session card in history view
+> - "Show Archived" toggle checkbox to display archived sessions
+> - Archived sessions show with "Archived" badge and faded opacity
+> - Unarchive button on archived sessions (both in list and detail view)
+> - Archive/Unarchive buttons in session detail view header
+> - All changes logged to `audit/{sessionId}` with ARCHIVE_SESSION/UNARCHIVE_SESSION action
+> - Active sessions cannot be archived (archive button not shown)
+
+### AC13: Participation Counter
+**Track student participation during sessions with +/- buttons.**
+
+- [x] Participation column visible in attendance list during active sessions
+- [x] Each student row has +/- buttons and participation count display
+- [x] Clicking "+" increments participation count by 1
+- [x] Clicking "-" decrements participation count by 1 (minimum 0)
+- [x] Participation count defaults to 0 for new check-ins
+- [x] Participation updates in real-time via Firebase
+- [x] Participation column visible in session history detail view
+- [x] Participation included in CSV export (active session and history)
+
+> **IMPLEMENTED (2026-01-20):** Participation counter features include:
+> - Participation column with +/- buttons in active session attendance list
+> - Real-time Firebase updates via `incrementParticipation` and `decrementParticipation` functions
+> - Participation count stored at `/attendance/{sessionId}/{odooId}/participation`
+> - Participation column displayed in session detail view (read-only)
+> - CSV exports include Participation column for both active and historical sessions
+> - Integration tests verify all functionality: `participation-counter.spec.js`
+
+
 ## Error Scenarios
 
 | Scenario | Expected Behavior |
@@ -228,6 +314,40 @@ Instructor needs to take attendance for a class session
 | Wrong PIN entered | Error message, retry allowed |
 | Session ended by accident | Reopen from History within 7 days |
 | Student location denied | Allow check-in, mark "No location" in Loc column |
+
+## Friction Analysis
+
+### Interaction Count
+
+| Flow | Interactions | Target | Status |
+|------|-------------:|-------:|--------|
+| Start session (default settings) | 4 | ≤5 | Pass |
+| Start session (custom settings) | 6 | ≤8 | Pass |
+| Reopen session | 3 | ≤3 | Pass |
+| Export attendance | 2 | ≤3 | Pass |
+| Approve failed attempt | 2 | ≤3 | Pass |
+| Edit session name | 3 | ≤5 | Pass |
+
+_Start session: Select instructor → Enter PIN → Enter class name → Click Start (+ optional settings)_
+
+### Friction Score
+
+| Dimension | Score | Notes |
+|-----------|------:|-------|
+| Cognitive load | 1 | Multiple features visible, but progressive disclosure |
+| Input effort | 1 | PIN + class name required; settings optional |
+| Wait time | 1 | GPS acquisition may take 1-3s |
+| Error risk | 1 | PIN retry allowed; accidental end recoverable |
+| Permission ask | 1 | Location required upfront (justified for verification) |
+| **Total** | **5** | Acceptable (5-7) |
+
+### Permission Timing
+
+| Permission | Trigger | Fallback if Denied |
+|------------|---------|-------------------|
+| Location | On session start | Cannot start session (required for verification center) |
+
+_Note: Location is mandatory for instructors as it establishes the classroom center point for student verification._
 
 ## Metrics
 - Time to start session: < 10 seconds (including GPS acquisition)

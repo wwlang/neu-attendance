@@ -82,10 +82,11 @@ Instructor displays QR code and asks students to check in
 ## Acceptance Criteria
 
 ### AC1: Location Acquisition
-- [x] Location permission requested on page load
+- [x] Location permission requested when submitting attendance (not on page load)
 - [x] GPS coordinates acquired with accuracy indicator
 - [x] "Retry Location" button available if acquisition fails
 - [x] Submit button works without location (optional GPS)
+- [x] Pre-prompt explains value: "Location helps verify you're in class"
 
 ### AC2: Device Fingerprinting
 - [x] Unique device ID generated automatically
@@ -100,9 +101,10 @@ Instructor displays QR code and asks students to check in
 
 ### AC4: Code Verification
 - [x] Current code accepted
-- [x] Previous code accepted within grace period (60s)
+- [x] Previous code accepted within grace period (180s)
+- [x] Recently expired code accepted within 30s of expiration
 - [x] Invalid code rejected with clear message
-- [x] Expired code rejected with clear message
+- [x] Expired code (beyond grace windows) rejected with clear message
 
 ### AC5: Location Verification
 - [x] Distance calculated using Haversine formula
@@ -164,6 +166,34 @@ Instructor displays QR code and asks students to check in
 | Too far from classroom | Log failed attempt, show distance |
 | Already checked in | "Already checked in" error |
 | Device already used | "Device already used" error |
+
+## Friction Analysis
+
+### Interaction Count
+
+| Flow | Interactions | Target | Status |
+|------|-------------:|-------:|--------|
+| Returning student (QR scan) | 2 | ≤3 | Pass |
+| New student (first time) | 5 | ≤5 | Pass |
+| Manual code entry | 3 | ≤5 | Pass |
+
+### Friction Score
+
+| Dimension | Score | Notes |
+|-----------|------:|-------|
+| Cognitive load | 0 | Single clear action per screen |
+| Input effort | 1 | Returning: 0 fields; New: 3 fields |
+| Wait time | 0 | Submission <100ms |
+| Error risk | 1 | Validation prevents most errors |
+| Permission ask | 1 | Location requested when submitting |
+| **Total** | **3** | Excellent (≤4) |
+
+### Permission Timing
+
+| Permission | Trigger | Fallback if Denied |
+|------------|---------|-------------------|
+| Location | When tapping "Submit/Confirm" | Check-in continues, marked "No location" |
+| Camera | When scanning QR code | Manual code entry available |
 
 ## Metrics
 - Time to complete check-in: < 30 seconds

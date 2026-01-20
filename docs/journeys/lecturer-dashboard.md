@@ -1,5 +1,16 @@
 # Journey: Lecturer Views Analytics Dashboard
 
+## Status
+
+```yaml
+status: planned
+implementation_priority: P2
+implementation_percent: 0
+last_reviewed: 2026-01-21
+```
+
+> **Note:** This journey is fully documented but not yet implemented. All acceptance criteria are unchecked, indicating planned functionality.
+
 ## Overview
 A lecturer accesses an analytics dashboard to view attendance trends across all their sessions, identify patterns, and discover at-risk students with low attendance rates. The dashboard provides visualizations and exportable reports.
 

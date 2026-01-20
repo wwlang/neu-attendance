@@ -78,6 +78,16 @@ Student wants to review their attendance record for personal tracking or to veri
 - [x] Empty state shown when no records found
 - [x] Maximum height with scroll for long lists
 
+### AC3.1: Participation Visibility
+- [ ] Participation count displayed in results table (if recorded)
+- [ ] Participation column shows count per session
+- [ ] Tooltip explains "Participation points recorded by instructor"
+
+### AC3.2: Late Threshold Transparency
+- [ ] Late threshold info displayed with each session result
+- [ ] Tooltip or footnote explains "Late = checked in after X minutes"
+- [ ] Helps students understand why marked late
+
 ### AC4: Statistics Summary
 - [x] Total attendance count displayed prominently
 - [x] On-time count with green styling
@@ -97,6 +107,30 @@ Student wants to review their attendance record for personal tracking or to veri
 | No records found | "No attendance records found" message |
 | Database error | "Error searching attendance. Please try again." message |
 | Invalid student ID format | Accepts any format (no strict validation) |
+
+## Friction Analysis
+
+### Interaction Count
+
+| Flow | Interactions | Target | Status |
+|------|-------------:|-------:|--------|
+| Returning student (pre-filled ID) | 2 | ≤3 | Pass |
+| New lookup (enter ID) | 3 | ≤3 | Pass |
+
+### Friction Score
+
+| Dimension | Score | Notes |
+|-----------|------:|-------|
+| Cognitive load | 0 | Single search field, clear results |
+| Input effort | 0 | 1 field, often pre-filled |
+| Wait time | 1 | Search may take 1-3s |
+| Error risk | 0 | No destructive actions |
+| Permission ask | 0 | No permissions required |
+| **Total** | **1** | Excellent (≤4) |
+
+### Permission Timing
+
+No permissions required for this journey.
 
 ## Metrics
 - Search response time: < 3 seconds
