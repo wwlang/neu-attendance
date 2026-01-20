@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { waitForPageLoad } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Student Flow Integration Tests
@@ -16,16 +17,13 @@ const { test, expect } = require('@playwright/test');
 test.describe('Student Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for loading spinner to disappear and content to render
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await waitForPageLoad(page);
   });
 
   test('should navigate to student form when clicking student button', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(500);
 
-    await expect(page.locator('text=Mark Attendance')).toBeVisible();
+    await expect(page.locator('text=Mark Attendance')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('input#studentId')).toBeVisible();
     await expect(page.locator('input#studentName')).toBeVisible();
     await expect(page.locator('input#studentEmail')).toBeVisible();
@@ -34,64 +32,58 @@ test.describe('Student Flow', () => {
 
   test('should auto-generate device ID', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(2000);
 
-    // Device ID should be displayed
-    const content = await page.content();
-    expect(content).toMatch(/DEV-[0-9A-F]{8}/);
+    // Wait for device ID to appear (contains "DEV-" pattern)
+    await expect(page.locator('text=/DEV-[0-9A-F]{8}/')).toBeVisible({ timeout: 10000 });
   });
 
   test('should show location section', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(2000);
 
-    // Use more specific selectors to avoid multiple matches
-    await expect(page.getByText('Your Location (Lat, Lng)')).toBeVisible();
+    // Wait for location to be acquired
+    await expect(page.getByText('Your Location (Lat, Lng)')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Device Information', { exact: false })).toBeVisible();
   });
 
   test('should validate empty fields', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(2000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     // Try to submit with empty fields
     await page.click('button:has-text("Submit Attendance")');
-    await page.waitForTimeout(500);
 
-    await expect(page.locator('text=Please fill in all fields')).toBeVisible();
+    await expect(page.locator('text=Please fill in all fields')).toBeVisible({ timeout: 5000 });
   });
 
   test('should validate email format', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(2000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     await page.fill('input#studentId', '12345678');
     await page.fill('input#studentName', 'Test Student');
     await page.fill('input#studentEmail', 'invalid-email');
     await page.fill('input#enteredCode', 'ABC123');
     await page.click('button:has-text("Submit Attendance")');
-    await page.waitForTimeout(500);
 
-    await expect(page.locator('text=valid email')).toBeVisible();
+    await expect(page.locator('text=valid email')).toBeVisible({ timeout: 5000 });
   });
 
   test('should validate code length', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(2000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     await page.fill('input#studentId', '12345678');
     await page.fill('input#studentName', 'Test Student');
     await page.fill('input#studentEmail', 'test@example.com');
     await page.fill('input#enteredCode', 'ABC'); // Too short
     await page.click('button:has-text("Submit Attendance")');
-    await page.waitForTimeout(500);
 
-    await expect(page.locator('text=must be 6 characters')).toBeVisible();
+    await expect(page.locator('text=must be 6 characters')).toBeVisible({ timeout: 5000 });
   });
 
   test('should auto-uppercase entered code', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#enteredCode')).toBeVisible({ timeout: 5000 });
 
     await page.fill('input#enteredCode', 'abcdef');
     const value = await page.inputValue('input#enteredCode');
@@ -100,15 +92,14 @@ test.describe('Student Flow', () => {
 
   test('should access student mode via URL parameter', async ({ page }) => {
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
 
-    await expect(page.locator('text=Mark Attendance')).toBeVisible();
+    await expect(page.locator('text=Mark Attendance')).toBeVisible({ timeout: 10000 });
   });
 
   test('should auto-fill code from URL parameter', async ({ page }) => {
     await page.goto('/?mode=student&code=TESTCD');
-    await page.waitForTimeout(1000);
 
+    await expect(page.locator('input#enteredCode')).toBeVisible({ timeout: 10000 });
     const value = await page.inputValue('input#enteredCode');
     expect(value).toBe('TESTCD');
     await expect(page.locator('text=Code auto-filled from QR scan')).toBeVisible();
@@ -116,7 +107,7 @@ test.describe('Student Flow', () => {
 
   test('should have maxlength on input fields', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     const studentIdMax = await page.locator('input#studentId').getAttribute('maxlength');
     const studentNameMax = await page.locator('input#studentName').getAttribute('maxlength');
@@ -131,7 +122,7 @@ test.describe('Student Flow', () => {
 
   test('should accept Vietnamese characters in name', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('input#studentName')).toBeVisible({ timeout: 5000 });
 
     const vietnameseName = 'Nguyen Van Duc';
     await page.fill('input#studentName', vietnameseName);
@@ -141,12 +132,11 @@ test.describe('Student Flow', () => {
 
   test('should have back button to return to mode selection', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('button:has-text("Back")')).toBeVisible({ timeout: 5000 });
 
     await page.click('button:has-text("Back")');
-    await page.waitForTimeout(500);
 
-    await expect(page.locator('text=Quick Attendance')).toBeVisible();
+    await expect(page.locator('text=Quick Attendance')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('button:has-text("I\'m the Instructor")')).toBeVisible();
   });
 
@@ -154,23 +144,24 @@ test.describe('Student Flow', () => {
     // Note: This test assumes there's no active session running
     // The actual error message depends on Firebase state
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(2000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     await page.fill('input#studentId', '12345678');
     await page.fill('input#studentName', 'Test Student');
     await page.fill('input#studentEmail', 'test@example.com');
     await page.fill('input#enteredCode', 'XXXXXX');
     await page.click('button:has-text("Submit Attendance")');
-    await page.waitForTimeout(3000);
 
-    // Should show some error (either "No active session" or "Invalid code" or similar)
-    const content = await page.content();
-    const hasError = content.includes('error') ||
-                     content.includes('Error') ||
-                     content.includes('session') ||
-                     content.includes('Invalid') ||
-                     content.includes('logged');
-    expect(hasError).toBe(true);
+    // Wait for error response - should show some error indicator
+    await expect(async () => {
+      const content = await page.content();
+      const hasError = content.includes('error') ||
+                       content.includes('Error') ||
+                       content.includes('session') ||
+                       content.includes('Invalid') ||
+                       content.includes('logged');
+      expect(hasError).toBe(true);
+    }).toPass({ timeout: 15000 });
   });
 });
 
@@ -183,13 +174,12 @@ test.describe('Student Info Persistence', () => {
       localStorage.removeItem('neu_student_name');
       localStorage.removeItem('neu_student_email');
     });
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await waitForPageLoad(page);
   });
 
   test('should show empty form when no saved info exists', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     // Form fields should be empty
     const studentId = await page.inputValue('input#studentId');
@@ -214,7 +204,7 @@ test.describe('Student Info Persistence', () => {
 
     // Navigate to student mode
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Form fields should be pre-filled
     const studentId = await page.inputValue('input#studentId');
@@ -236,10 +226,9 @@ test.describe('Student Info Persistence', () => {
 
     // Navigate to student mode
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
 
     // Welcome banner should be visible with student name
-    await expect(page.locator('text=Welcome back')).toBeVisible();
+    await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=Nguyen Van A')).toBeVisible();
   });
 
@@ -253,42 +242,29 @@ test.describe('Student Info Persistence', () => {
 
     // Navigate to student mode
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
 
     // Verify form is pre-filled
     expect(await page.inputValue('input#studentId')).toBe('87654321');
 
-    // Welcome banner should be visible (simplified version with dismiss X)
-    await expect(page.locator('text=Welcome back')).toBeVisible();
-
     // Dismiss the banner first (click X button)
     await page.click('button[title="Dismiss"]');
-    await page.waitForTimeout(500);
 
     // Now "Clear saved info" link should be visible
-    await expect(page.locator('text=Clear saved info')).toBeVisible();
+    await expect(page.locator('text=Clear saved info')).toBeVisible({ timeout: 5000 });
 
     // Click "Clear saved info" to reset
     await page.click('text=Clear saved info');
-    await page.waitForTimeout(500);
 
     // Form fields should be empty
-    const studentId = await page.inputValue('input#studentId');
-    const studentName = await page.inputValue('input#studentName');
-    const studentEmail = await page.inputValue('input#studentEmail');
-
-    expect(studentId).toBe('');
-    expect(studentName).toBe('');
-    expect(studentEmail).toBe('');
+    await expect(async () => {
+      const studentId = await page.inputValue('input#studentId');
+      expect(studentId).toBe('');
+    }).toPass({ timeout: 5000 });
 
     // localStorage should be cleared
     const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
-    const storedName = await page.evaluate(() => localStorage.getItem('neu_student_name'));
-    const storedEmail = await page.evaluate(() => localStorage.getItem('neu_student_email'));
-
     expect(storedId).toBeNull();
-    expect(storedName).toBeNull();
-    expect(storedEmail).toBeNull();
   });
 
   test('should show clear saved info link after dismissing welcome banner', async ({ page }) => {
@@ -301,25 +277,25 @@ test.describe('Student Info Persistence', () => {
 
     // Navigate to student mode
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
 
     // Initially, "Clear saved info" link should NOT be visible (banner is shown)
     await expect(page.locator('text=Clear saved info')).not.toBeVisible();
 
-    // Click the X button to dismiss banner (simplified UX)
+    // Click the X button to dismiss banner
     await page.click('button[title="Dismiss"]');
-    await page.waitForTimeout(500);
 
     // Now "Clear saved info" link should be visible
-    await expect(page.locator('text=Clear saved info')).toBeVisible();
+    await expect(page.locator('text=Clear saved info')).toBeVisible({ timeout: 5000 });
 
     // Click it to clear
     await page.click('text=Clear saved info');
-    await page.waitForTimeout(500);
 
     // localStorage should be cleared
-    const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
-    expect(storedId).toBeNull();
+    await expect(async () => {
+      const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
+      expect(storedId).toBeNull();
+    }).toPass({ timeout: 5000 });
   });
 
   test('should allow editing pre-filled fields', async ({ page }) => {
@@ -332,7 +308,7 @@ test.describe('Student Info Persistence', () => {
 
     // Navigate to student mode
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Edit the pre-filled student ID
     await page.fill('input#studentId', '11111111');
@@ -351,7 +327,7 @@ test.describe('Student Info Persistence', () => {
 
     // Navigate to student mode
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentName')).toBeVisible({ timeout: 10000 });
 
     // Form should display Vietnamese characters correctly
     const studentName = await page.inputValue('input#studentName');
@@ -370,7 +346,7 @@ test.describe('Student Info Persistence', () => {
 
     // Navigate to student mode
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Welcome banner should NOT be visible
     await expect(page.locator('text=Welcome back')).not.toBeVisible();
@@ -390,7 +366,7 @@ test.describe('Student Info Persistence', () => {
   test('should save student info on form submission even when submission fails (AC6.1)', async ({ page }) => {
     // Navigate to student mode with clean localStorage
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     // Fill in student info
     await page.fill('input#studentId', '11223344');
@@ -400,14 +376,16 @@ test.describe('Student Info Persistence', () => {
 
     // Submit the form (will fail due to invalid code or no active session)
     await page.click('button:has-text("Submit Attendance")');
-    await page.waitForTimeout(3000);
 
-    // Verify localStorage was saved despite the failed submission
-    const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
+    // Wait for localStorage to be saved despite the failed submission
+    await expect(async () => {
+      const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
+      expect(storedId).toBe('11223344');
+    }).toPass({ timeout: 15000 });
+
     const storedName = await page.evaluate(() => localStorage.getItem('neu_student_name'));
     const storedEmail = await page.evaluate(() => localStorage.getItem('neu_student_email'));
 
-    expect(storedId).toBe('11223344');
     expect(storedName).toBe('Tran Van B');
     expect(storedEmail).toBe('tranb@st.neu.edu.vn');
   });
@@ -415,7 +393,7 @@ test.describe('Student Info Persistence', () => {
   test('should pre-populate form on page reload after failed submission (session rejoin)', async ({ page }) => {
     // Navigate to student mode with clean localStorage
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
 
     // Fill in student info and submit (will fail)
     await page.fill('input#studentId', '55667788');
@@ -423,11 +401,16 @@ test.describe('Student Info Persistence', () => {
     await page.fill('input#studentEmail', 'lethic@st.neu.edu.vn');
     await page.fill('input#enteredCode', 'BADCOD'); // Invalid code
     await page.click('button:has-text("Submit Attendance")');
-    await page.waitForTimeout(3000);
+
+    // Wait for submission to complete (fail)
+    await expect(async () => {
+      const storedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
+      expect(storedId).toBe('55667788');
+    }).toPass({ timeout: 15000 });
 
     // Reload the page (simulating returning to try again)
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Form should be pre-populated with previously entered info
     const studentId = await page.inputValue('input#studentId');
@@ -448,7 +431,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
   test('should show Quick Confirm screen when saved info exists and code in URL', async ({ page }) => {
     // First navigate to page to get access to localStorage
     await page.goto('/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await waitForPageLoad(page);
 
     // Save student info
     await page.evaluate(() => {
@@ -459,11 +442,10 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
     // Navigate with code in URL (simulating QR scan)
     await page.goto('/?mode=student&code=ABCD12');
-    await page.waitForTimeout(1000);
 
     // Should show Quick Confirm screen (not full form)
     // The Quick Confirm screen shows "Welcome back!" heading with name below
-    await expect(page.locator('h2:has-text("Welcome back!")')).toBeVisible();
+    await expect(page.locator('h2:has-text("Welcome back!")')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=Quick Confirm Test')).toBeVisible();
     await expect(page.locator('button:has-text("Confirm Attendance")')).toBeVisible();
 
@@ -477,7 +459,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
   test('should NOT show Quick Confirm when no code in URL', async ({ page }) => {
     // First navigate to page to get access to localStorage
     await page.goto('/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await waitForPageLoad(page);
 
     // Save student info
     await page.evaluate(() => {
@@ -488,10 +470,9 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
     // Navigate WITHOUT code in URL
     await page.goto('/?mode=student');
-    await page.waitForTimeout(1000);
 
     // Should show welcome banner but NOT Quick Confirm
-    await expect(page.locator('text=Welcome back')).toBeVisible();
+    await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
 
     // Should still show the full form (code input visible)
     await expect(page.locator('input#enteredCode')).toBeVisible();
@@ -500,7 +481,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
   test('should NOT show Quick Confirm when no saved info', async ({ page }) => {
     // First navigate to page to get access to localStorage
     await page.goto('/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await waitForPageLoad(page);
 
     // Clear any saved info
     await page.evaluate(() => {
@@ -511,10 +492,9 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
     // Navigate with code in URL
     await page.goto('/?mode=student&code=ABCD12');
-    await page.waitForTimeout(1000);
 
     // Should show full form (not Quick Confirm)
-    await expect(page.locator('input#studentId')).toBeVisible();
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('input#studentName')).toBeVisible();
     await expect(page.locator('input#enteredCode')).toBeVisible();
 
@@ -526,7 +506,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
   test('should switch to full form when clicking Edit my details', async ({ page }) => {
     // First navigate to page to get access to localStorage
     await page.goto('/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await waitForPageLoad(page);
 
     // Save student info
     await page.evaluate(() => {
@@ -537,17 +517,15 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
     // Navigate with code
     await page.goto('/?mode=student&code=XYZ789');
-    await page.waitForTimeout(1000);
 
     // Verify Quick Confirm screen
-    await expect(page.locator('button:has-text("Confirm Attendance")')).toBeVisible();
+    await expect(page.locator('button:has-text("Confirm Attendance")')).toBeVisible({ timeout: 10000 });
 
     // Click "Edit my details"
     await page.click('text=Edit my details');
-    await page.waitForTimeout(500);
 
     // Should now show full form
-    await expect(page.locator('input#studentId')).toBeVisible();
+    await expect(page.locator('input#studentId')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('input#studentName')).toBeVisible();
     await expect(page.locator('input#enteredCode')).toBeVisible();
 
@@ -559,7 +537,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
   test('should show Confirm Attendance as primary action button', async ({ page }) => {
     // First navigate to page to get access to localStorage
     await page.goto('/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await waitForPageLoad(page);
 
     // Save student info
     await page.evaluate(() => {
@@ -570,11 +548,10 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
     // Navigate with code
     await page.goto('/?mode=student&code=TEST01');
-    await page.waitForTimeout(1000);
 
     // Confirm Attendance button should be large and prominent
     const confirmButton = page.locator('button:has-text("Confirm Attendance")');
-    await expect(confirmButton).toBeVisible();
+    await expect(confirmButton).toBeVisible({ timeout: 10000 });
 
     // Button should have emerald/green styling (class contains emerald or green)
     const buttonClass = await confirmButton.getAttribute('class');

@@ -19,18 +19,19 @@ test.describe('Session History Management (AC8)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 
     // Navigate to instructor mode
     await page.click('button:has-text("I\'m the Instructor")');
+    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
     await page.fill('input#instructorPin', INSTRUCTOR_PIN);
     await page.click('button:has-text("Access Instructor Mode")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
   });
 
   test('should open history view and show sessions', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     // Should show history heading
     await expect(page.locator('text=Session History')).toBeVisible();
@@ -44,7 +45,7 @@ test.describe('Session History Management (AC8)', () => {
 
   test('should have clickable session items', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     // If there are any sessions, they should be clickable
     const sessionCards = page.locator('.border.rounded-lg.cursor-pointer');
@@ -53,7 +54,7 @@ test.describe('Session History Management (AC8)', () => {
     if (count > 0) {
       // Click first session
       await sessionCards.first().click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
       // Should show back button to history
       await expect(page.locator('button:has-text("Back to History")')).toBeVisible();
@@ -67,7 +68,7 @@ test.describe('Session History Management (AC8)', () => {
 
   test('should toggle show all sessions', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     // Find and click the toggle
     const toggle = page.locator('input[type="checkbox"]').first();
@@ -75,21 +76,24 @@ test.describe('Session History Management (AC8)', () => {
 
     // Toggle it
     await toggle.click();
-    await page.waitForTimeout(500);
 
-    // Verify toggle state changed
-    const newChecked = await toggle.isChecked();
-    expect(newChecked).toBe(!isChecked);
+    // Wait for toggle state to change
+    await expect(async () => {
+      const newChecked = await toggle.isChecked();
+      expect(newChecked).toBe(!isChecked);
+    }).toPass({ timeout: 5000 });
   });
 
   test('should filter sessions by search input', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     // Type in search
     const searchInput = page.locator('input[placeholder*="Search by class name"]');
     await searchInput.fill('NONEXISTENT_CLASS_12345');
-    await page.waitForTimeout(500);
+
+    // Wait for filter to apply
+    await page.waitForLoadState('networkidle');
 
     // Should show "No sessions found" if filter doesn't match
     // or filter the results
@@ -105,34 +109,33 @@ test.describe('Session History Management (AC8)', () => {
 
   test('should navigate back from session details', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     const sessionCards = page.locator('.border.rounded-lg.cursor-pointer');
     const count = await sessionCards.count();
 
     if (count > 0) {
       await sessionCards.first().click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
       // Click back button
       await page.click('button:has-text("Back to History")');
-      await page.waitForTimeout(500);
 
       // Should be back on history list
-      await expect(page.locator('text=Session History')).toBeVisible();
+      await expect(page.locator('text=Session History')).toBeVisible({ timeout: 5000 });
     }
   });
 
   test('should show Export CSV button in session detail view', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     const sessionCards = page.locator('.border.rounded-lg.cursor-pointer');
     const count = await sessionCards.count();
 
     if (count > 0) {
       await sessionCards.first().click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
       // Should have Export CSV button
       await expect(page.locator('button:has-text("Export CSV")')).toBeVisible();
@@ -141,14 +144,14 @@ test.describe('Session History Management (AC8)', () => {
 
   test('should show Add Student button in session detail view', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     const sessionCards = page.locator('.border.rounded-lg.cursor-pointer');
     const count = await sessionCards.count();
 
     if (count > 0) {
       await sessionCards.first().click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
       // Should have Add Student button
       await expect(page.locator('button:has-text("+ Add Student")')).toBeVisible();
@@ -160,32 +163,32 @@ test.describe('Edit Attendance Records (AC9)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 
     // Navigate to instructor mode
     await page.click('button:has-text("I\'m the Instructor")');
+    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
     await page.fill('input#instructorPin', INSTRUCTOR_PIN);
     await page.click('button:has-text("Access Instructor Mode")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
   });
 
   test('should open Add Student modal', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     const sessionCards = page.locator('.border.rounded-lg.cursor-pointer');
     const count = await sessionCards.count();
 
     if (count > 0) {
       await sessionCards.first().click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
       // Click Add Student button
       await page.click('button:has-text("+ Add Student")');
-      await page.waitForTimeout(500);
 
       // Modal should appear
-      await expect(page.locator('text=Add Student Manually')).toBeVisible();
+      await expect(page.locator('text=Add Student Manually')).toBeVisible({ timeout: 5000 });
       await expect(page.locator('input#addStudentId')).toBeVisible();
       await expect(page.locator('input#addStudentName')).toBeVisible();
       await expect(page.locator('input#addStudentEmail')).toBeVisible();
@@ -194,37 +197,36 @@ test.describe('Edit Attendance Records (AC9)', () => {
 
   test('should close Add Student modal with cancel', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     const sessionCards = page.locator('.border.rounded-lg.cursor-pointer');
     const count = await sessionCards.count();
 
     if (count > 0) {
       await sessionCards.first().click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
       await page.click('button:has-text("+ Add Student")');
-      await page.waitForTimeout(500);
+      await expect(page.locator('text=Add Student Manually')).toBeVisible({ timeout: 5000 });
 
       // Click cancel
       await page.click('button:has-text("Cancel")');
-      await page.waitForTimeout(500);
 
       // Modal should be gone
-      await expect(page.locator('text=Add Student Manually')).not.toBeVisible();
+      await expect(page.locator('text=Add Student Manually')).not.toBeVisible({ timeout: 5000 });
     }
   });
 
   test('should show attendance list with action buttons if records exist', async ({ page }) => {
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     const sessionCards = page.locator('.border.rounded-lg.cursor-pointer');
     const count = await sessionCards.count();
 
     if (count > 0) {
       await sessionCards.first().click();
-      await page.waitForTimeout(1000);
+      await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
       // Check for table headers if attendance exists
       const attendanceTable = page.locator('table');
@@ -250,40 +252,40 @@ test.describe('Full Session Lifecycle with History', () => {
   test('should create session, end it, and view in history', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 
     // Navigate to instructor mode
     await page.click('button:has-text("I\'m the Instructor")');
+    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
     await page.fill('input#instructorPin', INSTRUCTOR_PIN);
     await page.click('button:has-text("Access Instructor Mode")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
 
     // Create unique class name with timestamp
     const className = `History Test ${Date.now()}`;
     await page.fill('input#className', className);
     await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
 
     // Verify session started
-    await expect(page.locator('.code-display').first()).toBeVisible();
+    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // End session
     page.once('dialog', async dialog => {
       await dialog.accept();
     });
     await page.click('button:has-text("End Session")');
-    await page.waitForTimeout(2000);
+    await expect(page.locator('button:has-text("View History")')).toBeVisible({ timeout: 15000 });
 
     // Go to history
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(2000); // Wait for Firebase to sync
+    await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
     // Should see our session in history (may need to wait for data load)
     await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
 
     // Click on the session
     await page.locator(`text=${className}`).click();
-    await page.waitForTimeout(500);
+    await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
     // Should see session details
     await expect(page.locator(`h2:has-text("${className}")`)).toBeVisible();
@@ -298,36 +300,37 @@ test.describe('Full Session Lifecycle with History', () => {
   test('should add manual student to historical session', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 
     // Navigate to instructor mode
     await page.click('button:has-text("I\'m the Instructor")');
+    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
     await page.fill('input#instructorPin', INSTRUCTOR_PIN);
     await page.click('button:has-text("Access Instructor Mode")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
 
     // Create session
     const className = `Manual Entry Test ${Date.now()}`;
     await page.fill('input#className', className);
     await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
+    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // End session
     page.once('dialog', async dialog => {
       await dialog.accept();
     });
     await page.click('button:has-text("End Session")');
-    await page.waitForTimeout(2000);
+    await expect(page.locator('button:has-text("View History")')).toBeVisible({ timeout: 15000 });
 
     // Go to history and click on session
     await page.click('button:has-text("View History")');
-    await page.waitForTimeout(1000);
+    await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
     await page.locator(`text=${className}`).click();
-    await page.waitForTimeout(500);
+    await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
     // Add manual student
     await page.click('button:has-text("+ Add Student")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Add Student Manually')).toBeVisible({ timeout: 5000 });
 
     // Fill form
     await page.fill('input#addStudentId', '99999999');
@@ -336,10 +339,9 @@ test.describe('Full Session Lifecycle with History', () => {
 
     // Submit - button text is "Add Student" in modal
     await page.click('div.fixed button:has-text("Add Student")');
-    await page.waitForTimeout(1000);
 
     // Verify student was added
-    await expect(page.locator('text=Test Manual Student')).toBeVisible();
+    await expect(page.locator('text=Test Manual Student')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=99999999')).toBeVisible();
 
     // Verify "Manual" badge is shown (specific to the badge span)

@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { waitForPageLoad } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Dark Mode Integration Tests
@@ -20,9 +21,7 @@ test.describe('Dark Mode', () => {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle' });
-    // Wait for loading spinner to disappear and content to render
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 15000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 15000 });
+    await waitForPageLoad(page);
   });
 
   test('should show dark mode toggle button', async ({ page }) => {
@@ -32,115 +31,96 @@ test.describe('Dark Mode', () => {
   test('should toggle to dark mode when clicked', async ({ page }) => {
     // Initially should be light mode (or system preference)
     await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
 
-    const isDark = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDark).toBe(true);
+    // Wait for class to be applied
+    await expect(async () => {
+      const isDark = await page.evaluate(() =>
+        document.documentElement.classList.contains('dark')
+      );
+      expect(isDark).toBe(true);
+    }).toPass({ timeout: 5000 });
   });
 
   test('should toggle back to light mode on second click', async ({ page }) => {
     // Click twice to go dark then light
     await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
-    await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
+    await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 });
 
-    const isDark = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDark).toBe(false);
+    await page.click('button[title="Toggle dark mode"]');
+    await expect(page.locator('html:not(.dark)')).toBeAttached({ timeout: 5000 });
   });
 
   test('should persist dark mode preference in localStorage', async ({ page }) => {
     await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
 
-    const storedValue = await page.evaluate(() =>
-      localStorage.getItem('neu_attendance_dark_mode')
-    );
-    expect(storedValue).toBe('true');
+    // Wait for localStorage to be updated
+    await expect(async () => {
+      const storedValue = await page.evaluate(() =>
+        localStorage.getItem('neu_attendance_dark_mode')
+      );
+      expect(storedValue).toBe('true');
+    }).toPass({ timeout: 5000 });
   });
 
   test('should restore dark mode preference on reload', async ({ page }) => {
     // Set dark mode
     await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
+    await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 });
 
     // Reload page
     await page.reload();
-    await page.waitForTimeout(1000);
+    await waitForPageLoad(page);
 
     // Should still be dark
-    const isDark = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDark).toBe(true);
+    await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 });
   });
 
   test('should work on student view', async ({ page }) => {
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Mark Attendance')).toBeVisible({ timeout: 5000 });
 
     // Toggle should still be visible
     await expect(page.locator('button[title="Toggle dark mode"]')).toBeVisible();
 
     // Toggle dark mode
     await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
-
-    const isDark = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDark).toBe(true);
+    await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 });
   });
 
   test('should work on instructor view', async ({ page }) => {
     await page.click('button:has-text("I\'m the Instructor")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Instructor Access')).toBeVisible({ timeout: 5000 });
 
     // Toggle should still be visible
     await expect(page.locator('button[title="Toggle dark mode"]')).toBeVisible();
 
     // Toggle dark mode
     await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
-
-    const isDark = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDark).toBe(true);
+    await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 });
   });
 
   test('should persist across mode changes', async ({ page }) => {
     // Set dark mode on home page
     await page.click('button[title="Toggle dark mode"]');
-    await page.waitForTimeout(300);
+    await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 });
 
     // Go to student mode
     await page.click('button:has-text("I\'m a Student")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Mark Attendance')).toBeVisible({ timeout: 5000 });
 
     // Should still be dark
-    const isDarkStudent = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDarkStudent).toBe(true);
+    await expect(page.locator('html.dark')).toBeAttached();
 
     // Go back
     await page.click('button:has-text("Back")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Quick Attendance')).toBeVisible({ timeout: 5000 });
 
     // Go to instructor mode
     await page.click('button:has-text("I\'m the Instructor")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('text=Instructor Access')).toBeVisible({ timeout: 5000 });
 
     // Should still be dark
-    const isDarkInstructor = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDarkInstructor).toBe(true);
+    await expect(page.locator('html.dark')).toBeAttached();
   });
 });
 
@@ -155,13 +135,10 @@ test.describe('Dark Mode - System Preference', () => {
     const page = await context.newPage();
 
     await page.goto('/');
-    await page.waitForTimeout(1000);
+    await waitForPageLoad(page);
 
     // Should follow system preference (dark)
-    const isDark = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDark).toBe(true);
+    await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 });
 
     await context.close();
   });
@@ -176,13 +153,10 @@ test.describe('Dark Mode - System Preference', () => {
     const page = await context.newPage();
 
     await page.goto('/');
-    await page.waitForTimeout(1000);
+    await waitForPageLoad(page);
 
     // Should follow system preference (light)
-    const isDark = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark')
-    );
-    expect(isDark).toBe(false);
+    await expect(page.locator('html:not(.dark)')).toBeAttached({ timeout: 5000 });
 
     await context.close();
   });

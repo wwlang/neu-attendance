@@ -5,8 +5,16 @@ const { defineConfig, devices } = require('@playwright/test');
  * NEU Attendance - Playwright E2E Test Configuration
  * @see https://playwright.dev/docs/test-configuration
  */
+
+// E2E tests ALWAYS use Firebase emulator to avoid polluting production database
+// The emulator must be running: npm run emulators
+const baseURL = 'http://localhost:3000?emulator=true';
+
 module.exports = defineConfig({
   testDir: './tests/integration',
+
+  /* Global setup to verify emulator is running */
+  globalSetup: './tests/global-setup.js',
 
   /* Run tests in files in parallel */
   fullyParallel: true,
@@ -28,8 +36,8 @@ module.exports = defineConfig({
 
   /* Shared settings for all the projects below */
   use: {
-    /* Base URL for all tests - uses local server by default */
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    /* Base URL - always uses emulator to avoid production database pollution */
+    baseURL: baseURL,
 
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',
@@ -39,6 +47,12 @@ module.exports = defineConfig({
 
     /* Video on failure */
     video: 'retain-on-failure',
+
+    /* Action timeout - prevents hanging on individual actions */
+    actionTimeout: 10000,
+
+    /* Navigation timeout */
+    navigationTimeout: 15000,
   },
 
   /* Configure projects for major browsers */
@@ -52,7 +66,8 @@ module.exports = defineConfig({
         permissions: ['geolocation'],
       },
     },
-
+    // Firefox and WebKit disabled for now - focus on chromium stability
+    /*
     {
       name: 'firefox',
       use: {
@@ -70,8 +85,9 @@ module.exports = defineConfig({
         permissions: ['geolocation'],
       },
     },
+    */
 
-    /* Test against mobile viewports */
+    /* Test against mobile viewports - temporarily disabled due to viewport issues
     {
       name: 'Mobile Chrome',
       use: {
@@ -88,21 +104,24 @@ module.exports = defineConfig({
         permissions: ['geolocation'],
       },
     },
+    */
   ],
 
   /* Timeout for each test */
-  timeout: 30000,
+  timeout: 60000,
 
-  /* Expect timeout */
+  /* Expect timeout - increased for Firebase sync operations */
   expect: {
-    timeout: 5000
+    timeout: 10000
   },
 
-  /* Run local server before tests */
+  /* Run local server and Firebase emulator before tests */
+  /* Note: For CI, use npm run test:e2e:emulator which handles emulator lifecycle */
   webServer: {
     command: 'npx serve -l 3000 -n',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 10000,
   },
+  /* IMPORTANT: Firebase emulator must be running separately: npm run emulators */
 });

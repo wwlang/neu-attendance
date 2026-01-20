@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { waitForPageLoad } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Offline Indicator Integration Tests
@@ -12,9 +13,7 @@ const { test, expect } = require('@playwright/test');
 test.describe('Offline Indicator', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for loading spinner to disappear and content to render
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await waitForPageLoad(page);
   });
 
   test('should have offline banner element in DOM', async ({ page }) => {
@@ -39,12 +38,11 @@ test.describe('Offline Indicator', () => {
       window.dispatchEvent(new Event('offline'));
     });
 
-    await page.waitForTimeout(500);
-
-    // The banner should become visible
-    const banner = page.locator('#offlineBanner');
-    const isHidden = await banner.evaluate(el => el.classList.contains('hidden'));
-    expect(isHidden).toBe(false);
+    // Wait for banner to appear
+    await expect(async () => {
+      const isHidden = await page.locator('#offlineBanner').evaluate(el => el.classList.contains('hidden'));
+      expect(isHidden).toBe(false);
+    }).toPass({ timeout: 5000 });
 
     // Restore online status
     await context.setOffline(false);
@@ -54,16 +52,22 @@ test.describe('Offline Indicator', () => {
     // Go offline
     await context.setOffline(true);
     await page.evaluate(() => window.dispatchEvent(new Event('offline')));
-    await page.waitForTimeout(300);
+
+    // Wait for banner to show
+    await expect(async () => {
+      const isHidden = await page.locator('#offlineBanner').evaluate(el => el.classList.contains('hidden'));
+      expect(isHidden).toBe(false);
+    }).toPass({ timeout: 5000 });
 
     // Come back online
     await context.setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
-    await page.waitForTimeout(500);
 
-    const banner = page.locator('#offlineBanner');
-    const isHidden = await banner.evaluate(el => el.classList.contains('hidden'));
-    expect(isHidden).toBe(true);
+    // Wait for banner to hide
+    await expect(async () => {
+      const isHidden = await page.locator('#offlineBanner').evaluate(el => el.classList.contains('hidden'));
+      expect(isHidden).toBe(true);
+    }).toPass({ timeout: 5000 });
   });
 
   test('offline banner should have correct message', async ({ page }) => {

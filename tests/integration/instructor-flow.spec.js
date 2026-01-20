@@ -1,5 +1,11 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const {
+  waitForPageLoad,
+  authenticateAsInstructor,
+  startInstructorSession,
+  goToHistoryView,
+} = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Instructor Flow Integration Tests
@@ -17,9 +23,7 @@ const INSTRUCTOR_PIN = '230782';
 test.describe('Instructor Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Wait for loading spinner to disappear and content to render
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await page.waitForSelector('h1:has-text("Quick Attendance")', { timeout: 10000 });
+    await waitForPageLoad(page);
   });
 
   test('should show mode selection on home page', async ({ page }) => {
@@ -56,10 +60,7 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should show session configuration options', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.waitForTimeout(500);
+    await authenticateAsInstructor(page, INSTRUCTOR_PIN);
 
     // Check radius slider - updated for larger max value
     const radiusSlider = page.locator('input#radius');
@@ -75,21 +76,15 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should show View History button', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-
+    await authenticateAsInstructor(page, INSTRUCTOR_PIN);
     await expect(page.locator('button:has-text("View History")')).toBeVisible();
   });
 
   test('should open and close history view', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
+    await authenticateAsInstructor(page, INSTRUCTOR_PIN);
 
     // Open history
-    await page.click('button:has-text("View History")');
-    await page.waitForTimeout(500);
+    await goToHistoryView(page);
     await expect(page.locator('text=Session History')).toBeVisible();
 
     // Close history
@@ -98,17 +93,7 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should start a session and display code', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.waitForTimeout(500);
-
-    // Fill session details
-    await page.fill('input#className', 'Test Class - Integration');
-    await page.click('button:has-text("Start Session")');
-
-    // Wait for session to start
-    await page.waitForTimeout(3000);
+    await startInstructorSession(page, 'Test Class - Integration');
 
     // Verify code display
     const codeDisplay = page.locator('.code-display').first();
@@ -122,12 +107,7 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should show attendance stats when session is active', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.fill('input#className', 'Stats Test Class');
-    await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
+    await startInstructorSession(page, 'Stats Test Class');
 
     // Check stats display - use exact match to avoid multiple matches
     await expect(page.getByText('On Time', { exact: true })).toBeVisible();
@@ -136,46 +116,24 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should show empty attendance message initially', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.fill('input#className', 'Empty Test');
-    await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
+    await startInstructorSession(page, 'Empty Test');
 
     await expect(page.locator('text=Waiting for students')).toBeVisible();
     await expect(page.locator('text=No failed attempts')).toBeVisible();
   });
 
   test('should have Export CSV button during active session', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.fill('input#className', 'Export Test');
-    await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
-
+    await startInstructorSession(page, 'Export Test');
     await expect(page.locator('button:has-text("Export CSV")')).toBeVisible();
   });
 
   test('should have End Session button during active session', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.fill('input#className', 'End Test');
-    await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
-
+    await startInstructorSession(page, 'End Test');
     await expect(page.locator('button:has-text("End Session")')).toBeVisible();
   });
 
   test('should end session and return to setup', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.fill('input#className', 'Session End Test');
-    await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
+    await startInstructorSession(page, 'Session End Test');
 
     // Handle confirmation dialog
     page.once('dialog', async dialog => {
@@ -183,27 +141,20 @@ test.describe('Instructor Flow', () => {
     });
 
     await page.click('button:has-text("End Session")');
-    await page.waitForTimeout(2000);
 
     // Should return to setup screen
-    await expect(page.locator('text=Start Attendance Session')).toBeVisible();
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 15000 });
   });
 
   test('should allow accessing instructor mode via URL parameter', async ({ page }) => {
     await page.goto('/?mode=teacher');
-    await page.waitForTimeout(1000);
 
-    // Should go directly to PIN entry
-    await expect(page.locator('text=Instructor Access')).toBeVisible();
+    // Wait for page to process URL parameter
+    await expect(page.locator('text=Instructor Access')).toBeVisible({ timeout: 10000 });
   });
 
   test('should have QR code for student check-in during session', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await page.fill('input#className', 'QR Test');
-    await page.click('button:has-text("Start Session")');
-    await page.waitForTimeout(3000);
+    await startInstructorSession(page, 'QR Test');
 
     // Check for QR container
     await expect(page.locator('#qr-student-checkin')).toBeVisible();
