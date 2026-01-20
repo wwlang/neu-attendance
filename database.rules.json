@@ -1,17 +1,30 @@
 {
   "rules": {
-    // Active session pointer - read-only for clients
-    "activeSession": {
+    // Configuration - readable by all, writable by instructors
+    "config": {
       ".read": true,
-      ".write": true,
-      ".validate": "newData.isString()"
+      ".write": "auth != null && root.child('instructors').child(auth.uid).exists()"
     },
 
-    // Sessions - instructors create, everyone can read (needed for code verification)
+    // Instructors registry - users can add themselves if their email is in allowed list
+    "instructors": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && root.child('config/instructorEmails').val().contains(auth.token.email)"
+      }
+    },
+
+    // Active session pointer
+    "activeSession": {
+      ".read": true,
+      ".write": "auth != null && root.child('instructors').child(auth.uid).exists()"
+    },
+
+    // Sessions - anyone can read, only instructors can write
     "sessions": {
       ".read": true,
       "$sessionId": {
-        ".write": true,
+        ".write": "auth != null && root.child('instructors').child(auth.uid).exists()",
         ".validate": "newData.hasChildren(['id', 'className', 'location', 'radius', 'code', 'codeGeneratedAt', 'createdAt', 'active'])",
 
         "id": {
@@ -39,7 +52,7 @@
           ".validate": "newData.isNumber()"
         },
         "createdAt": {
-          ".validate": "newData.isNumber()"
+          ".validate": "newData.isString()"
         },
         "active": {
           ".validate": "newData.isBoolean()"
@@ -49,17 +62,21 @@
         },
         "lateThresholdMinutes": {
           ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 60"
+        },
+        "lateThreshold": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 60"
         }
       }
     },
 
-    // Attendance records - students create their own record
+    // Attendance records - authenticated users can create their own record once per session
     "attendance": {
       ".read": true,
       "$sessionId": {
         ".read": true,
-        "$recordId": {
-          ".write": "!data.exists() || data.exists()",
+        "$oderedId": {
+          // Students can create new records, instructors can update any record
+          ".write": "(auth != null && !data.exists()) || (auth != null && root.child('instructors').child(auth.uid).exists())",
           ".validate": "newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'location', 'distance', 'timestamp'])",
 
           "studentId": {
@@ -73,6 +90,9 @@
           },
           "deviceId": {
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50"
+          },
+          "uid": {
+            ".validate": "newData.isString()"
           },
           "location": {
             ".validate": "newData.hasChildren(['lat', 'lng'])",
@@ -102,13 +122,13 @@
       }
     },
 
-    // Failed attempts - students can create, instructors can delete
+    // Failed attempts - authenticated users can create, instructors can delete
     "failed": {
       ".read": true,
       "$sessionId": {
         ".read": true,
         "$recordId": {
-          ".write": true,
+          ".write": "auth != null",
           ".validate": "!newData.exists() || newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'location', 'distance', 'reason', 'allowedRadius', 'timestamp'])",
 
           "studentId": {
@@ -118,6 +138,9 @@
             ".validate": "newData.isString() && newData.val().length <= 100"
           },
           "email": {
+            ".validate": "newData.isString()"
+          },
+          "uid": {
             ".validate": "newData.isString()"
           },
           "distance": {
@@ -136,12 +159,12 @@
       }
     },
 
-    // Audit trail for manual approvals
+    // Audit trail - instructors only
     "audit": {
-      ".read": true,
+      ".read": "auth != null && root.child('instructors').child(auth.uid).exists()",
       "$sessionId": {
         "$recordId": {
-          ".write": true,
+          ".write": "auth != null && root.child('instructors').child(auth.uid).exists()",
           ".validate": "newData.hasChildren(['action', 'studentId', 'timestamp'])",
 
           "action": {

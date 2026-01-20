@@ -6,16 +6,18 @@
   <!-- Content Security Policy - restricts resource loading sources -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://apis.google.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://accounts.google.com;
     font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com wss://*.firebaseio.com;
-    img-src 'self' data: blob:;
+    connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com;
+    img-src 'self' data: blob: https://*.googleusercontent.com;
+    frame-src https://accounts.google.com https://*.firebaseapp.com;
     frame-ancestors 'none';
   ">
   <title>Quick Attendance - NEU</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" integrity="sha384-ajMUFBUFMCyjh8uxJg6bkGcKe9RTolyjwbxB3yES0QQMenP3Oztj/W9vA2SJPcIh" crossorigin="anonymous"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js" integrity="sha384-f6/UpzjTjIXASlp20cArQsaRh1EvHVJd5kegy/gYR9W2D0a32TnEqUEiW4Zm/5O0" crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <!-- QRCode library (davidshimjs/qrcodejs) with SRI -->
   <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
   <script>
@@ -195,6 +197,8 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 // Firebase Emulator detection - connect to local emulator when running tests
 if (location.hostname === 'localhost' && new URLSearchParams(location.search).get('emulator') === 'true') {
@@ -212,7 +216,6 @@ const STUDENT_INFO_KEYS = {
   STUDENT_NAME: 'neu_student_name',
   STUDENT_EMAIL: 'neu_student_email'
 };
-const INSTRUCTOR_PIN = '230782';
 const DEFAULT_LATE_THRESHOLD_MINUTES = 10;
 const COUNTDOWN_WARNING_SECONDS = 10;
 
@@ -235,7 +238,9 @@ let state = {
   isOnline: navigator.onLine,
   isRecovering: false,
   darkMode: false,
-  pinVerified: false,
+  user: null,
+  isInstructor: false,
+  authLoading: true,
   lateThreshold: DEFAULT_LATE_THRESHOLD_MINUTES,
   sessionHistory: [],
   showHistory: false,
@@ -414,6 +419,26 @@ function clearStudentInfo() {
   }
 }
 
+// Helper to log failed attendance attempts
+async function logFailedAttempt(sessionId, data) {
+  try {
+    await db.ref('failed/' + sessionId).push({
+      studentId: data.studentId || '',
+      studentName: data.studentName || '',
+      email: data.studentEmail || data.email || '',
+      deviceId: data.deviceId || '',
+      uid: auth.currentUser ? auth.currentUser.uid : 'unauthenticated',
+      location: data.location || null,
+      distance: data.distance || null,
+      allowedRadius: data.allowedRadius || null,
+      reason: data.reason || 'Unknown',
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    console.error('Failed to log failed attempt:', err);
+  }
+}
+
 // Quick Confirm for returning students (AC6.2)
 // Allows one-tap attendance confirmation when student has saved info and code from QR
 function showFullStudentForm() {
@@ -435,6 +460,18 @@ async function quickConfirmAttendance() {
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Confirming...';
+  }
+
+  // Ensure user is authenticated (anonymous auth for students)
+  if (!auth.currentUser) {
+    try {
+      await auth.signInAnonymously();
+    } catch (authError) {
+      console.error('Anonymous auth failed:', authError);
+      showMessage('Authentication error. Please refresh and try again.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+      return;
+    }
   }
 
   // Use saved student info for submission
@@ -517,10 +554,12 @@ async function quickConfirmAttendance() {
   await attendanceRef.push({
     studentId,
     studentName,
-    studentEmail,
+    email: studentEmail,
     deviceId,
-    timestamp: new Date().toISOString(),
+    uid: auth.currentUser.uid,
+    timestamp: now,
     location: state.studentLocation || null,
+    distance: state.studentLocation && session.location ? Math.round(haversineDistance(state.studentLocation.latitude, state.studentLocation.longitude, session.location.latitude, session.location.longitude)) : null,
     codeUsed: code.toUpperCase(),
     isLate,
     isLateRejoin,
@@ -696,8 +735,10 @@ function render() {
   if (!state.mode) {
     content += renderModeSelection();
   } else if (state.mode === 'teacher') {
-    if (!state.pinVerified) {
-      content += renderPinEntry();
+    if (state.authLoading) {
+      content += `<div class="text-center py-8"><p class="text-gray-400">Checking authentication...</p></div>`;
+    } else if (!state.isInstructor) {
+      content += renderInstructorAuth();
     } else {
       content += renderTeacherView();
       // Only regenerate QR codes when the code actually changes
@@ -716,41 +757,150 @@ function render() {
   renderModals();
 }
 
-function renderPinEntry() {
+function renderInstructorAuth() {
+  if (state.authLoading) {
+    return `
+      <div class="flex items-center justify-center min-h-screen">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p class="text-gray-600 dark:text-gray-400">Signing in...</p>
+        </div>
+      </div>`;
+  }
+
+  if (state.user && !state.isInstructor) {
+    return `
+      <div class="flex items-center justify-center min-h-screen">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
+          <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back</button>
+          <div class="text-center">
+            <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-2">Access Denied</h2>
+            <p class="text-gray-500 dark:text-gray-400 mb-4">
+              Signed in as <strong>${escapeHtml(state.user.email)}</strong>
+            </p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">
+              This account is not authorized as an instructor. Please sign in with an authorized account.
+            </p>
+            <button onclick="signOut()" class="w-full py-3 px-6 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white rounded-xl font-medium transition-colors">
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   return `
     <div class="flex items-center justify-center min-h-screen">
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
         <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back</button>
         <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Instructor Access</h2>
-        <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your PIN to access instructor mode</p>
-        <div id="pinMessage"></div>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Sign in with your authorized Google account</p>
         <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN</label>
-            <input type="password" id="instructorPin" maxlength="10" placeholder="Enter PIN"
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white text-center text-2xl tracking-widest"
-              onkeypress="if(event.key === 'Enter') verifyPin()">
-          </div>
-          <button onclick="verifyPin()" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">
-            Access Instructor Mode
+          <button onclick="signInWithGoogle()" class="w-full py-4 px-6 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-xl font-semibold text-lg transition-colors flex items-center justify-center gap-3">
+            <svg class="w-6 h-6" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            <span class="text-gray-800 dark:text-white">Sign in with Google</span>
           </button>
         </div>
+        <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-6">
+          Only authorized instructor accounts can access this mode
+        </p>
       </div>
     </div>`;
 }
 
-function verifyPin() {
-  const enteredPin = document.getElementById('instructorPin').value;
-  const msgDiv = document.getElementById('pinMessage');
-
-  if (enteredPin === INSTRUCTOR_PIN) {
-    state.pinVerified = true;
+async function signInWithGoogle() {
+  try {
+    state.authLoading = true;
     render();
-    tryRecoverSession();
-    setTimeout(generateSetupQRCodes, 100);
-  } else {
-    msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Incorrect PIN</div>';
+    await auth.signInWithPopup(googleProvider);
+    // Auth state listener will handle the rest
+  } catch (error) {
+    console.error('Sign-in error:', error);
+    state.authLoading = false;
+    render();
+    alert('Sign-in failed: ' + error.message);
   }
+}
+
+async function signOut() {
+  try {
+    await auth.signOut();
+    state.user = null;
+    state.isInstructor = false;
+    state.mode = null;
+    render();
+  } catch (error) {
+    console.error('Sign-out error:', error);
+  }
+}
+
+async function checkAndRegisterInstructor(user) {
+  try {
+    // Check if user's email is in the allowed instructor list
+    const emailsSnapshot = await db.ref('config/instructorEmails').once('value');
+    const allowedEmails = emailsSnapshot.val() || [];
+
+    if (allowedEmails.includes(user.email)) {
+      // Register this user as an instructor
+      await db.ref('instructors/' + user.uid).set({
+        email: user.email,
+        name: user.displayName,
+        registeredAt: Date.now()
+      });
+      return true;
+    }
+  } catch (error) {
+    console.error('Error checking instructor status:', error);
+  }
+  return false;
+}
+
+async function handleAuthStateChange(user) {
+  state.authLoading = false;
+
+  if (user) {
+    state.user = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL
+    };
+
+    // Check if user is instructor
+    try {
+      const instructorSnapshot = await db.ref('instructors/' + user.uid).once('value');
+      if (instructorSnapshot.exists()) {
+        state.isInstructor = true;
+      } else {
+        // Try to register as instructor if email is allowed
+        state.isInstructor = await checkAndRegisterInstructor(user);
+      }
+    } catch (error) {
+      console.error('Error checking instructor status:', error);
+      state.isInstructor = false;
+    }
+
+    // If in teacher mode and user is instructor, proceed
+    if (state.mode === 'teacher' && state.isInstructor) {
+      tryRecoverSession();
+      setTimeout(generateSetupQRCodes, 100);
+    }
+  } else {
+    state.user = null;
+    state.isInstructor = false;
+  }
+
+  render();
 }
 
 function renderModeSelection() {
@@ -1278,7 +1428,6 @@ function setMode(mode) {
   state.studentLocation = null;
   state.locationError = null;
   state.isRecovering = false;
-  state.pinVerified = false;
   state.showHistory = false;
   state.selectedFailedAttempts = new Set();
   state.isReopenedSession = false;
@@ -1789,16 +1938,18 @@ async function approveStudent(firebaseKey, shouldRender = true) {
       return;
     }
 
-    const isLate = isLateCheckIn(new Date().toISOString(), state.session.createdAt, state.lateThreshold);
+    const now = Date.now();
+    const isLate = isLateCheckIn(now, state.session.createdAt, state.lateThreshold);
 
     await db.ref('attendance/' + state.session.id).push({
       studentId: failedData.studentId,
       studentName: failedData.studentName,
       email: failedData.email,
       deviceId: failedData.deviceId,
+      uid: failedData.uid || 'manual-approval',
       location: failedData.location,
       distance: failedData.distance,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       manuallyApproved: true,
       originalFailReason: failedData.reason,
       isLate: isLate
@@ -1830,6 +1981,17 @@ async function submitAttendance() {
   const studentEmail = document.getElementById('studentEmail').value.trim();
   const enteredCode = document.getElementById('enteredCode').value.trim().toUpperCase();
   const msgDiv = document.getElementById('studentMessage');
+
+  // Ensure user is authenticated (anonymous auth for students)
+  if (!auth.currentUser) {
+    try {
+      await auth.signInAnonymously();
+    } catch (authError) {
+      console.error('Anonymous auth failed:', authError);
+      msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Authentication error. Please refresh and try again.</div>';
+      return;
+    }
+  }
 
   // BUG FIX: Save student info FIRST (before any validation)
   // This ensures info is saved on ANY submission attempt, not just success
@@ -1875,6 +2037,7 @@ async function submitAttendance() {
       studentName,
       email: studentEmail,
       deviceId: state.deviceId,
+      uid: auth.currentUser.uid,
       location: hasLocation ? {
         lat: state.studentLocation.lat,
         lng: state.studentLocation.lng,
@@ -1882,7 +2045,7 @@ async function submitAttendance() {
       } : null,
       distance: hasLocation ? Math.round(distance) : null,
       allowedRadius: session.radius,
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
       noGps: !hasLocation
     };
 
@@ -3199,6 +3362,9 @@ function init() {
     console.warn('QRCode library did not load from any CDN. QR codes will show fallback message.');
   }
 
+  // Set up Firebase Auth state listener
+  auth.onAuthStateChanged(handleAuthStateChange);
+
   const params = getUrlParams();
   if (params.mode === 'teacher' || params.mode === 'student' || params.mode === 'lookup') {
     state.mode = params.mode;
@@ -3211,7 +3377,7 @@ function init() {
       state.showSavedInfoBanner = !!state.savedStudentInfo;
       render();
     }
-    // For teacher mode, PIN will be required first, then recovery happens
+    // For teacher mode, auth will be required first, then session recovery happens
   } else {
     render();
     setTimeout(generateModeQRCodes, 100);
@@ -3222,7 +3388,6 @@ function init() {
 window.addEventListener('popstate', () => {
   const params = getUrlParams();
   state.mode = params.mode || null;
-  state.pinVerified = false;
   render();
 });
 
