@@ -87,15 +87,19 @@ Student wants to review their attendance record for personal tracking or to veri
 ### AC3.1: Participation Visibility
 - [x] Participation count displayed in results table (if recorded)
 - [x] Participation column shows count per session
-- [ ] Tooltip explains "Participation points recorded by instructor"
+- [x] Tooltip explains "Participation points recorded by instructor"
 
-> **PARTIAL (2026-01-21):** Participation column IS displayed in results table, but
-> tooltip explaining what participation means is not yet implemented.
+> **COMPLETE (2026-01-21):** Participation header now has a tooltip that shows
+> "Points recorded by instructor" when hovered. Implemented with tooltip-trigger class.
 
 ### AC3.2: Late Threshold Transparency
-- [ ] Late threshold info displayed with each session result
-- [ ] Tooltip or footnote explains "Late = checked in after X minutes"
-- [ ] Helps students understand why marked late
+- [x] Late threshold info displayed with each session result
+- [x] Tooltip or footnote explains "Late = checked in after X minutes"
+- [x] Helps students understand why marked late
+
+> **COMPLETE (2026-01-21):** Late badge now has a tooltip that shows
+> "Checked in after X minutes" where X is the session's late threshold.
+> The threshold is fetched from session data and displayed to students.
 
 ### AC4: Statistics Summary
 - [x] Total attendance count displayed prominently

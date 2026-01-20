@@ -9,6 +9,8 @@ const { test, expect } = require('@playwright/test');
  * - Search by student ID
  * - Display results with correct column order
  * - Statistics display
+ * - AC3.1: Participation tooltip
+ * - AC3.2: Late threshold transparency
  *
  * Journey Reference: docs/journeys/student-attendance-lookup.md
  */
@@ -114,6 +116,8 @@ test.describe('Student Lookup Results Display (AC3)', () => {
    * Data showed:    Course, Date, Time, Participation, Status
    *
    * FIXED: Data now correctly shows: Course, Date, Time, Status, Participation
+   *
+   * AC3.1: Participation header now includes tooltip "Points recorded by instructor"
    */
   test('AC3: should have correct column order in renderLookupResults function', async ({ page }) => {
     // The table only renders when there are results, so we verify the template
@@ -140,13 +144,16 @@ test.describe('Student Lookup Results Display (AC3)', () => {
     if (funcMatch) {
       const funcContent = funcMatch[0];
 
-      // Verify headers order in the function
+      // Verify headers order in the function - Status should be a plain header
       expect(funcContent).toContain('<th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>');
-      expect(funcContent).toContain('<th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Participation</th>');
+
+      // AC3.1: Participation header now includes tooltip with span wrapper
+      expect(funcContent).toContain('Participation');
+      expect(funcContent).toContain('Points recorded by instructor'); // AC3.1 tooltip text
 
       // Verify Status header comes before Participation header
       const statusHeaderPos = funcContent.indexOf('Status</th>');
-      const participationHeaderPos = funcContent.indexOf('Participation</th>');
+      const participationHeaderPos = funcContent.indexOf('Participation');
       expect(statusHeaderPos).toBeLessThan(participationHeaderPos);
 
       // Verify data cells order: isLate badge comes before participation count
@@ -274,17 +281,60 @@ test.describe('Student Lookup Statistics (AC4)', () => {
     expect(content).toContain('Late');
   });
 
-  test('AC4: statistics should use correct colors', async ({ page }) => {
+  test('AC4: statistics should use correct colors (Corporate design system)', async ({ page }) => {
     await page.goto('/?mode=lookup');
 
     // Check the lookup template contains the correct color classes for stats
+    // Updated for Corporate design system: Total uses blue instead of indigo
     const content = await page.content();
 
-    // Total uses indigo
-    expect(content).toContain('bg-indigo-50');
+    // Total uses blue (Corporate design system)
+    expect(content).toContain('bg-blue-50');
     // On Time uses emerald
     expect(content).toContain('bg-emerald-50');
     // Late uses orange
     expect(content).toContain('bg-orange-50');
+  });
+});
+
+test.describe('Student Lookup Tooltips (AC3.1, AC3.2)', () => {
+  test('AC3.1: should have participation tooltip explaining what it means', async ({ page }) => {
+    await page.goto('/?mode=lookup');
+    await page.waitForTimeout(500);
+
+    // Check that the page contains the participation tooltip text
+    const content = await page.content();
+    expect(content).toContain('Points recorded by instructor');
+  });
+
+  test('AC3.2: should have late threshold info in Late badge', async ({ page }) => {
+    await page.goto('/?mode=lookup');
+    await page.waitForTimeout(500);
+
+    // Check that the page contains the late threshold tooltip pattern
+    const content = await page.content();
+    // The tooltip shows "Checked in after X minutes" where X is the late threshold
+    expect(content).toContain('Checked in after');
+    expect(content).toContain('minutes');
+  });
+
+  test('AC3.1: participation header should have tooltip-trigger class', async ({ page }) => {
+    await page.goto('/?mode=lookup');
+    await page.waitForTimeout(500);
+
+    // Check the JavaScript contains the tooltip structure for participation
+    const jsContent = await page.evaluate(() => {
+      const scripts = document.getElementsByTagName('script');
+      for (const script of scripts) {
+        if (script.textContent && script.textContent.includes('renderLookupResults')) {
+          return script.textContent;
+        }
+      }
+      return '';
+    });
+
+    // Verify participation header has tooltip-trigger class
+    expect(jsContent).toContain('tooltip-trigger');
+    expect(jsContent).toContain('tooltip-content');
   });
 });
