@@ -24,3 +24,11 @@ npm-debug.log*
 
 # Package lock (optional - remove if you want to commit it)
 # package-lock.json
+
+# Firebase Emulator data
+.firebase/
+firebase-debug.log
+ui-debug.log
+
+# Backup files (keep directory, ignore contents)
+backups/*.json

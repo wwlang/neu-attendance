@@ -1,0 +1,2083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEU Attendance - Design Exploration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Merriweather:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* ============================================
+       MOTION TOKENS (consistent across all themes)
+       ============================================ */
+    :root {
+      --duration-micro: 100ms;
+      --duration-short: 200ms;
+      --duration-medium: 300ms;
+      --duration-long: 500ms;
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+      --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+      --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      :root {
+        --duration-micro: 0ms;
+        --duration-short: 0ms;
+        --duration-medium: 0ms;
+        --duration-long: 0ms;
+      }
+    }
+
+    /* ============================================
+       THEME 1: MINIMAL LIGHT
+       ============================================ */
+    [data-theme="minimal-light"] {
+      --color-bg: #ffffff;
+      --color-bg-secondary: #f8fafc;
+      --color-bg-tertiary: #f1f5f9;
+      --color-text: #1e293b;
+      --color-text-secondary: #64748b;
+      --color-text-muted: #94a3b8;
+      --color-primary: #3b82f6;
+      --color-primary-hover: #2563eb;
+      --color-primary-light: #eff6ff;
+      --color-success: #22c55e;
+      --color-success-light: #f0fdf4;
+      --color-warning: #f59e0b;
+      --color-warning-light: #fffbeb;
+      --color-danger: #ef4444;
+      --color-danger-light: #fef2f2;
+      --color-border: #e2e8f0;
+      --color-border-hover: #cbd5e1;
+      --font-heading: 'Inter', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+      --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    }
+
+    /* ============================================
+       THEME 2: MINIMAL DARK
+       ============================================ */
+    [data-theme="minimal-dark"] {
+      --color-bg: #0f172a;
+      --color-bg-secondary: #1e293b;
+      --color-bg-tertiary: #334155;
+      --color-text: #f8fafc;
+      --color-text-secondary: #cbd5e1;
+      --color-text-muted: #94a3b8;
+      --color-primary: #60a5fa;
+      --color-primary-hover: #93c5fd;
+      --color-primary-light: #1e3a5f;
+      --color-success: #4ade80;
+      --color-success-light: #14532d;
+      --color-warning: #fbbf24;
+      --color-warning-light: #422006;
+      --color-danger: #f87171;
+      --color-danger-light: #450a0a;
+      --color-border: #334155;
+      --color-border-hover: #475569;
+      --font-heading: 'Inter', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.3);
+      --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.4);
+    }
+
+    /* ============================================
+       THEME 3: PLAYFUL
+       ============================================ */
+    [data-theme="playful"] {
+      --color-bg: #fefce8;
+      --color-bg-secondary: #fef9c3;
+      --color-bg-tertiary: #fef08a;
+      --color-text: #1c1917;
+      --color-text-secondary: #57534e;
+      --color-text-muted: #a8a29e;
+      --color-primary: #f472b6;
+      --color-primary-hover: #ec4899;
+      --color-primary-light: #fdf2f8;
+      --color-success: #34d399;
+      --color-success-light: #d1fae5;
+      --color-warning: #fbbf24;
+      --color-warning-light: #fef3c7;
+      --color-danger: #fb7185;
+      --color-danger-light: #ffe4e6;
+      --color-border: #fde047;
+      --color-border-hover: #facc15;
+      --font-heading: 'DM Sans', -apple-system, sans-serif;
+      --font-body: 'DM Sans', -apple-system, sans-serif;
+      --radius-sm: 12px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-xl: 32px;
+      --shadow-sm: 0 2px 4px rgba(251,191,36,0.2);
+      --shadow-md: 0 4px 8px rgba(251,191,36,0.25);
+      --shadow-lg: 0 8px 16px rgba(251,191,36,0.3);
+      --shadow-xl: 0 16px 32px rgba(251,191,36,0.35);
+    }
+
+    /* ============================================
+       THEME 4: CORPORATE
+       ============================================ */
+    [data-theme="corporate"] {
+      --color-bg: #f8fafc;
+      --color-bg-secondary: #ffffff;
+      --color-bg-tertiary: #e2e8f0;
+      --color-text: #0f172a;
+      --color-text-secondary: #475569;
+      --color-text-muted: #94a3b8;
+      --color-primary: #1e40af;
+      --color-primary-hover: #1e3a8a;
+      --color-primary-light: #dbeafe;
+      --color-success: #15803d;
+      --color-success-light: #dcfce7;
+      --color-warning: #b45309;
+      --color-warning-light: #fef3c7;
+      --color-danger: #b91c1c;
+      --color-danger-light: #fee2e2;
+      --color-border: #cbd5e1;
+      --color-border-hover: #94a3b8;
+      --font-heading: 'Inter', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+      --shadow-sm: 0 1px 2px rgba(15,23,42,0.06);
+      --shadow-md: 0 4px 6px rgba(15,23,42,0.08);
+      --shadow-lg: 0 10px 15px rgba(15,23,42,0.1);
+      --shadow-xl: 0 20px 25px rgba(15,23,42,0.12);
+    }
+
+    /* ============================================
+       THEME 5: ORGANIC
+       ============================================ */
+    [data-theme="organic"] {
+      --color-bg: #faf7f5;
+      --color-bg-secondary: #f5f0eb;
+      --color-bg-tertiary: #ebe3db;
+      --color-text: #3d3229;
+      --color-text-secondary: #6b5d52;
+      --color-text-muted: #9c8b7d;
+      --color-primary: #7c9a6f;
+      --color-primary-hover: #6b8960;
+      --color-primary-light: #e8f0e4;
+      --color-success: #7c9a6f;
+      --color-success-light: #e8f0e4;
+      --color-warning: #c9a66b;
+      --color-warning-light: #f9f3e8;
+      --color-danger: #b86a5f;
+      --color-danger-light: #f9e8e5;
+      --color-border: #d9cfc4;
+      --color-border-hover: #c4b8aa;
+      --font-heading: 'Merriweather', Georgia, serif;
+      --font-body: 'DM Sans', -apple-system, sans-serif;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+      --shadow-sm: 0 2px 4px rgba(61,50,41,0.06);
+      --shadow-md: 0 4px 8px rgba(61,50,41,0.08);
+      --shadow-lg: 0 8px 16px rgba(61,50,41,0.1);
+      --shadow-xl: 0 16px 24px rgba(61,50,41,0.12);
+    }
+
+    /* ============================================
+       THEME 6: BRUTALIST
+       ============================================ */
+    [data-theme="brutalist"] {
+      --color-bg: #f5f5f5;
+      --color-bg-secondary: #ffffff;
+      --color-bg-tertiary: #e5e5e5;
+      --color-text: #000000;
+      --color-text-secondary: #333333;
+      --color-text-muted: #666666;
+      --color-primary: #ff0000;
+      --color-primary-hover: #cc0000;
+      --color-primary-light: #ffe5e5;
+      --color-success: #00ff00;
+      --color-success-light: #e5ffe5;
+      --color-warning: #ffff00;
+      --color-warning-light: #ffffe5;
+      --color-danger: #ff0000;
+      --color-danger-light: #ffe5e5;
+      --color-border: #000000;
+      --color-border-hover: #333333;
+      --font-heading: 'Space Grotesk', monospace;
+      --font-body: 'Space Grotesk', monospace;
+      --radius-sm: 0px;
+      --radius-md: 0px;
+      --radius-lg: 0px;
+      --radius-xl: 0px;
+      --shadow-sm: 4px 4px 0 #000000;
+      --shadow-md: 6px 6px 0 #000000;
+      --shadow-lg: 8px 8px 0 #000000;
+      --shadow-xl: 12px 12px 0 #000000;
+    }
+
+    /* ============================================
+       THEME 7: GLASSMORPHISM
+       ============================================ */
+    [data-theme="glassmorphism"] {
+      --color-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --color-bg-secondary: rgba(255,255,255,0.15);
+      --color-bg-tertiary: rgba(255,255,255,0.1);
+      --color-text: #ffffff;
+      --color-text-secondary: rgba(255,255,255,0.85);
+      --color-text-muted: rgba(255,255,255,0.6);
+      --color-primary: #ffffff;
+      --color-primary-hover: rgba(255,255,255,0.9);
+      --color-primary-light: rgba(255,255,255,0.2);
+      --color-success: #6ee7b7;
+      --color-success-light: rgba(110,231,183,0.2);
+      --color-warning: #fcd34d;
+      --color-warning-light: rgba(252,211,77,0.2);
+      --color-danger: #fca5a5;
+      --color-danger-light: rgba(252,165,165,0.2);
+      --color-border: rgba(255,255,255,0.2);
+      --color-border-hover: rgba(255,255,255,0.4);
+      --font-heading: 'Inter', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --radius-sm: 12px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-xl: 32px;
+      --shadow-sm: 0 4px 16px rgba(0,0,0,0.1);
+      --shadow-md: 0 8px 32px rgba(0,0,0,0.15);
+      --shadow-lg: 0 16px 48px rgba(0,0,0,0.2);
+      --shadow-xl: 0 24px 64px rgba(0,0,0,0.25);
+      --glass-blur: blur(16px);
+      --glass-bg: rgba(255,255,255,0.1);
+    }
+
+    /* ============================================
+       THEME 8: RETRO
+       ============================================ */
+    [data-theme="retro"] {
+      --color-bg: #f4e4c1;
+      --color-bg-secondary: #e8d4a8;
+      --color-bg-tertiary: #d9c189;
+      --color-text: #2d2a24;
+      --color-text-secondary: #5c574d;
+      --color-text-muted: #8a8377;
+      --color-primary: #d96459;
+      --color-primary-hover: #c4554a;
+      --color-primary-light: #fbe8e6;
+      --color-success: #7eb77f;
+      --color-success-light: #e4f0e4;
+      --color-warning: #e5a84b;
+      --color-warning-light: #fdf4e0;
+      --color-danger: #d96459;
+      --color-danger-light: #fbe8e6;
+      --color-border: #c4b896;
+      --color-border-hover: #a99e7e;
+      --font-heading: 'Space Grotesk', -apple-system, sans-serif;
+      --font-body: 'DM Sans', -apple-system, sans-serif;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --shadow-sm: 2px 2px 0 #c4b896;
+      --shadow-md: 3px 3px 0 #c4b896;
+      --shadow-lg: 4px 4px 0 #c4b896;
+      --shadow-xl: 6px 6px 0 #c4b896;
+    }
+
+    /* ============================================
+       THEME 9: LUXURY
+       ============================================ */
+    [data-theme="luxury"] {
+      --color-bg: #1a1a1a;
+      --color-bg-secondary: #252525;
+      --color-bg-tertiary: #333333;
+      --color-text: #f5f5f5;
+      --color-text-secondary: #d4d4d4;
+      --color-text-muted: #a3a3a3;
+      --color-primary: #d4af37;
+      --color-primary-hover: #f0c850;
+      --color-primary-light: #3d3520;
+      --color-success: #4ade80;
+      --color-success-light: #14532d;
+      --color-warning: #d4af37;
+      --color-warning-light: #3d3520;
+      --color-danger: #ef4444;
+      --color-danger-light: #450a0a;
+      --color-border: #404040;
+      --color-border-hover: #525252;
+      --font-heading: 'Playfair Display', Georgia, serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+      --shadow-sm: 0 2px 8px rgba(212,175,55,0.1);
+      --shadow-md: 0 4px 16px rgba(212,175,55,0.15);
+      --shadow-lg: 0 8px 24px rgba(212,175,55,0.2);
+      --shadow-xl: 0 16px 32px rgba(212,175,55,0.25);
+    }
+
+    /* ============================================
+       THEME 10: EDITORIAL
+       ============================================ */
+    [data-theme="editorial"] {
+      --color-bg: #ffffff;
+      --color-bg-secondary: #fafafa;
+      --color-bg-tertiary: #f0f0f0;
+      --color-text: #1a1a1a;
+      --color-text-secondary: #4a4a4a;
+      --color-text-muted: #8a8a8a;
+      --color-primary: #1a1a1a;
+      --color-primary-hover: #333333;
+      --color-primary-light: #f0f0f0;
+      --color-success: #2e7d32;
+      --color-success-light: #e8f5e9;
+      --color-warning: #ed6c02;
+      --color-warning-light: #fff4e5;
+      --color-danger: #d32f2f;
+      --color-danger-light: #ffebee;
+      --color-border: #e0e0e0;
+      --color-border-hover: #bdbdbd;
+      --font-heading: 'Playfair Display', Georgia, serif;
+      --font-body: 'Merriweather', Georgia, serif;
+      --radius-sm: 2px;
+      --radius-md: 4px;
+      --radius-lg: 6px;
+      --radius-xl: 8px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 2px 6px rgba(0,0,0,0.1);
+      --shadow-lg: 0 4px 12px rgba(0,0,0,0.12);
+      --shadow-xl: 0 8px 24px rgba(0,0,0,0.14);
+    }
+
+    /* ============================================
+       BASE STYLES
+       ============================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.6;
+      min-height: 100vh;
+      transition: background var(--duration-medium) var(--ease-standard),
+                  color var(--duration-medium) var(--ease-standard);
+    }
+
+    [data-theme="glassmorphism"] body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--font-heading);
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    /* ============================================
+       NAVIGATION
+       ============================================ */
+    .nav-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--color-bg-secondary);
+      border-bottom: 1px solid var(--color-border);
+      backdrop-filter: var(--glass-blur, none);
+    }
+
+    [data-theme="glassmorphism"] .nav-header {
+      background: var(--glass-bg);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .theme-select {
+      padding: 8px 12px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      cursor: pointer;
+      transition: border-color var(--duration-short) var(--ease-standard);
+    }
+
+    [data-theme="glassmorphism"] .theme-select {
+      background: var(--glass-bg);
+    }
+
+    .theme-select:hover {
+      border-color: var(--color-border-hover);
+    }
+
+    .screen-nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .screen-nav button {
+      padding: 6px 12px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all var(--duration-short) var(--ease-standard);
+    }
+
+    .screen-nav button:hover {
+      background: var(--color-bg-tertiary);
+      border-color: var(--color-border-hover);
+    }
+
+    .screen-nav button.active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: white;
+    }
+
+    [data-theme="editorial"] .screen-nav button.active,
+    [data-theme="brutalist"] .screen-nav button.active {
+      color: white;
+    }
+
+    /* ============================================
+       MAIN CONTENT
+       ============================================ */
+    .main-content {
+      padding-top: 80px;
+      min-height: 100vh;
+    }
+
+    .screen {
+      display: none;
+      padding: 32px 24px;
+      max-width: 480px;
+      margin: 0 auto;
+      animation: fadeIn var(--duration-medium) var(--ease-enter);
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .screen.wide {
+      max-width: 900px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ============================================
+       CARDS & CONTAINERS
+       ============================================ */
+    .card {
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow var(--duration-short) var(--ease-standard),
+                  transform var(--duration-short) var(--ease-enter);
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    [data-theme="glassmorphism"] .card {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+    }
+
+    [data-theme="brutalist"] .card {
+      border-width: 3px;
+    }
+
+    /* ============================================
+       BUTTONS
+       ============================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--duration-short) var(--ease-standard);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--color-primary-hover);
+    }
+
+    [data-theme="glassmorphism"] .btn-primary {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+
+    [data-theme="glassmorphism"] .btn-primary:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    [data-theme="brutalist"] .btn-primary {
+      border: 3px solid var(--color-text);
+      box-shadow: var(--shadow-md);
+    }
+
+    [data-theme="brutalist"] .btn-primary:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .btn-secondary {
+      background: var(--color-bg-tertiary);
+      color: var(--color-text);
+      border: 1px solid var(--color-border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--color-border);
+    }
+
+    .btn-success {
+      background: var(--color-success);
+      color: white;
+    }
+
+    .btn-success:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-danger {
+      background: var(--color-danger);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    .btn-lg {
+      padding: 16px 32px;
+      font-size: 18px;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 14px;
+    }
+
+    .btn-icon {
+      padding: 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ============================================
+       FORM ELEMENTS
+       ============================================ */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-body);
+      font-size: 16px;
+      transition: border-color var(--duration-short) var(--ease-standard),
+                  box-shadow var(--duration-short) var(--ease-standard);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px var(--color-primary-light);
+    }
+
+    [data-theme="glassmorphism"] .form-input {
+      background: var(--glass-bg);
+    }
+
+    [data-theme="brutalist"] .form-input {
+      border-width: 3px;
+    }
+
+    .form-input::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .slider {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--color-bg-tertiary);
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      cursor: pointer;
+      transition: transform var(--duration-micro) var(--ease-standard);
+    }
+
+    .slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+
+    .slider-value {
+      min-width: 60px;
+      text-align: right;
+      font-weight: 500;
+      color: var(--color-text);
+    }
+
+    /* ============================================
+       BADGES & TAGS
+       ============================================ */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: var(--color-success-light);
+      color: var(--color-success);
+    }
+
+    .badge-warning {
+      background: var(--color-warning-light);
+      color: var(--color-warning);
+    }
+
+    .badge-danger {
+      background: var(--color-danger-light);
+      color: var(--color-danger);
+    }
+
+    .badge-primary {
+      background: var(--color-primary-light);
+      color: var(--color-primary);
+    }
+
+    /* ============================================
+       TABLES
+       ============================================ */
+    .table-container {
+      overflow-x: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    th {
+      background: var(--color-bg-tertiary);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: var(--color-bg-secondary);
+    }
+
+    [data-theme="glassmorphism"] th {
+      background: rgba(255,255,255,0.1);
+    }
+
+    /* ============================================
+       STATS CARDS
+       ============================================ */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 20px;
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+
+    [data-theme="glassmorphism"] .stat-card {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    .stat-card.success .stat-value { color: var(--color-success); }
+    .stat-card.warning .stat-value { color: var(--color-warning); }
+    .stat-card.danger .stat-value { color: var(--color-danger); }
+
+    /* ============================================
+       QR CODE PLACEHOLDER
+       ============================================ */
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px;
+      background: white;
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+    }
+
+    .qr-placeholder {
+      width: 200px;
+      height: 200px;
+      background: repeating-conic-gradient(#000 0% 25%, #fff 0% 50%)
+                  50% / 20px 20px;
+      border-radius: 8px;
+    }
+
+    .qr-code-text {
+      margin-top: 16px;
+      font-family: monospace;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: #1a1a1a;
+    }
+
+    .timer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+
+    .timer-bar {
+      width: 120px;
+      height: 4px;
+      background: var(--color-bg-tertiary);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .timer-bar-fill {
+      width: 65%;
+      height: 100%;
+      background: var(--color-primary);
+      transition: width 1s linear;
+    }
+
+    /* ============================================
+       PARTICIPATION COUNTER
+       ============================================ */
+    .participation-counter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .participation-counter button {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--duration-micro) var(--ease-standard);
+    }
+
+    .participation-counter button:hover {
+      background: var(--color-bg-tertiary);
+    }
+
+    .participation-counter button:active {
+      transform: scale(0.95);
+    }
+
+    .participation-count {
+      min-width: 24px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* ============================================
+       MODALS
+       ============================================ */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 2000;
+    }
+
+    .modal {
+      background: var(--color-bg);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: var(--shadow-xl);
+    }
+
+    [data-theme="glassmorphism"] .modal {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: var(--glass-blur);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: var(--color-text-muted);
+      cursor: pointer;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .modal-actions .btn {
+      flex: 1;
+    }
+
+    /* ============================================
+       SUCCESS/ERROR STATES
+       ============================================ */
+    .success-screen {
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--color-success-light);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 40px;
+    }
+
+    .success-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--color-success);
+    }
+
+    .success-message {
+      color: var(--color-text-secondary);
+    }
+
+    .error-screen {
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    .error-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--color-danger-light);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 40px;
+    }
+
+    .error-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--color-danger);
+    }
+
+    .error-message {
+      color: var(--color-text-secondary);
+      margin-bottom: 24px;
+    }
+
+    /* ============================================
+       CHARTS (Analytics)
+       ============================================ */
+    .chart-container {
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    [data-theme="glassmorphism"] .chart-container {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+    }
+
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--color-text);
+    }
+
+    /* ============================================
+       SESSION CARDS (History)
+       ============================================ */
+    .session-card {
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all var(--duration-short) var(--ease-standard);
+    }
+
+    .session-card:hover {
+      border-color: var(--color-primary);
+      box-shadow: var(--shadow-md);
+    }
+
+    [data-theme="glassmorphism"] .session-card {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+    }
+
+    .session-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .session-card-title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .session-card-date {
+      font-size: 13px;
+      color: var(--color-text-muted);
+    }
+
+    .session-card-stats {
+      display: flex;
+      gap: 16px;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+
+    .session-card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    /* ============================================
+       SEARCH BAR
+       ============================================ */
+    .search-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .search-bar .form-input {
+      flex: 1;
+    }
+
+    /* ============================================
+       QUICK CONFIRM (Student returning)
+       ============================================ */
+    .quick-confirm {
+      text-align: center;
+      padding: 32px;
+    }
+
+    .quick-confirm-avatar {
+      width: 80px;
+      height: 80px;
+      background: var(--color-primary-light);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 32px;
+      color: var(--color-primary);
+    }
+
+    .quick-confirm-greeting {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .quick-confirm-details {
+      color: var(--color-text-secondary);
+      margin-bottom: 32px;
+    }
+
+    .quick-confirm-edit {
+      color: var(--color-primary);
+      font-size: 14px;
+      text-decoration: none;
+      margin-top: 16px;
+      display: inline-block;
+    }
+
+    /* ============================================
+       AT-RISK SECTION (Analytics)
+       ============================================ */
+    .at-risk-section {
+      background: var(--color-danger-light);
+      border: 1px solid var(--color-danger);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-top: 24px;
+    }
+
+    .at-risk-title {
+      font-weight: 600;
+      color: var(--color-danger);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .at-risk-list {
+      list-style: none;
+    }
+
+    .at-risk-list li {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(239,68,68,0.2);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .at-risk-list li:last-child {
+      border-bottom: none;
+    }
+
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
+    @media (max-width: 640px) {
+      .nav-header {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+      }
+
+      .screen-nav {
+        order: 2;
+      }
+
+      .theme-select {
+        order: 1;
+        width: 100%;
+      }
+
+      .main-content {
+        padding-top: 140px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .session-card-header {
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      th, td {
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation Header -->
+  <nav class="nav-header">
+    <select id="theme-select" class="theme-select">
+      <option value="minimal-light">1. Minimal Light</option>
+      <option value="minimal-dark">2. Minimal Dark</option>
+      <option value="playful">3. Playful</option>
+      <option value="corporate">4. Corporate</option>
+      <option value="organic">5. Organic</option>
+      <option value="brutalist">6. Brutalist</option>
+      <option value="glassmorphism">7. Glassmorphism</option>
+      <option value="retro">8. Retro</option>
+      <option value="luxury">9. Luxury</option>
+      <option value="editorial">10. Editorial</option>
+    </select>
+    <div class="screen-nav">
+      <button data-screen="landing" class="active">Landing</button>
+      <button data-screen="pin-entry">PIN</button>
+      <button data-screen="session-config">Config</button>
+      <button data-screen="active-session">Active</button>
+      <button data-screen="session-history">History</button>
+      <button data-screen="session-detail">Detail</button>
+      <button data-screen="quick-confirm">Quick Confirm</button>
+      <button data-screen="student-form">Student Form</button>
+      <button data-screen="student-success">Success</button>
+      <button data-screen="student-error">Error</button>
+      <button data-screen="attendance-lookup">Lookup</button>
+      <button data-screen="analytics">Analytics</button>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <!-- SCREEN: Landing Page -->
+    <section id="landing" class="screen active">
+      <div style="text-align: center; padding: 48px 0;">
+        <h1 style="font-size: 32px; margin-bottom: 8px;">NEU Attendance</h1>
+        <p style="color: var(--color-text-secondary); margin-bottom: 48px;">Simple, location-verified attendance tracking</p>
+
+        <div style="display: flex; flex-direction: column; gap: 16px; max-width: 300px; margin: 0 auto;">
+          <button class="btn btn-primary btn-lg btn-block" onclick="showScreen('pin-entry')">
+            I'm the Instructor
+          </button>
+          <button class="btn btn-secondary btn-lg btn-block" onclick="showScreen('student-form')">
+            I'm a Student
+          </button>
+          <button class="btn btn-secondary btn-lg btn-block" onclick="showScreen('attendance-lookup')">
+            View My Attendance
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN: PIN Entry -->
+    <section id="pin-entry" class="screen">
+      <div class="card">
+        <h2 style="margin-bottom: 24px; text-align: center;">Instructor Access</h2>
+        <div class="form-group">
+          <label class="form-label">Enter PIN</label>
+          <input type="password" class="form-input" placeholder="Enter PIN..." maxlength="6">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="showScreen('session-config')">Continue</button>
+      </div>
+      <p style="text-align: center; margin-top: 16px;">
+        <a href="#" style="color: var(--color-text-muted); font-size: 14px;" onclick="showScreen('landing')">Back to home</a>
+      </p>
+    </section>
+
+    <!-- SCREEN: Session Configuration -->
+    <section id="session-config" class="screen">
+      <h2 style="margin-bottom: 24px;">Start New Session</h2>
+
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label">Class Name</label>
+          <input type="text" class="form-input" placeholder="e.g., Business Communication - Section A" value="Business Communication - Section A">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Classroom Radius</label>
+          <div class="slider-container">
+            <input type="range" class="slider" min="20" max="500" value="300">
+            <span class="slider-value">300m</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Late Threshold</label>
+          <div class="slider-container">
+            <input type="range" class="slider" min="5" max="30" value="10">
+            <span class="slider-value">10 min</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-success btn-block btn-lg" onclick="showScreen('active-session')">
+        Start Session
+      </button>
+
+      <div style="display: flex; gap: 12px; margin-top: 16px;">
+        <button class="btn btn-secondary" style="flex: 1;" onclick="showScreen('session-history')">View History</button>
+        <button class="btn btn-secondary" style="flex: 1;" onclick="showScreen('analytics')">Analytics</button>
+      </div>
+    </section>
+
+    <!-- SCREEN: Active Session -->
+    <section id="active-session" class="screen wide">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+          <h2>Business Communication - Section A</h2>
+          <span class="badge badge-success">Active Session</span>
+        </div>
+        <button class="btn btn-danger btn-sm">End Session</button>
+      </div>
+
+      <!-- QR Code Display -->
+      <div class="qr-container">
+        <div class="qr-placeholder"></div>
+        <div class="qr-code-text">ABC123</div>
+        <div class="timer">
+          <span>Next code in:</span>
+          <div class="timer-bar"><div class="timer-bar-fill"></div></div>
+          <span>1:18</span>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card success">
+          <div class="stat-value">12</div>
+          <div class="stat-label">On Time</div>
+        </div>
+        <div class="stat-card warning">
+          <div class="stat-value">3</div>
+          <div class="stat-label">Late</div>
+        </div>
+        <div class="stat-card danger">
+          <div class="stat-value">2</div>
+          <div class="stat-label">Failed</div>
+        </div>
+      </div>
+
+      <!-- Attendance Table -->
+      <div class="card">
+        <h3 style="margin-bottom: 16px;">Attendance List</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Time</th>
+                <th>Loc</th>
+                <th>Status</th>
+                <th>Participation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>11223344</td>
+                <td>Nguyen Van A</td>
+                <td>9:02 AM</td>
+                <td style="color: var(--color-success);">&#10003;</td>
+                <td><span class="badge badge-success">On Time</span></td>
+                <td>
+                  <div class="participation-counter">
+                    <button>-</button>
+                    <span class="participation-count">2</span>
+                    <button>+</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>11223345</td>
+                <td>Tran Thi B</td>
+                <td>9:05 AM</td>
+                <td style="color: var(--color-success);">&#10003;</td>
+                <td><span class="badge badge-success">On Time</span></td>
+                <td>
+                  <div class="participation-counter">
+                    <button>-</button>
+                    <span class="participation-count">1</span>
+                    <button>+</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>11223346</td>
+                <td>Le Van C</td>
+                <td>9:15 AM</td>
+                <td style="color: var(--color-warning);">-</td>
+                <td><span class="badge badge-warning">Late</span></td>
+                <td>
+                  <div class="participation-counter">
+                    <button>-</button>
+                    <span class="participation-count">0</span>
+                    <button>+</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Failed Attempts -->
+      <div class="card">
+        <h3 style="margin-bottom: 16px;">Failed Attempts (2)</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Reason</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>11223350</td>
+                <td>Pham Van D</td>
+                <td style="color: var(--color-danger);">Too far (850m)</td>
+                <td><button class="btn btn-sm btn-secondary">Approve</button></td>
+              </tr>
+              <tr>
+                <td>11223351</td>
+                <td>Hoang Thi E</td>
+                <td style="color: var(--color-danger);">Wrong code</td>
+                <td><button class="btn btn-sm btn-secondary">Approve</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 12px;">
+          <button class="btn btn-sm btn-secondary">Select All</button>
+          <button class="btn btn-sm btn-primary" style="margin-left: 8px;">Approve Selected</button>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary btn-block" style="margin-top: 16px;">Export to CSV</button>
+    </section>
+
+    <!-- SCREEN: Session History -->
+    <section id="session-history" class="screen wide">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Session History</h2>
+        <button class="btn btn-secondary btn-sm" onclick="showScreen('session-config')">Back</button>
+      </div>
+
+      <div class="search-bar">
+        <input type="text" class="form-input" placeholder="Search by class name or date...">
+        <button class="btn btn-primary">Search</button>
+      </div>
+
+      <div style="margin-bottom: 16px; display: flex; gap: 16px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox"> Show All Sessions
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox"> Show Archived
+        </label>
+      </div>
+
+      <div class="session-card" onclick="showScreen('session-detail')">
+        <div class="session-card-header">
+          <div class="session-card-title">Business Communication - Section A</div>
+          <div class="session-card-date">Jan 21, 2026 - 9:00 AM</div>
+        </div>
+        <div class="session-card-stats">
+          <span><strong>15</strong> students</span>
+          <span><strong>12</strong> on time</span>
+          <span><strong>3</strong> late</span>
+        </div>
+        <div class="session-card-actions">
+          <button class="btn btn-sm btn-secondary">Reopen</button>
+          <button class="btn btn-sm btn-secondary" title="Edit name">&#9998;</button>
+          <button class="btn btn-sm btn-secondary" title="Archive">&#128451;</button>
+        </div>
+      </div>
+
+      <div class="session-card">
+        <div class="session-card-header">
+          <div class="session-card-title">Introduction to Marketing</div>
+          <div class="session-card-date">Jan 20, 2026 - 2:00 PM</div>
+        </div>
+        <div class="session-card-stats">
+          <span><strong>22</strong> students</span>
+          <span><strong>20</strong> on time</span>
+          <span><strong>2</strong> late</span>
+        </div>
+        <div class="session-card-actions">
+          <button class="btn btn-sm btn-secondary">Reopen</button>
+          <button class="btn btn-sm btn-secondary" title="Edit name">&#9998;</button>
+          <button class="btn btn-sm btn-secondary" title="Archive">&#128451;</button>
+        </div>
+      </div>
+
+      <div class="session-card" style="opacity: 0.6;">
+        <div class="session-card-header">
+          <div class="session-card-title">Advanced Finance <span class="badge badge-secondary" style="background: var(--color-bg-tertiary); color: var(--color-text-muted);">Archived</span></div>
+          <div class="session-card-date">Jan 15, 2026 - 10:00 AM</div>
+        </div>
+        <div class="session-card-stats">
+          <span><strong>18</strong> students</span>
+          <span><strong>16</strong> on time</span>
+          <span><strong>2</strong> late</span>
+        </div>
+        <div class="session-card-actions">
+          <button class="btn btn-sm btn-secondary">Unarchive</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN: Session Detail -->
+    <section id="session-detail" class="screen wide">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+          <h2>Business Communication - Section A</h2>
+          <p style="color: var(--color-text-secondary);">Jan 21, 2026 - 9:00 AM</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" onclick="showScreen('session-history')">Back</button>
+          <button class="btn btn-primary btn-sm">Reopen for Late</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">15</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value">12</div>
+          <div class="stat-label">On Time</div>
+        </div>
+        <div class="stat-card warning">
+          <div class="stat-value">3</div>
+          <div class="stat-label">Late</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3>Attendance List</h3>
+          <div>
+            <button class="btn btn-sm btn-secondary">Add Student</button>
+            <button class="btn btn-sm btn-primary" style="margin-left: 8px;">Export CSV</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Participation</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>11223344</td>
+                <td>Nguyen Van A</td>
+                <td>a.nguyen@neu.edu.vn</td>
+                <td>9:02 AM</td>
+                <td><span class="badge badge-success">On Time</span></td>
+                <td>2</td>
+                <td>
+                  <button class="btn btn-sm btn-icon" title="Edit">&#9998;</button>
+                  <button class="btn btn-sm btn-icon" title="Note">&#128221;</button>
+                  <button class="btn btn-sm btn-icon" title="Remove" style="color: var(--color-danger);">&#128465;</button>
+                </td>
+              </tr>
+              <tr>
+                <td>11223345</td>
+                <td>Tran Thi B &#128221;</td>
+                <td>b.tran@neu.edu.vn</td>
+                <td>9:05 AM</td>
+                <td><span class="badge badge-success">On Time</span></td>
+                <td>1</td>
+                <td>
+                  <button class="btn btn-sm btn-icon" title="Edit">&#9998;</button>
+                  <button class="btn btn-sm btn-icon" title="Note">&#128221;</button>
+                  <button class="btn btn-sm btn-icon" title="Remove" style="color: var(--color-danger);">&#128465;</button>
+                </td>
+              </tr>
+              <tr>
+                <td>11223346</td>
+                <td>Le Van C</td>
+                <td>c.le@neu.edu.vn</td>
+                <td>9:15 AM</td>
+                <td><span class="badge badge-warning">Late</span></td>
+                <td>0</td>
+                <td>
+                  <button class="btn btn-sm btn-icon" title="Edit">&#9998;</button>
+                  <button class="btn btn-sm btn-icon" title="Note">&#128221;</button>
+                  <button class="btn btn-sm btn-icon" title="Remove" style="color: var(--color-danger);">&#128465;</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN: Quick Confirm (Returning Student) -->
+    <section id="quick-confirm" class="screen">
+      <div class="card quick-confirm">
+        <div class="quick-confirm-avatar">&#128075;</div>
+        <div class="quick-confirm-greeting">Welcome back, Nguyen Van A!</div>
+        <div class="quick-confirm-details">
+          <p>Student ID: <strong>11223344</strong></p>
+          <p>Code: <strong>ABC123</strong></p>
+        </div>
+        <button class="btn btn-success btn-lg btn-block" onclick="showScreen('student-success')">
+          Confirm Attendance
+        </button>
+        <a href="#" class="quick-confirm-edit" onclick="showScreen('student-form')">Edit my details</a>
+      </div>
+      <p style="text-align: center; margin-top: 16px;">
+        <a href="#" style="color: var(--color-text-muted); font-size: 14px;" onclick="showScreen('landing')">Back to home</a>
+      </p>
+    </section>
+
+    <!-- SCREEN: Student Registration Form -->
+    <section id="student-form" class="screen">
+      <h2 style="text-align: center; margin-bottom: 24px;">Student Check-in</h2>
+
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label">Student ID</label>
+          <input type="text" class="form-input" placeholder="e.g., 11223344">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" class="form-input" placeholder="e.g., Nguyen Van A">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" class="form-input" placeholder="e.g., a.nguyen@neu.edu.vn">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Attendance Code</label>
+          <input type="text" class="form-input" placeholder="6-character code" maxlength="6" style="font-family: monospace; font-size: 20px; letter-spacing: 4px; text-align: center;">
+        </div>
+
+        <div style="padding: 12px; background: var(--color-primary-light); border-radius: var(--radius-md); margin-bottom: 20px;">
+          <p style="font-size: 14px; color: var(--color-text-secondary);">
+            <strong>Location:</strong> Acquiring GPS... &#128205;
+          </p>
+        </div>
+
+        <button class="btn btn-primary btn-block btn-lg" onclick="showScreen('student-success')">
+          Submit Attendance
+        </button>
+      </div>
+
+      <p style="text-align: center; margin-top: 16px;">
+        <a href="#" style="color: var(--color-text-muted); font-size: 14px;">Clear saved info</a>
+      </p>
+      <p style="text-align: center; margin-top: 8px;">
+        <a href="#" style="color: var(--color-text-muted); font-size: 14px;" onclick="showScreen('landing')">Back to home</a>
+      </p>
+    </section>
+
+    <!-- SCREEN: Student Success -->
+    <section id="student-success" class="screen">
+      <div class="success-screen">
+        <div class="success-icon">&#10003;</div>
+        <h2 class="success-title">Attendance Confirmed!</h2>
+        <p class="success-message">You've checked in to</p>
+        <p style="font-weight: 600; font-size: 18px; margin: 8px 0;">Business Communication - Section A</p>
+        <p style="color: var(--color-text-muted); margin-top: 24px;">You can close this page now.</p>
+      </div>
+    </section>
+
+    <!-- SCREEN: Student Error -->
+    <section id="student-error" class="screen">
+      <div class="error-screen">
+        <div class="error-icon">&#10005;</div>
+        <h2 class="error-title">Check-in Failed</h2>
+        <p class="error-message">
+          You are too far from the classroom.<br>
+          <strong>Distance: 850m</strong> (max allowed: 300m)
+        </p>
+        <button class="btn btn-primary btn-block" onclick="showScreen('student-form')">Try Again</button>
+        <p style="margin-top: 16px; font-size: 14px; color: var(--color-text-muted);">
+          Your attempt has been logged. The instructor may approve it manually.
+        </p>
+      </div>
+    </section>
+
+    <!-- SCREEN: Attendance Lookup -->
+    <section id="attendance-lookup" class="screen">
+      <h2 style="text-align: center; margin-bottom: 24px;">View My Attendance</h2>
+
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label">Student ID</label>
+          <input type="text" class="form-input" placeholder="Enter your student ID" value="11223344">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="showLookupResults()">Search</button>
+      </div>
+
+      <div id="lookup-results" style="display: none;">
+        <div class="stats-grid" style="margin-top: 24px;">
+          <div class="stat-card">
+            <div class="stat-value">12</div>
+            <div class="stat-label">Total</div>
+          </div>
+          <div class="stat-card success">
+            <div class="stat-value">10</div>
+            <div class="stat-label">On Time</div>
+          </div>
+          <div class="stat-card warning">
+            <div class="stat-value">2</div>
+            <div class="stat-label">Late</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 16px;">Attendance Records</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Course</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Business Communication</td>
+                  <td>Jan 21, 2026</td>
+                  <td>9:02 AM</td>
+                  <td><span class="badge badge-success">On Time</span></td>
+                </tr>
+                <tr>
+                  <td>Introduction to Marketing</td>
+                  <td>Jan 20, 2026</td>
+                  <td>2:05 PM</td>
+                  <td><span class="badge badge-success">On Time</span></td>
+                </tr>
+                <tr>
+                  <td>Business Communication</td>
+                  <td>Jan 19, 2026</td>
+                  <td>9:15 AM</td>
+                  <td><span class="badge badge-warning">Late</span></td>
+                </tr>
+                <tr>
+                  <td>Advanced Finance</td>
+                  <td>Jan 18, 2026</td>
+                  <td>10:01 AM</td>
+                  <td><span class="badge badge-success">On Time</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <p style="text-align: center; margin-top: 16px;">
+        <a href="#" style="color: var(--color-text-muted); font-size: 14px;" onclick="showScreen('landing')">Back to home</a>
+      </p>
+    </section>
+
+    <!-- SCREEN: Analytics Dashboard -->
+    <section id="analytics" class="screen wide">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Analytics Dashboard</h2>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" onclick="showScreen('session-config')">Back</button>
+          <button class="btn btn-primary btn-sm">Export Report</button>
+        </div>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">12</div>
+          <div class="stat-label">Total Sessions</div>
+        </div>
+        <div class="stat-card success">
+          <div class="stat-value">78.5%</div>
+          <div class="stat-label">Avg Attendance</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">156</div>
+          <div class="stat-label">Unique Students</div>
+        </div>
+      </div>
+
+      <!-- Date Filter -->
+      <div class="card" style="margin-bottom: 24px;">
+        <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+          <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 140px;">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-input" value="2026-01-01">
+          </div>
+          <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 140px;">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-input" value="2026-01-21">
+          </div>
+          <button class="btn btn-primary btn-sm">Apply</button>
+          <button class="btn btn-secondary btn-sm">Clear</button>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 24px;">
+        <div class="chart-container">
+          <div class="chart-title">Attendance Trend</div>
+          <canvas id="trendChart" height="200"></canvas>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Session Comparison</div>
+          <canvas id="sessionChart" height="200"></canvas>
+        </div>
+      </div>
+
+      <!-- Student Rankings -->
+      <div class="card">
+        <h3 style="margin-bottom: 16px;">Student Rankings</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Student ID</th>
+                <th>Sessions</th>
+                <th>Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Nguyen Van A</td>
+                <td>11223344</td>
+                <td>12/12</td>
+                <td style="color: var(--color-success); font-weight: 600;">100%</td>
+              </tr>
+              <tr>
+                <td>Tran Thi B</td>
+                <td>11223345</td>
+                <td>11/12</td>
+                <td style="color: var(--color-success); font-weight: 600;">91.7%</td>
+              </tr>
+              <tr>
+                <td>Pham Van C</td>
+                <td>11223346</td>
+                <td>9/12</td>
+                <td style="font-weight: 600;">75%</td>
+              </tr>
+              <tr style="background: var(--color-danger-light);">
+                <td style="color: var(--color-danger);">Le Van D</td>
+                <td>11223347</td>
+                <td>8/12</td>
+                <td style="color: var(--color-danger); font-weight: 600;">66.7%</td>
+              </tr>
+              <tr style="background: var(--color-danger-light);">
+                <td style="color: var(--color-danger);">Hoang Thi E</td>
+                <td>11223348</td>
+                <td>7/12</td>
+                <td style="color: var(--color-danger); font-weight: 600;">58.3%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- At-Risk Section -->
+      <div class="at-risk-section">
+        <div class="at-risk-title">
+          <span>&#9888;</span> At-Risk Students (< 70% attendance)
+        </div>
+        <ul class="at-risk-list">
+          <li>
+            <span>Le Van D (11223347)</span>
+            <strong>66.7%</strong>
+          </li>
+          <li>
+            <span>Hoang Thi E (11223348)</span>
+            <strong>58.3%</strong>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Theme switching
+    const themeSelect = document.getElementById('theme-select');
+    const savedTheme = localStorage.getItem('selected-theme') || 'minimal-light';
+
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    themeSelect.value = savedTheme;
+
+    themeSelect.addEventListener('change', (e) => {
+      document.documentElement.setAttribute('data-theme', e.target.value);
+      localStorage.setItem('selected-theme', e.target.value);
+      initCharts(); // Reinitialize charts with new theme colors
+    });
+
+    // Screen navigation
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.screen-nav button').forEach(b => b.classList.remove('active'));
+
+      document.getElementById(screenId).classList.add('active');
+      document.querySelector(`[data-screen="${screenId}"]`).classList.add('active');
+    }
+
+    document.querySelectorAll('.screen-nav button').forEach(btn => {
+      btn.addEventListener('click', () => showScreen(btn.dataset.screen));
+    });
+
+    // Lookup results toggle
+    function showLookupResults() {
+      document.getElementById('lookup-results').style.display = 'block';
+    }
+
+    // Slider value display
+    document.querySelectorAll('.slider').forEach(slider => {
+      const valueDisplay = slider.nextElementSibling;
+      slider.addEventListener('input', () => {
+        const unit = slider.max > 100 ? 'm' : ' min';
+        valueDisplay.textContent = slider.value + unit;
+      });
+    });
+
+    // Participation counter demo
+    document.querySelectorAll('.participation-counter button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const counter = btn.parentElement.querySelector('.participation-count');
+        let count = parseInt(counter.textContent);
+        if (btn.textContent === '+') {
+          count++;
+        } else if (count > 0) {
+          count--;
+        }
+        counter.textContent = count;
+      });
+    });
+
+    // Charts initialization
+    let trendChart, sessionChart;
+
+    function getChartColors() {
+      const style = getComputedStyle(document.documentElement);
+      return {
+        primary: style.getPropertyValue('--color-primary').trim() || '#3b82f6',
+        text: style.getPropertyValue('--color-text').trim() || '#1e293b',
+        textMuted: style.getPropertyValue('--color-text-muted').trim() || '#94a3b8',
+        border: style.getPropertyValue('--color-border').trim() || '#e2e8f0',
+        success: style.getPropertyValue('--color-success').trim() || '#22c55e',
+      };
+    }
+
+    function initCharts() {
+      const colors = getChartColors();
+
+      // Destroy existing charts
+      if (trendChart) trendChart.destroy();
+      if (sessionChart) sessionChart.destroy();
+
+      // Trend Chart
+      const trendCtx = document.getElementById('trendChart');
+      if (trendCtx) {
+        trendChart = new Chart(trendCtx, {
+          type: 'line',
+          data: {
+            labels: ['Jan 10', 'Jan 12', 'Jan 14', 'Jan 16', 'Jan 18', 'Jan 20', 'Jan 21'],
+            datasets: [{
+              label: 'Attendance Rate',
+              data: [82, 78, 85, 72, 80, 76, 78],
+              borderColor: colors.primary,
+              backgroundColor: colors.primary + '20',
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: {
+                min: 0,
+                max: 100,
+                ticks: { color: colors.textMuted },
+                grid: { color: colors.border }
+              },
+              x: {
+                ticks: { color: colors.textMuted },
+                grid: { color: colors.border }
+              }
+            }
+          }
+        });
+      }
+
+      // Session Chart
+      const sessionCtx = document.getElementById('sessionChart');
+      if (sessionCtx) {
+        sessionChart = new Chart(sessionCtx, {
+          type: 'bar',
+          data: {
+            labels: ['Bus Comm', 'Marketing', 'Finance', 'Economics', 'Stats'],
+            datasets: [{
+              label: 'Students',
+              data: [15, 22, 18, 20, 16],
+              backgroundColor: colors.primary,
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { color: colors.textMuted },
+                grid: { color: colors.border }
+              },
+              x: {
+                ticks: { color: colors.textMuted },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // Initialize charts on load
+    initCharts();
+  </script>
+</body>
+</html>
