@@ -822,8 +822,10 @@ async function signInWithGoogle() {
   try {
     state.authLoading = true;
     render();
-    await auth.signInWithPopup(googleProvider);
-    // Auth state listener will handle the rest
+    // Use redirect instead of popup (more reliable, no popup blockers)
+    await auth.signInWithRedirect(googleProvider);
+    // User will be redirected to Google, then back to this page
+    // Auth state listener will handle the rest when they return
   } catch (error) {
     console.error('Sign-in error:', error);
     state.authLoading = false;
@@ -3364,6 +3366,16 @@ function init() {
 
   // Set up Firebase Auth state listener
   auth.onAuthStateChanged(handleAuthStateChange);
+
+  // Handle redirect result (for users returning from Google sign-in)
+  auth.getRedirectResult().catch(error => {
+    if (error.code !== 'auth/null-user') {
+      console.error('Redirect sign-in error:', error);
+      alert('Sign-in failed: ' + error.message);
+    }
+    state.authLoading = false;
+    render();
+  });
 
   const params = getUrlParams();
   if (params.mode === 'teacher' || params.mode === 'student' || params.mode === 'lookup') {
