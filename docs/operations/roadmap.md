@@ -53,6 +53,40 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P4-01 | Attendance trends dashboard | instructor-attendance-session | Pending |
 | P4-02 | Course-level attendance aggregation | instructor-attendance-session | Pending |
 | P4-03 | Student attendance history lookup | student-check-in | **Complete** (2026-01-20) |
+| P4-03.1 | AC3.1 Participation tooltip | student-attendance-lookup | **Complete** (2026-01-21) |
+| P4-03.2 | AC3.2 Late threshold transparency | student-attendance-lookup | **Complete** (2026-01-21) |
+
+## Phase 6: UI Refactor
+
+| Task ID | Description | Journey | Status |
+|---------|-------------|---------|--------|
+| P6-01 | Refactor UI to Corporate design system | all | **Complete** (2026-01-21) |
+
+### P6-01: Corporate Design System Refactor
+
+**Description:** Refactor the application UI to use the Corporate design system as selected on 2026-01-21. Apply consistent colors, typography, spacing, and component styling across all views.
+
+**Reference:** `docs/decisions/design-system.md`, `docs/designs/mockups/mockups-20260121.html`
+
+**Acceptance Criteria:**
+- [x] AC1: Apply Corporate color palette (primary #1e40af, text #0f172a, etc.)
+- [x] AC2: Use Inter font family for all text
+- [x] AC3: Apply consistent border-radius (4px small, 6px medium, 8px large)
+- [x] AC4: Update button styles to match Corporate theme
+- [x] AC5: Update form inputs to match Corporate theme
+- [x] AC6: Update cards and containers to match Corporate theme
+- [x] AC7: Update badges and status indicators
+- [x] AC8: Ensure dark mode uses appropriate Corporate dark variants
+- [ ] AC9: All screens match mockup reference (pending visual review)
+
+**Implementation Notes (2026-01-21):**
+- Added Google Fonts Inter font family
+- Added CSS custom properties for Corporate design tokens (light + dark variants)
+- Updated Tailwind config with custom colors, radii, and shadows
+- Changed primary color from indigo to blue (1e40af)
+- Updated border-radius from 2xl to xl (more subtle, corporate style)
+- Added tooltip styles for AC3.1/AC3.2 journey requirements
+- Updated all button, card, and input styles throughout the app
 
 ## Phase 5: Identity Verification
 
@@ -122,6 +156,9 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P2-09 | Countdown audio warning | 2026-01-13 |
 | P2-10 | Unit and integration test coverage | 2026-01-13 |
 | P4-03 | Student attendance history lookup | 2026-01-20 |
+| P4-03.1 | AC3.1 Participation tooltip | 2026-01-21 |
+| P4-03.2 | AC3.2 Late threshold transparency | 2026-01-21 |
+| P6-01 | Corporate design system refactor | 2026-01-21 |
 
 ## Evidence
 

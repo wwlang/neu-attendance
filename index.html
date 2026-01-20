@@ -16,16 +16,130 @@
   </script>
   <!-- Chart.js for Analytics Dashboard -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
-        extend: {}
+        extend: {
+          fontFamily: {
+            'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            'primary': {
+              DEFAULT: '#1e40af',
+              'hover': '#1e3a8a',
+              'light': '#dbeafe',
+            },
+            'success': {
+              DEFAULT: '#15803d',
+              'light': '#dcfce7',
+            },
+            'warning': {
+              DEFAULT: '#b45309',
+              'light': '#fef3c7',
+            },
+            'danger': {
+              DEFAULT: '#b91c1c',
+              'light': '#fee2e2',
+            }
+          },
+          borderRadius: {
+            'sm': '4px',
+            'md': '6px',
+            'lg': '8px',
+            'xl': '12px',
+          },
+          boxShadow: {
+            'corporate': '0 1px 2px rgba(15,23,42,0.06)',
+            'corporate-md': '0 4px 6px rgba(15,23,42,0.08)',
+            'corporate-lg': '0 10px 15px rgba(15,23,42,0.1)',
+          }
+        }
       }
     }
   </script>
   <style>
+    /* Corporate Design System Variables */
+    :root {
+      --color-bg: #f8fafc;
+      --color-bg-secondary: #ffffff;
+      --color-bg-tertiary: #e2e8f0;
+      --color-text: #0f172a;
+      --color-text-secondary: #475569;
+      --color-text-muted: #94a3b8;
+      --color-primary: #1e40af;
+      --color-primary-hover: #1e3a8a;
+      --color-primary-light: #dbeafe;
+      --color-success: #15803d;
+      --color-success-light: #dcfce7;
+      --color-warning: #b45309;
+      --color-warning-light: #fef3c7;
+      --color-danger: #b91c1c;
+      --color-danger-light: #fee2e2;
+      --color-border: #cbd5e1;
+      --color-border-hover: #94a3b8;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+      --shadow-sm: 0 1px 2px rgba(15,23,42,0.06);
+      --shadow-md: 0 4px 6px rgba(15,23,42,0.08);
+      --shadow-lg: 0 10px 15px rgba(15,23,42,0.1);
+      --shadow-lg: 0 20px 25px rgba(15,23,42,0.12);
+    }
+    .dark {
+      --color-bg: #0f172a;
+      --color-bg-secondary: #1e293b;
+      --color-bg-tertiary: #334155;
+      --color-text: #f8fafc;
+      --color-text-secondary: #cbd5e1;
+      --color-text-muted: #94a3b8;
+      --color-primary: #3b82f6;
+      --color-primary-hover: #60a5fa;
+      --color-primary-light: #1e3a5f;
+      --color-success: #22c55e;
+      --color-success-light: #14532d;
+      --color-warning: #f59e0b;
+      --color-warning-light: #422006;
+      --color-danger: #ef4444;
+      --color-danger-light: #450a0a;
+      --color-border: #334155;
+      --color-border-hover: #475569;
+    }
+    body, html { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    /* Tooltip styles for AC3.1 and AC3.2 */
+    .tooltip-trigger { position: relative; cursor: help; }
+    .tooltip-trigger:hover .tooltip-content,
+    .tooltip-trigger:focus .tooltip-content { visibility: visible; opacity: 1; }
+    .tooltip-content {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      z-index: 100;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--color-text);
+      color: var(--color-bg);
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      white-space: nowrap;
+      transition: opacity 0.2s, visibility 0.2s;
+    }
+    .tooltip-content::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--color-text);
+    }
     .code-display { font-family: 'Courier New', monospace; letter-spacing: 0.3em; }
     @media print { .no-print { display: none !important; } .print-only { display: block !important; } }
     .print-only { display: none; }
@@ -38,7 +152,7 @@
     .modal-backdrop { background: rgba(0,0,0,0.5); }
   </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
+<body class="bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
 
 <!-- Offline Banner -->
 <div id="offlineBanner" class="hidden fixed top-0 left-0 right-0 bg-amber-500 text-white text-center py-2 text-sm font-medium z-50 offline-banner no-print">
@@ -51,7 +165,7 @@
 <div id="app" class="p-4 max-w-4xl mx-auto">
   <div class="flex items-center justify-center min-h-screen">
     <div class="text-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-indigo-400 mx-auto mb-4"></div>
       <p class="text-gray-600 dark:text-gray-300">Loading...</p>
     </div>
   </div>
@@ -556,7 +670,7 @@ function escapeHtml(text) {
 // Dark mode toggle button HTML
 function renderDarkModeToggle() {
   return `
-    <button onclick="toggleDarkMode()" class="fixed top-4 right-4 z-40 p-2 rounded-full bg-white dark:bg-gray-700 shadow-lg hover:shadow-xl transition-all no-print" title="Toggle dark mode">
+    <button onclick="toggleDarkMode()" class="fixed top-4 right-4 z-40 p-2 rounded-full bg-white dark:bg-gray-700 shadow-lg hover:shadow-lg transition-all no-print" title="Toggle dark mode">
       ${state.darkMode
         ? '<svg class="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path></svg>'
         : '<svg class="w-6 h-6 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>'
@@ -594,8 +708,8 @@ function render() {
 function renderPinEntry() {
   return `
     <div class="flex items-center justify-center min-h-screen">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back</button>
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
+        <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back</button>
         <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Instructor Access</h2>
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your PIN to access instructor mode</p>
         <div id="pinMessage"></div>
@@ -603,10 +717,10 @@ function renderPinEntry() {
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN</label>
             <input type="password" id="instructorPin" maxlength="10" placeholder="Enter PIN"
-              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white text-center text-2xl tracking-widest"
+              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white text-center text-2xl tracking-widest"
               onkeypress="if(event.key === 'Enter') verifyPin()">
           </div>
-          <button onclick="verifyPin()" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">
+          <button onclick="verifyPin()" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">
             Access Instructor Mode
           </button>
         </div>
@@ -631,18 +745,18 @@ function verifyPin() {
 function renderModeSelection() {
   return `
     <div class="flex items-center justify-center min-h-screen">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
         <h1 class="text-3xl font-bold text-center text-gray-800 dark:text-white mb-2">Quick Attendance</h1>
         <p class="text-gray-500 dark:text-gray-400 text-center mb-8">NEU Geolocation-verified System</p>
         <div class="space-y-4">
-          <button onclick="setMode('teacher')" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">I'm the Instructor</button>
+          <button onclick="setMode('teacher')" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">I'm the Instructor</button>
           <button onclick="setMode('student')" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors">I'm a Student</button>
           <button onclick="setMode('lookup')" class="w-full py-3 px-6 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors">View My Attendance</button>
         </div>
         <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
           <p class="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">Or scan a QR code:</p>
           <div class="grid grid-cols-2 gap-4">
-            <div class="text-center"><div id="qr-teacher" class="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Instructor</p></div>
+            <div class="text-center"><div id="qr-teacher" class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Instructor</p></div>
             <div class="text-center"><div id="qr-student" class="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-lg inline-block"></div><p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Student</p></div>
           </div>
         </div>
@@ -655,7 +769,7 @@ function renderTeacherView() {
     return `
       <div class="flex items-center justify-center min-h-screen">
         <div class="text-center">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-indigo-400 mx-auto mb-4"></div>
           <p class="text-gray-600 dark:text-gray-300">Recovering session...</p>
         </div>
       </div>`;
@@ -674,8 +788,8 @@ function renderTeacherView() {
   if (!state.session) {
     return `
       <div class="pt-8">
-        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back</button>
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back</button>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Start Attendance Session</h2>
             <button onclick="state.showAnalytics = true; loadAnalyticsData(); render();" class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium text-sm">
@@ -686,19 +800,19 @@ function renderTeacherView() {
             </button>
           </div>
           <div class="space-y-4">
-            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label><input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"></div>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label><input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white"></div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="5" max="30" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
             <div id="locationStatus" class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300">Your location will be captured when you start</div>
-            <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
+            <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
           </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mt-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mt-6">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">QR Codes for Class</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Print or display these:</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="text-center p-4 border-2 border-dashed border-emerald-300 dark:border-emerald-600 rounded-xl"><div id="qr-student-large" class="inline-block bg-white p-2 rounded"></div><p class="font-semibold text-emerald-700 dark:text-emerald-400 mt-2">Student Check-in</p></div>
-            <div class="text-center p-4 border-2 border-dashed border-indigo-300 dark:border-indigo-600 rounded-xl"><div id="qr-teacher-large" class="inline-block bg-white p-2 rounded"></div><p class="font-semibold text-indigo-700 dark:text-indigo-400 mt-2">Instructor Panel</p></div>
+            <div class="text-center p-4 border-2 border-dashed border-blue-300 dark:border-blue-600 rounded-xl"><div id="qr-teacher-large" class="inline-block bg-white p-2 rounded"></div><p class="font-semibold text-blue-800 dark:text-blue-400 mt-2">Instructor Panel</p></div>
           </div>
           <button onclick="window.print()" class="mt-4 w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium no-print">Print QR Codes</button>
         </div>
@@ -728,9 +842,9 @@ function renderTeacherView() {
       </div>
 
       <!-- Code Display -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
         <p class="text-gray-500 dark:text-gray-400 mb-2">Current Code</p>
-        <div class="code-display text-6xl md:text-8xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">${escapeHtml(state.currentCode)}</div>
+        <div class="code-display text-6xl md:text-8xl font-bold text-blue-700 dark:text-blue-400 mb-4">${escapeHtml(state.currentCode)}</div>
         <div class="flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 mb-6">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           <span>New code in <strong id="countdown-timer" class="${state.timeLeft <= COUNTDOWN_WARNING_SECONDS ? 'text-red-600 dark:text-red-400' : ''}">${formatTime(state.timeLeft)}</strong></span>
@@ -762,7 +876,7 @@ function renderTeacherView() {
       </div>
 
       <!-- Attendance List -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 no-print">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 no-print">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Attendance (${state.attendance.length})</h3>
           <button onclick="exportCSV()" class="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 font-medium text-sm ${state.attendance.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">Export CSV</button>
@@ -778,7 +892,7 @@ function renderTeacherView() {
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Email</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Loc</th>
-                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Participation</th>
+                  <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium"><span class="tooltip-trigger">Participation<span class="tooltip-content">Points recorded by instructor</span></span></th>
                   <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
                 </tr>
               </thead>
@@ -817,7 +931,7 @@ function renderTeacherView() {
       </div>
 
       <!-- Failed Attempts -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 no-print border-l-4 border-amber-400 dark:border-amber-500">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 no-print border-l-4 border-amber-400 dark:border-amber-500">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Failed Attempts (${state.failedAttempts.length})</h3>
           <div class="flex gap-2">
@@ -853,7 +967,7 @@ function renderTeacherView() {
                   <input type="checkbox"
                     ${state.selectedFailedAttempts.has(f.firebaseKey) ? 'checked' : ''}
                     onchange="toggleFailedSelection('${f.firebaseKey}')"
-                    class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 dark:border-gray-600 focus:ring-indigo-500">
+                    class="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-600">
                   <div class="flex-1">
                     <div class="flex items-center gap-2 mb-1">
                       <span class="font-semibold text-gray-800 dark:text-gray-200">${escapeHtml(f.studentName)}</span>
@@ -912,12 +1026,12 @@ function renderHistoryView() {
 
   return `
     <div class="pt-8">
-      <button onclick="state.showHistory = false; state.selectedHistorySession = null; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+      <button onclick="state.showHistory = false; state.selectedHistorySession = null; render();" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div class="flex justify-between items-center mb-6">
           <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Session History</h2>
           <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" ${state.showAllHistory ? 'checked' : ''} onchange="state.showAllHistory = this.checked; render();" class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+            <input type="checkbox" ${state.showAllHistory ? 'checked' : ''} onchange="state.showAllHistory = this.checked; render();" class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-blue-600">
             <span class="text-gray-600 dark:text-gray-400">Show All Sessions</span>
           </label>
         </div>
@@ -926,7 +1040,7 @@ function renderHistoryView() {
         <div class="mb-4">
           <input type="text" placeholder="Search by class name or date..." value="${escapeHtml(state.historyFilter)}" 
             oninput="state.historyFilter = this.value; render();"
-            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
         </div>
         
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">${state.showAllHistory ? 'All sessions' : 'Sessions from the last 7 days'}. Click a session to view details.</p>
@@ -990,7 +1104,7 @@ function renderStudentView() {
   if (showQuickConfirm) {
     return `
       <div class="flex items-center justify-center min-h-screen py-8">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md text-center">
           <div class="mb-6">
             <div class="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg class="w-10 h-10 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -998,7 +1112,7 @@ function renderStudentView() {
               </svg>
             </div>
             <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Welcome back!</h2>
-            <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mb-1">${escapeHtml(savedInfo.studentName)}</p>
+            <p class="text-3xl font-bold text-blue-700 dark:text-blue-400 mb-1">${escapeHtml(savedInfo.studentName)}</p>
             <p class="text-gray-500 dark:text-gray-400">Student ID: ${escapeHtml(savedInfo.studentId)}</p>
           </div>
 
@@ -1053,8 +1167,8 @@ function renderStudentView() {
 
   return `
     <div class="flex items-center justify-center min-h-screen py-8">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back</button>
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
+        <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back</button>
         <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Mark Attendance</h2>
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your details and the code shown by your instructor</p>
         ${welcomeBanner}
@@ -1937,9 +2051,9 @@ function renderSessionDetailView() {
 
   return `
     <div class="pt-8">
-      <button onclick="state.selectedHistorySession = null; state.selectedSessionAttendance = []; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to History</button>
+      <button onclick="state.selectedHistorySession = null; state.selectedSessionAttendance = []; render();" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back to History</button>
       
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mb-6">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mb-6">
         <div class="flex justify-between items-start mb-4">
           <div>
             <h2 class="text-2xl font-bold text-gray-800 dark:text-white">${escapeHtml(session.className)}</h2>
@@ -1949,7 +2063,7 @@ function renderSessionDetailView() {
           <div class="flex gap-2">
             ${canReopen ? '<button onclick="reopenSessionFromDetail(\'' + session.id + '\')" class="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 font-medium text-sm">Reopen for Late</button>' : ''}
             <button onclick="openAddStudentModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm">+ Add Student</button>
-            <button onclick="exportHistoryCSV()" class="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 font-medium text-sm">Export CSV</button>
+            <button onclick="exportHistoryCSV()" class="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 font-medium text-sm">Export CSV</button>
           </div>
         </div>
         
@@ -1963,15 +2077,15 @@ function renderSessionDetailView() {
             <p class="text-2xl font-bold text-orange-700 dark:text-orange-400">${lateCount}</p>
             <p class="text-sm text-orange-600 dark:text-orange-500">Late</p>
           </div>
-          <div class="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-4 text-center">
-            <p class="text-2xl font-bold text-indigo-700 dark:text-indigo-400">${attendance.length}</p>
-            <p class="text-sm text-indigo-600 dark:text-indigo-500">Total</p>
+          <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-blue-800 dark:text-blue-400">${attendance.length}</p>
+            <p class="text-sm text-blue-700 dark:text-blue-500">Total</p>
           </div>
         </div>
       </div>
       
       <!-- Attendance List with Edit Options (AC8 & AC9) -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Attendance List</h3>
         ${attendance.length === 0 
           ? '<p class="text-gray-400 dark:text-gray-500 text-center py-6">No attendance records</p>'
@@ -2284,25 +2398,25 @@ function renderModals() {
   if (state.showAddStudentModal && state.selectedHistorySession) {
     modalHtml += `
       <div class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" onclick="closeAddStudentModal()">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
           <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Add Student Manually</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Add a student who couldn't check in via QR code.</p>
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student ID *</label>
-              <input type="text" id="addStudentId" maxlength="20" placeholder="e.g., 11223344" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+              <input type="text" id="addStudentId" maxlength="20" placeholder="e.g., 11223344" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name *</label>
-              <input type="text" id="addStudentName" maxlength="100" placeholder="e.g., Nguyen Van A" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+              <input type="text" id="addStudentName" maxlength="100" placeholder="e.g., Nguyen Van A" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
-              <input type="email" id="addStudentEmail" maxlength="100" placeholder="e.g., student@st.neu.edu.vn" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+              <input type="email" id="addStudentEmail" maxlength="100" placeholder="e.g., student@st.neu.edu.vn" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (optional)</label>
-              <input type="text" id="addStudentNote" maxlength="200" placeholder="e.g., Approved by instructor" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+              <input type="text" id="addStudentNote" maxlength="200" placeholder="e.g., Approved by instructor" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
             </div>
           </div>
           <div class="flex gap-3 mt-6">
@@ -2318,25 +2432,25 @@ function renderModals() {
     const student = state.editingStudent;
     modalHtml += `
       <div class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" onclick="closeEditStudentModal()">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
           <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Edit Student Details</h3>
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Student ID *</label>
-              <input type="text" id="editStudentId" maxlength="20" value="${escapeHtml(student.studentId || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+              <input type="text" id="editStudentId" maxlength="20" value="${escapeHtml(student.studentId || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name *</label>
-              <input type="text" id="editStudentName" maxlength="100" value="${escapeHtml(student.studentName || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+              <input type="text" id="editStudentName" maxlength="100" value="${escapeHtml(student.studentName || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
-              <input type="email" id="editStudentEmail" maxlength="100" value="${escapeHtml(student.email || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+              <input type="email" id="editStudentEmail" maxlength="100" value="${escapeHtml(student.email || '')}" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
             </div>
           </div>
           <div class="flex gap-3 mt-6">
             <button onclick="closeEditStudentModal()" class="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium">Cancel</button>
-            <button onclick="submitEditStudent()" class="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Save Changes</button>
+            <button onclick="submitEditStudent()" class="flex-1 py-2 px-4 bg-blue-800 hover:bg-blue-900 text-white rounded-lg font-medium">Save Changes</button>
           </div>
         </div>
       </div>`;
@@ -2347,17 +2461,17 @@ function renderModals() {
     const student = state.noteTargetStudent;
     modalHtml += `
       <div class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" onclick="closeAddNoteModal()">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onclick="event.stopPropagation()">
           <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-2">Add Note</h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Add a note for ${escapeHtml(student.studentName)}</p>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note</label>
-            <textarea id="studentNote" rows="3" maxlength="500" placeholder="e.g., Approved by instructor, Technical issue during check-in" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">${escapeHtml(student.note || '')}</textarea>
+            <textarea id="studentNote" rows="3" maxlength="500" placeholder="e.g., Approved by instructor, Technical issue during check-in" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">${escapeHtml(student.note || '')}</textarea>
           </div>
           ${student.note ? '<p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Current note will be replaced.</p>' : ''}
           <div class="flex gap-3 mt-6">
             <button onclick="closeAddNoteModal()" class="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium">Cancel</button>
-            <button onclick="submitAddNote()" class="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Save Note</button>
+            <button onclick="submitAddNote()" class="flex-1 py-2 px-4 bg-blue-800 hover:bg-blue-900 text-white rounded-lg font-medium">Save Note</button>
           </div>
         </div>
       </div>`;
@@ -2376,17 +2490,17 @@ function renderLookupView() {
   
   return `
     <div class="flex items-center justify-center min-h-screen py-8">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-2xl">
-        <button onclick="setMode(null)" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back</button>
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-2xl">
+        <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back</button>
         <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">My Attendance History</h2>
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter your student ID to view all your attendance records</p>
         
         <div class="flex gap-3 mb-6">
           <input type="text" id="lookupStudentId" placeholder="Enter Student ID (e.g., 11223344)" maxlength="20" 
             value="${state.lookupStudentId || escapeHtml(prefillStudentId)}"
-            class="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+            class="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white"
             onkeypress="if(event.key === 'Enter') searchAttendance()">
-          <button onclick="searchAttendance()" id="searchBtn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50">
+          <button onclick="searchAttendance()" id="searchBtn" class="px-6 py-3 bg-blue-800 hover:bg-blue-900 text-white rounded-lg font-semibold transition-colors disabled:opacity-50">
             ${state.lookupLoading ? 'Searching...' : 'Search'}
           </button>
         </div>
@@ -2409,9 +2523,9 @@ function renderLookupResults() {
   
   return `
     <div class="mb-4 grid grid-cols-3 gap-4">
-      <div class="bg-indigo-50 dark:bg-indigo-900/30 rounded-lg p-3 text-center">
-        <p class="text-2xl font-bold text-indigo-700 dark:text-indigo-400">${totalRecords}</p>
-        <p class="text-xs text-indigo-600 dark:text-indigo-500">Total</p>
+      <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-blue-800 dark:text-blue-400">${totalRecords}</p>
+        <p class="text-xs text-blue-700 dark:text-blue-500">Total</p>
       </div>
       <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-lg p-3 text-center">
         <p class="text-2xl font-bold text-emerald-700 dark:text-emerald-400">${onTimeCount}</p>
@@ -2431,7 +2545,7 @@ function renderLookupResults() {
             <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Date</th>
             <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Time</th>
             <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Status</th>
-            <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium">Participation</th>
+            <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium"><span class="tooltip-trigger">Participation<span class="tooltip-content">Points recorded by instructor</span></span></th>
           </tr>
         </thead>
         <tbody>
@@ -2442,7 +2556,7 @@ function renderLookupResults() {
               <td class="py-2 text-gray-500 dark:text-gray-400">${new Date(r.timestamp).toLocaleTimeString()}</td>
               <td class="py-2">
                 ${r.isLate
-                  ? '<span class="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs font-medium">Late</span>'
+                  ? '<span class="tooltip-trigger px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded text-xs font-medium">Late<span class="tooltip-content">Checked in after ' + (r.lateThreshold || 10) + ' minutes</span></span>'
                   : '<span class="px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded text-xs font-medium">On Time</span>'
                 }
               </td>
@@ -2495,6 +2609,7 @@ async function searchAttendance() {
             isLate: record.isLate || record.lateCheckIn || false,
             sessionCreatedAt: session.createdAt,
             participation: record.participation || 0,
+            lateThreshold: session.lateThresholdMinutes || session.lateThreshold || 10, // AC3.2: Include late threshold for transparency
           });
         }
       }
@@ -2923,7 +3038,7 @@ function renderAnalyticsView() {
     return `
       <div class="flex items-center justify-center min-h-screen">
         <div class="text-center">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-indigo-400 mx-auto mb-4"></div>
           <p class="text-gray-600 dark:text-gray-300">Loading analytics...</p>
         </div>
       </div>`;
@@ -2932,8 +3047,8 @@ function renderAnalyticsView() {
   if (!state.analyticsData) {
     return `
       <div class="pt-8">
-        <button onclick="state.showAnalytics = false; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+        <button onclick="state.showAnalytics = false; render();" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
           <p class="text-gray-500 dark:text-gray-400">No analytics data available. Start some sessions first!</p>
         </div>
       </div>`;
@@ -2947,16 +3062,16 @@ function renderAnalyticsView() {
   return `
     <div class="pt-8 space-y-6">
       <div class="flex justify-between items-center no-print">
-        <button onclick="state.showAnalytics = false; render();" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back to Dashboard</button>
+        <button onclick="state.showAnalytics = false; render();" class="text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back to Dashboard</button>
         <h2 class="text-xl font-bold text-gray-800 dark:text-white">Analytics Dashboard</h2>
         <button onclick="exportAnalyticsCSV()" class="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 font-medium text-sm">Export Report</button>
       </div>
 
       <!-- Summary Cards -->
       <div class="grid grid-cols-3 gap-4">
-        <div class="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-6 text-center">
-          <p class="text-3xl font-bold text-indigo-700 dark:text-indigo-400">${totalSessions}</p>
-          <p class="text-sm text-indigo-600 dark:text-indigo-500">Total Sessions</p>
+        <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-6 text-center">
+          <p class="text-3xl font-bold text-blue-800 dark:text-blue-400">${totalSessions}</p>
+          <p class="text-sm text-blue-700 dark:text-blue-500">Total Sessions</p>
         </div>
         <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-6 text-center">
           <p class="text-3xl font-bold text-emerald-700 dark:text-emerald-400">${avgAttendanceRate.toFixed(1)}%</p>
@@ -2969,7 +3084,7 @@ function renderAnalyticsView() {
       </div>
 
       <!-- Date Filter -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4">
         <div class="flex flex-wrap items-center gap-4">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Date:</span>
           <input type="date" id="analyticsStartDate" value="${state.analyticsDateStart}"
@@ -2977,20 +3092,20 @@ function renderAnalyticsView() {
           <span class="text-gray-500">to</span>
           <input type="date" id="analyticsEndDate" value="${state.analyticsDateEnd}"
             class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white">
-          <button onclick="applyAnalyticsDateFilter()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">Apply</button>
+          <button onclick="applyAnalyticsDateFilter()" class="px-4 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-lg text-sm font-medium">Apply</button>
           <button onclick="clearAnalyticsDateFilter()" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">Clear</button>
         </div>
       </div>
 
       <!-- Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Attendance Trend</h3>
           <div style="height: 250px;">
             <canvas id="trendChart"></canvas>
           </div>
         </div>
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
           <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Session Comparison (Last 10)</h3>
           <div style="height: 250px;">
             <canvas id="sessionChart"></canvas>
@@ -2999,7 +3114,7 @@ function renderAnalyticsView() {
       </div>
 
       <!-- Student Rankings -->
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Student Attendance Ranking</h3>
         ${studentStats.length === 0
           ? '<p class="text-gray-400 dark:text-gray-500 text-center py-6">No student data</p>'
@@ -3038,7 +3153,7 @@ function renderAnalyticsView() {
 
       <!-- At-Risk Students -->
       ${atRiskStudents.length > 0 ? `
-        <div class="bg-red-50 dark:bg-red-900/20 rounded-2xl shadow-xl p-6 border-l-4 border-red-500">
+        <div class="bg-red-50 dark:bg-red-900/20 rounded-xl shadow-lg p-6 border-l-4 border-red-500">
           <h3 class="text-lg font-semibold text-red-800 dark:text-red-300 mb-4">At-Risk Students (Below 70%)</h3>
           <p class="text-sm text-red-600 dark:text-red-400 mb-4">${atRiskStudents.length} student${atRiskStudents.length > 1 ? 's' : ''} need attention</p>
           <div class="space-y-2">
@@ -3054,7 +3169,7 @@ function renderAnalyticsView() {
           </div>
         </div>
       ` : `
-        <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl shadow-xl p-6 border-l-4 border-emerald-500">
+        <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl shadow-lg p-6 border-l-4 border-emerald-500">
           <h3 class="text-lg font-semibold text-emerald-800 dark:text-emerald-300 mb-2">All Students Above 70%</h3>
           <p class="text-sm text-emerald-600 dark:text-emerald-400">Great news! No at-risk students detected.</p>
         </div>
