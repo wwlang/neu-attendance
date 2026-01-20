@@ -14,6 +14,8 @@
       document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>');
     }
   </script>
+  <!-- Chart.js for Analytics Dashboard -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -130,7 +132,17 @@ let state = {
   lookupStudentId: '',
   lookupResults: [],
   lookupLoading: false,
-  lookupError: null
+  lookupError: null,
+  // Analytics Dashboard
+  showAnalytics: false,
+  analyticsData: null,
+  analyticsLoading: false,
+  analyticsDateStart: '',
+  analyticsDateEnd: '',
+  analyticsSortColumn: 'rate',
+  analyticsSortDirection: 'desc',
+  trendChart: null,
+  sessionChart: null
 };
 
 // Check if QRCode library is available
@@ -648,6 +660,11 @@ function renderTeacherView() {
     return renderHistoryView();
   }
 
+  // Show analytics view
+  if (state.showAnalytics) {
+    return renderAnalyticsView();
+  }
+
   if (!state.session) {
     return `
       <div class="pt-8">
@@ -655,6 +672,9 @@ function renderTeacherView() {
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Start Attendance Session</h2>
+            <button onclick="state.showAnalytics = true; loadAnalyticsData(); render();" class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium text-sm">
+              Analytics
+            </button>
             <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
               View History
             </button>
@@ -691,6 +711,9 @@ function renderTeacherView() {
       <div class="flex justify-between items-center no-print">
         <h2 class="text-xl font-bold text-gray-800 dark:text-white">${escapeHtml(state.session.className)}${connectionStatus}${reopenedBadge}</h2>
         <div class="flex gap-2">
+          <button onclick="state.showAnalytics = true; loadAnalyticsData(); render();" class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium text-sm">
+            Analytics
+          </button>
           <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
             History
           </button>
@@ -2463,6 +2486,461 @@ async function searchAttendance() {
     state.lookupLoading = false;
     render();
   }
+}
+
+
+// ============================================
+// Analytics Dashboard Functions
+// ============================================
+
+async function loadAnalyticsData() {
+  state.analyticsLoading = true;
+  render();
+
+  try {
+    // Load all sessions
+    const sessionsSnapshot = await db.ref('sessions').once('value');
+    const sessions = [];
+    sessionsSnapshot.forEach(child => {
+      const session = child.val();
+      session.id = child.key;
+      sessions.push(session);
+    });
+
+    // Load attendance for all sessions
+    const attendanceBySession = {};
+    const studentAttendance = {}; // { studentId: { name, sessions: [...] } }
+
+    for (const session of sessions) {
+      const attendanceSnapshot = await db.ref('attendance/' + session.id).once('value');
+      const attendanceData = attendanceSnapshot.val() || {};
+      const attendanceList = Object.values(attendanceData);
+      attendanceBySession[session.id] = attendanceList;
+
+      // Track per-student attendance
+      for (const record of attendanceList) {
+        if (!studentAttendance[record.studentId]) {
+          studentAttendance[record.studentId] = {
+            name: record.studentName,
+            email: record.email,
+            sessions: []
+          };
+        }
+        studentAttendance[record.studentId].sessions.push({
+          sessionId: session.id,
+          className: session.className,
+          timestamp: record.timestamp,
+          isLate: record.isLate || record.lateCheckIn
+        });
+      }
+    }
+
+    // Calculate statistics
+    const totalSessions = sessions.length;
+    const uniqueStudents = Object.keys(studentAttendance).length;
+
+    // Calculate average attendance rate (per session)
+    let totalAttendanceRate = 0;
+    const sessionStats = sessions.map(s => {
+      const attendance = attendanceBySession[s.id] || [];
+      // Use unique students or attendance count, whichever makes sense
+      const rate = uniqueStudents > 0 ? (attendance.length / uniqueStudents) * 100 : 0;
+      totalAttendanceRate += rate;
+      return {
+        id: s.id,
+        className: s.className,
+        createdAt: s.createdAt,
+        attendanceCount: attendance.length,
+        rate: Math.min(rate, 100) // Cap at 100%
+      };
+    }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    const avgAttendanceRate = totalSessions > 0 ? totalAttendanceRate / totalSessions : 0;
+
+    // Calculate per-student statistics
+    const studentStats = Object.entries(studentAttendance).map(([studentId, data]) => {
+      const sessionsAttended = data.sessions.length;
+      const rate = totalSessions > 0 ? (sessionsAttended / totalSessions) * 100 : 0;
+      const lateCount = data.sessions.filter(s => s.isLate).length;
+      return {
+        studentId,
+        name: data.name,
+        email: data.email,
+        sessionsAttended,
+        totalSessions,
+        rate,
+        lateCount,
+        isAtRisk: rate < 70
+      };
+    });
+
+    // Sort by rate descending by default
+    studentStats.sort((a, b) => b.rate - a.rate);
+
+    state.analyticsData = {
+      totalSessions,
+      uniqueStudents,
+      avgAttendanceRate,
+      sessionStats,
+      studentStats,
+      atRiskStudents: studentStats.filter(s => s.isAtRisk)
+    };
+
+    state.analyticsLoading = false;
+    render();
+
+    // Initialize charts after render
+    setTimeout(() => {
+      initAnalyticsCharts();
+    }, 100);
+
+  } catch (err) {
+    console.error('Failed to load analytics:', err);
+    state.analyticsLoading = false;
+    state.analyticsData = null;
+    render();
+  }
+}
+
+function initAnalyticsCharts() {
+  if (!state.analyticsData) return;
+
+  const isDark = state.darkMode;
+  const textColor = isDark ? '#e5e7eb' : '#374151';
+  const gridColor = isDark ? '#374151' : '#e5e7eb';
+
+  // Destroy existing charts if they exist
+  if (state.trendChart) {
+    state.trendChart.destroy();
+    state.trendChart = null;
+  }
+  if (state.sessionChart) {
+    state.sessionChart.destroy();
+    state.sessionChart = null;
+  }
+
+  // Trend Chart
+  const trendCanvas = document.getElementById('trendChart');
+  if (trendCanvas) {
+    const ctx = trendCanvas.getContext('2d');
+    const data = state.analyticsData.sessionStats;
+
+    state.trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.map(s => new Date(s.createdAt).toLocaleDateString()),
+        datasets: [{
+          label: 'Attendance Rate (%)',
+          data: data.map(s => s.rate.toFixed(1)),
+          borderColor: isDark ? '#818cf8' : '#4f46e5',
+          backgroundColor: isDark ? 'rgba(129, 140, 248, 0.1)' : 'rgba(79, 70, 229, 0.1)',
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: { color: textColor }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: { color: textColor },
+            grid: { color: gridColor }
+          },
+          x: {
+            ticks: { color: textColor },
+            grid: { color: gridColor }
+          }
+        }
+      }
+    });
+  }
+
+  // Session Comparison Chart
+  const sessionCanvas = document.getElementById('sessionChart');
+  if (sessionCanvas) {
+    const ctx = sessionCanvas.getContext('2d');
+    const data = state.analyticsData.sessionStats.slice(-10); // Last 10 sessions
+
+    state.sessionChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.map(s => s.className.length > 15 ? s.className.substring(0, 15) + '...' : s.className),
+        datasets: [{
+          label: 'Students Present',
+          data: data.map(s => s.attendanceCount),
+          backgroundColor: isDark ? '#34d399' : '#10b981',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: { color: textColor }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { color: textColor },
+            grid: { color: gridColor }
+          },
+          x: {
+            ticks: { color: textColor, maxRotation: 45 },
+            grid: { color: gridColor }
+          }
+        }
+      }
+    });
+  }
+}
+
+function sortAnalyticsTable(column) {
+  if (state.analyticsSortColumn === column) {
+    state.analyticsSortDirection = state.analyticsSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.analyticsSortColumn = column;
+    state.analyticsSortDirection = column === 'name' ? 'asc' : 'desc';
+  }
+
+  const dir = state.analyticsSortDirection === 'asc' ? 1 : -1;
+  state.analyticsData.studentStats.sort((a, b) => {
+    if (column === 'name') {
+      return dir * a.name.localeCompare(b.name);
+    } else if (column === 'id') {
+      return dir * a.studentId.localeCompare(b.studentId);
+    } else if (column === 'sessions') {
+      return dir * (a.sessionsAttended - b.sessionsAttended);
+    } else if (column === 'rate') {
+      return dir * (a.rate - b.rate);
+    }
+    return 0;
+  });
+
+  render();
+}
+
+function applyAnalyticsDateFilter() {
+  const startDate = document.getElementById('analyticsStartDate').value;
+  const endDate = document.getElementById('analyticsEndDate').value;
+  state.analyticsDateStart = startDate;
+  state.analyticsDateEnd = endDate;
+  loadAnalyticsData();
+}
+
+function clearAnalyticsDateFilter() {
+  state.analyticsDateStart = '';
+  state.analyticsDateEnd = '';
+  document.getElementById('analyticsStartDate').value = '';
+  document.getElementById('analyticsEndDate').value = '';
+  loadAnalyticsData();
+}
+
+function exportAnalyticsCSV() {
+  if (!state.analyticsData) return;
+
+  const { totalSessions, uniqueStudents, avgAttendanceRate, studentStats, sessionStats } = state.analyticsData;
+
+  const lines = [];
+
+  // Summary section
+  lines.push(['NEU Attendance Analytics Report']);
+  lines.push(['Generated:', new Date().toISOString()]);
+  lines.push([]);
+  lines.push(['Summary']);
+  lines.push(['Total Sessions:', totalSessions]);
+  lines.push(['Unique Students:', uniqueStudents]);
+  lines.push(['Average Attendance Rate:', avgAttendanceRate.toFixed(1) + '%']);
+  lines.push([]);
+
+  // Student attendance section
+  lines.push(['Student Attendance']);
+  lines.push(['Student ID', 'Name', 'Email', 'Sessions Attended', 'Total Sessions', 'Attendance Rate', 'Late Count', 'At Risk']);
+  for (const s of studentStats) {
+    lines.push([
+      s.studentId,
+      s.name,
+      s.email || '',
+      s.sessionsAttended,
+      s.totalSessions,
+      s.rate.toFixed(1) + '%',
+      s.lateCount,
+      s.isAtRisk ? 'Yes' : 'No'
+    ]);
+  }
+  lines.push([]);
+
+  // Session breakdown section
+  lines.push(['Session Breakdown']);
+  lines.push(['Date', 'Class Name', 'Students Present', 'Attendance Rate']);
+  for (const s of sessionStats) {
+    lines.push([
+      new Date(s.createdAt).toLocaleDateString(),
+      s.className,
+      s.attendanceCount,
+      s.rate.toFixed(1) + '%'
+    ]);
+  }
+
+  const BOM = '\uFEFF';
+  const csv = BOM + lines.map(row => row.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'analytics_report_' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+}
+
+function renderAnalyticsView() {
+  if (state.analyticsLoading) {
+    return `
+      <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
+          <p class="text-gray-600 dark:text-gray-300">Loading analytics...</p>
+        </div>
+      </div>`;
+  }
+
+  if (!state.analyticsData) {
+    return `
+      <div class="pt-8">
+        <button onclick="state.showAnalytics = false; render();" class="mb-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+          <p class="text-gray-500 dark:text-gray-400">No analytics data available. Start some sessions first!</p>
+        </div>
+      </div>`;
+  }
+
+  const { totalSessions, uniqueStudents, avgAttendanceRate, studentStats, atRiskStudents, sessionStats } = state.analyticsData;
+  const sortIcon = (col) => state.analyticsSortColumn === col
+    ? (state.analyticsSortDirection === 'asc' ? ' ↑' : ' ↓')
+    : '';
+
+  return `
+    <div class="pt-8 space-y-6">
+      <div class="flex justify-between items-center no-print">
+        <button onclick="state.showAnalytics = false; render();" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">← Back to Dashboard</button>
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white">Analytics Dashboard</h2>
+        <button onclick="exportAnalyticsCSV()" class="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 font-medium text-sm">Export Report</button>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-6 text-center">
+          <p class="text-3xl font-bold text-indigo-700 dark:text-indigo-400">${totalSessions}</p>
+          <p class="text-sm text-indigo-600 dark:text-indigo-500">Total Sessions</p>
+        </div>
+        <div class="bg-emerald-50 dark:bg-emerald-900/30 rounded-xl p-6 text-center">
+          <p class="text-3xl font-bold text-emerald-700 dark:text-emerald-400">${avgAttendanceRate.toFixed(1)}%</p>
+          <p class="text-sm text-emerald-600 dark:text-emerald-500">Avg Attendance</p>
+        </div>
+        <div class="bg-purple-50 dark:bg-purple-900/30 rounded-xl p-6 text-center">
+          <p class="text-3xl font-bold text-purple-700 dark:text-purple-400">${uniqueStudents}</p>
+          <p class="text-sm text-purple-600 dark:text-purple-500">Unique Students</p>
+        </div>
+      </div>
+
+      <!-- Date Filter -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4">
+        <div class="flex flex-wrap items-center gap-4">
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Date:</span>
+          <input type="date" id="analyticsStartDate" value="${state.analyticsDateStart}"
+            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white">
+          <span class="text-gray-500">to</span>
+          <input type="date" id="analyticsEndDate" value="${state.analyticsDateEnd}"
+            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white">
+          <button onclick="applyAnalyticsDateFilter()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium">Apply</button>
+          <button onclick="clearAnalyticsDateFilter()" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">Clear</button>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Attendance Trend</h3>
+          <div style="height: 250px;">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Session Comparison (Last 10)</h3>
+          <div style="height: 250px;">
+            <canvas id="sessionChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Student Rankings -->
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Student Attendance Ranking</h3>
+        ${studentStats.length === 0
+          ? '<p class="text-gray-400 dark:text-gray-500 text-center py-6">No student data</p>'
+          : `
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
+              <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white dark:bg-gray-800">
+                  <tr class="border-b dark:border-gray-700">
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:text-indigo-600" onclick="sortAnalyticsTable('name')">Name${sortIcon('name')}</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:text-indigo-600" onclick="sortAnalyticsTable('id')">Student ID${sortIcon('id')}</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:text-indigo-600" onclick="sortAnalyticsTable('sessions')">Sessions${sortIcon('sessions')}</th>
+                    <th class="text-left py-2 text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:text-indigo-600" onclick="sortAnalyticsTable('rate')">Rate${sortIcon('rate')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${studentStats.map(s => `
+                    <tr class="border-b border-gray-100 dark:border-gray-700 ${s.isAtRisk ? 'bg-red-50 dark:bg-red-900/20' : ''}">
+                      <td class="py-2 ${s.isAtRisk ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-800 dark:text-gray-200'}">${escapeHtml(s.name)}</td>
+                      <td class="py-2 font-mono ${s.isAtRisk ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}">${escapeHtml(s.studentId)}</td>
+                      <td class="py-2 ${s.isAtRisk ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}">${s.sessionsAttended}/${s.totalSessions}</td>
+                      <td class="py-2">
+                        <span class="px-2 py-1 rounded text-xs font-medium ${
+                          s.rate >= 90 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
+                          s.rate >= 70 ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        }">${s.rate.toFixed(1)}%</span>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `
+        }
+      </div>
+
+      <!-- At-Risk Students -->
+      ${atRiskStudents.length > 0 ? `
+        <div class="bg-red-50 dark:bg-red-900/20 rounded-2xl shadow-xl p-6 border-l-4 border-red-500">
+          <h3 class="text-lg font-semibold text-red-800 dark:text-red-300 mb-4">At-Risk Students (Below 70%)</h3>
+          <p class="text-sm text-red-600 dark:text-red-400 mb-4">${atRiskStudents.length} student${atRiskStudents.length > 1 ? 's' : ''} need attention</p>
+          <div class="space-y-2">
+            ${atRiskStudents.map(s => `
+              <div class="flex justify-between items-center bg-white dark:bg-gray-800 rounded-lg p-3">
+                <div>
+                  <span class="font-medium text-gray-800 dark:text-gray-200">${escapeHtml(s.name)}</span>
+                  <span class="text-gray-500 dark:text-gray-400 ml-2">(${escapeHtml(s.studentId)})</span>
+                </div>
+                <span class="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-sm font-medium">${s.rate.toFixed(1)}%</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : `
+        <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl shadow-xl p-6 border-l-4 border-emerald-500">
+          <h3 class="text-lg font-semibold text-emerald-800 dark:text-emerald-300 mb-2">All Students Above 70%</h3>
+          <p class="text-sm text-emerald-600 dark:text-emerald-400">Great news! No at-risk students detected.</p>
+        </div>
+      `}
+    </div>`;
 }
 
 function init() {

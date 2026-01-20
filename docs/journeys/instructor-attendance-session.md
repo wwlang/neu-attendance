@@ -24,7 +24,7 @@ Instructor needs to take attendance for a class session
 
 ### 2. Configure Session
 - Enter class name (e.g., "Business Communication - Section A")
-- Set classroom radius (20-200m, default 50m)
+- Set classroom radius (20-500m, **default 300m**)
 - Set late threshold (5-30 minutes, default 10 minutes)
 - Review pre-generated QR codes for student access
 
@@ -44,7 +44,7 @@ Instructor needs to take attendance for a class session
 
 ### 5. Monitor Attendance (Real-time)
 - Watch attendance list populate as students check in
-- See student count, names, IDs, timestamps
+- See student count, names, IDs, timestamps, **location indicator (Loc column)**
 - Review failed attempts panel for verification issues
 - Statistics show: On Time / Late / Failed counts
 
@@ -83,11 +83,31 @@ Instructor needs to take attendance for a class session
 - All changes logged with timestamp for audit trail
 - Confirmation required for deletions
 
+## Session Settings Reference
+
+| Setting | Range | Default | Description |
+|---------|-------|---------|-------------|
+| Classroom Radius | 20-500m | **300m** | Maximum distance from instructor for valid check-in |
+| Late Threshold | 5-30 min | 10 min | Time after session start before check-ins marked late |
+| Code Rotation | Fixed | 120s | New attendance code generated every 2 minutes |
+| Code Grace Period | Fixed | **180s** | Previous code remains valid for 3 minutes after rotation |
+| Recently Expired Window | Fixed | **30s** | Codes that just expired are accepted within 30 seconds |
+
+## Location Handling
+
+**Location is now optional** for student check-ins:
+- Students can check in without location permission
+- If location is provided, distance from instructor is verified
+- **Loc column** in attendance table shows location status:
+  - Checkmark (green): Location verified
+  - Dash (yellow): No location data provided
+- CSV export includes: Latitude, Longitude, Distance, Location Provided columns
+
 ## Acceptance Criteria
 
 ### AC1: Session Creation
 - [x] Can enter descriptive class name (max 100 characters)
-- [x] Can adjust radius from 20m to 200m
+- [x] Can adjust radius from 20m to **500m** (default **300m**)
 - [x] Can adjust late threshold from 5 to 30 minutes
 - [x] System captures GPS coordinates on session start
 - [x] Session is marked as active in Firebase
@@ -108,7 +128,7 @@ Instructor needs to take attendance for a class session
 
 ### AC3: Real-time Attendance Tracking
 - [x] New check-ins appear within 2 seconds
-- [x] List shows student ID, name, email, timestamp
+- [x] List shows student ID, name, email, timestamp, **location indicator (Loc column)**
 - [x] Count updates automatically
 - [x] Most recent check-in highlighted
 - [x] Success sound plays for new check-ins
@@ -131,6 +151,7 @@ Instructor needs to take attendance for a class session
 
 ### AC5: Data Export
 - [x] CSV export includes all collected fields
+- [x] **CSV includes location columns**: Latitude, Longitude, Distance, Location Provided
 - [x] Filename includes class name and date
 - [x] UTF-8 encoding with BOM for Excel compatibility
 - [x] Separate export for failed attempts
@@ -184,6 +205,19 @@ Instructor needs to take attendance for a class session
 > - Confirmation prompt with reason required for deletions
 > - All changes logged to `audit/{sessionId}` in Firebase with timestamp
 
+### AC10: Code Grace Period & Recently Expired Handling
+**Improved code acceptance for better student experience.**
+
+- [x] Previous code accepted within **180 second** grace period after rotation
+- [x] **Recently expired codes** accepted within **30 seconds** of expiration
+- [x] Clear error message for truly expired codes
+- [x] Grace period prevents students from failing due to network latency
+
+> **UPDATED (2026-01-20):** Code acceptance windows:
+> - Current code: Always valid
+> - Previous code: Valid for 180s after new code generated
+> - Recently expired: Valid for 30s after expiration (covers edge cases)
+
 ## Error Scenarios
 
 | Scenario | Expected Behavior |
@@ -193,6 +227,7 @@ Instructor needs to take attendance for a class session
 | Browser refresh mid-session | Session recovers automatically |
 | Wrong PIN entered | Error message, retry allowed |
 | Session ended by accident | Reopen from History within 7 days |
+| Student location denied | Allow check-in, mark "No location" in Loc column |
 
 ## Metrics
 - Time to start session: < 10 seconds (including GPS acquisition)
