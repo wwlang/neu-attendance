@@ -1699,7 +1699,9 @@ async function startSession() {
   try {
     const location = await getLocation();
     state.teacherLocation = location;
-    const sessionId = Date.now().toString(36), code = generateCode();
+    // Use Firebase push() for cryptographically unique session IDs (SEC-2026-011)
+    const sessionRef = db.ref('sessions').push();
+    const sessionId = sessionRef.key, code = generateCode();
     const session = {
       id: sessionId,
       className,
@@ -1710,7 +1712,7 @@ async function startSession() {
       createdAt: new Date().toISOString(),
       lateThreshold: state.lateThreshold
     };
-    await db.ref('sessions/' + sessionId).set(session);
+    await sessionRef.set(session);
     await db.ref('activeSession').set(sessionId);
     state.session = session;
     state.currentCode = code;
