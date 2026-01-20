@@ -121,13 +121,19 @@ function isLateCheckIn(checkInTimestamp, sessionStartTimestamp, thresholdMinutes
 }
 
 /**
- * Validates an email address using a simple regex pattern.
+ * Validates an email address using a standard regex pattern.
+ * Checks for: local-part@domain.tld format
  *
  * @param {string} email - The email to validate
  * @returns {boolean} True if email appears valid
  */
 function isValidEmail(email) {
-  return email && email.includes('@');
+  if (!email || typeof email !== 'string') {
+    return false;
+  }
+  // Standard email validation regex: local@domain.tld
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
 }
 
 /**
