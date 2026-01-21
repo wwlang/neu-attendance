@@ -23,10 +23,11 @@ Instructor needs to take attendance for a class session
 - Enter PIN (230782) to access instructor dashboard
 
 ### 2. Configure Session
-- Enter class name (e.g., "Business Communication - Section A")
+- **Select previous class from dropdown** or type a new class name
+- When selecting a previous class, **config auto-loads** from last session (radius, late threshold)
+- Can override auto-loaded settings if needed
 - Set classroom radius (20-500m, **default 300m**)
 - Set late threshold (5-30 minutes, default 10 minutes)
-- Review pre-generated QR codes for student access
 
 ### 3. Start Session
 - Click "Start Session"
@@ -305,6 +306,19 @@ Instructor needs to take attendance for a class session
 > - Participation column displayed in session detail view (read-only)
 > - CSV exports include Participation column for both active and historical sessions
 > - Integration tests verify all functionality: `participation-counter.spec.js`
+
+### AC14: Class Selection with Saved Config
+**Quick session start with remembered class settings.**
+
+- [ ] Dropdown shows unique class names from previous sessions (most recent first)
+- [ ] "New Class" option at top to enter a custom class name
+- [ ] Selecting a previous class auto-loads last session's config:
+  - Classroom radius
+  - Late threshold
+- [ ] Auto-loaded values can be overridden before starting
+- [ ] Dropdown search/filter for long class lists
+- [ ] New class name input shown when "New Class" selected
+- [ ] Config persisted per class name (not per session)
 
 
 ## Error Scenarios

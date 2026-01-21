@@ -9,6 +9,25 @@
 const { expect } = require('@playwright/test');
 
 /**
+ * Navigate to a URL ensuring emulator mode is always enabled.
+ * This prevents test data from polluting the production database.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} path - Path to navigate to (e.g., '/', '/?mode=student')
+ * @returns {Promise<import('@playwright/test').Response | null>}
+ */
+async function gotoWithEmulator(page, path = '/') {
+  // Parse the path to preserve existing query params
+  const url = new URL(path, 'http://localhost:3000');
+
+  // Always add emulator=true for test isolation
+  url.searchParams.set('emulator', 'true');
+
+  // Navigate to the full URL
+  return page.goto(url.toString());
+}
+
+/**
  * Wait for attendance count to reach expected value
  * @param {import('@playwright/test').Page} page
  * @param {number} expectedCount
@@ -146,8 +165,8 @@ async function checkInStudent(context, mainPage, studentId, studentName, student
   await studentPage.context().setGeolocation(location);
   await studentPage.context().grantPermissions(['geolocation']);
 
-  // Navigate to student mode with code
-  await studentPage.goto(`/?mode=student&code=${code}`);
+  // Navigate to student mode with code (always use emulator)
+  await gotoWithEmulator(studentPage, `/?mode=student&code=${code}`);
 
   // Wait for student form to be ready
   await expect(studentPage.locator('input#studentId')).toBeVisible({ timeout: 10000 });
@@ -321,6 +340,7 @@ async function enableShowArchived(page) {
 }
 
 module.exports = {
+  gotoWithEmulator,
   waitForAttendanceCount,
   waitForParticipationUpdate,
   waitForHistoryParticipationUpdate,

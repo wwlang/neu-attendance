@@ -5,6 +5,7 @@ const {
   authenticateAsInstructor,
   startInstructorSession,
   goToHistoryView,
+  gotoWithEmulator,
 } = require('../utils/test-helpers');
 
 /**
@@ -22,7 +23,7 @@ const INSTRUCTOR_PIN = '230782';
 
 test.describe('Instructor Flow', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
   });
 
@@ -147,7 +148,7 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should allow accessing instructor mode via URL parameter', async ({ page }) => {
-    await page.goto('/?mode=teacher');
+    await gotoWithEmulator(page, '/?mode=teacher');
 
     // Wait for page to process URL parameter
     await expect(page.locator('text=Instructor Access')).toBeVisible({ timeout: 10000 });

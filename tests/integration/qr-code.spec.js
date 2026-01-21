@@ -4,6 +4,7 @@ const {
   waitForPageLoad,
   authenticateAsInstructor,
   startInstructorSession,
+  gotoWithEmulator,
 } = require('../utils/test-helpers');
 
 /**
@@ -11,13 +12,13 @@ const {
  *
  * Tests QR code generation and auto-fill functionality:
  * - QR codes on home page
- * - QR codes on instructor setup
+ * - QR codes during active session (not on setup page)
  * - QR code with code parameter for auto-fill
  */
 
 test.describe('QR Code Generation', () => {
   test('should show QR codes on home page', async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Check QR containers exist
@@ -25,19 +26,19 @@ test.describe('QR Code Generation', () => {
     await expect(page.locator('#qr-student')).toBeVisible();
   });
 
-  test('should show QR codes on instructor setup page', async ({ page }) => {
-    await page.goto('/');
+  test('should NOT show QR codes on instructor setup page', async ({ page }) => {
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     await authenticateAsInstructor(page, '230782');
 
-    // Check for setup QR codes
-    await expect(page.locator('#qr-student-large')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#qr-teacher-large')).toBeVisible();
+    // QR codes should NOT be visible on setup page - only after session starts
+    await expect(page.locator('#qr-student-large')).not.toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#qr-teacher-large')).not.toBeVisible();
   });
 
   test('should show check-in QR during active session', async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     await startInstructorSession(page, 'QR Test Session');
@@ -50,7 +51,7 @@ test.describe('QR Code Generation', () => {
 
 test.describe('QR Code Auto-fill', () => {
   test('should auto-fill code from URL parameter', async ({ page }) => {
-    await page.goto('/?mode=student&code=TESTCD');
+    await gotoWithEmulator(page, '/?mode=student&code=TESTCD');
     await expect(page.locator('input#enteredCode')).toBeVisible({ timeout: 10000 });
 
     const codeValue = await page.inputValue('input#enteredCode');
@@ -58,21 +59,21 @@ test.describe('QR Code Auto-fill', () => {
   });
 
   test('should show auto-fill confirmation message', async ({ page }) => {
-    await page.goto('/?mode=student&code=ABC123');
+    await gotoWithEmulator(page, '/?mode=student&code=ABC123');
     await expect(page.locator('input#enteredCode')).toBeVisible({ timeout: 10000 });
 
     await expect(page.locator('text=Code auto-filled from QR scan')).toBeVisible();
   });
 
   test('should not show auto-fill message without code parameter', async ({ page }) => {
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('input#enteredCode')).toBeVisible({ timeout: 10000 });
 
     await expect(page.locator('text=Code auto-filled from QR scan')).not.toBeVisible();
   });
 
   test('should handle empty code parameter', async ({ page }) => {
-    await page.goto('/?mode=student&code=');
+    await gotoWithEmulator(page, '/?mode=student&code=');
     await expect(page.locator('input#enteredCode')).toBeVisible({ timeout: 10000 });
 
     const codeValue = await page.inputValue('input#enteredCode');

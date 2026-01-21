@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { waitForPageLoad } = require('../utils/test-helpers');
+const { waitForPageLoad, gotoWithEmulator } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Dark Mode Integration Tests
@@ -18,7 +18,7 @@ test.describe('Dark Mode', () => {
 
   test.beforeEach(async ({ page }) => {
     // Clear localStorage before each test
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: 'networkidle' });
     await waitForPageLoad(page);
@@ -134,7 +134,7 @@ test.describe('Dark Mode - System Preference', () => {
     });
     const page = await context.newPage();
 
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Should follow system preference (dark)
@@ -152,7 +152,7 @@ test.describe('Dark Mode - System Preference', () => {
     });
     const page = await context.newPage();
 
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Should follow system preference (light)

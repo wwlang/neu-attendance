@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { waitForPageLoad } = require('../utils/test-helpers');
+const { waitForPageLoad, gotoWithEmulator } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Student Flow Integration Tests
@@ -16,7 +16,7 @@ const { waitForPageLoad } = require('../utils/test-helpers');
 
 test.describe('Student Flow', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
   });
 
@@ -91,13 +91,13 @@ test.describe('Student Flow', () => {
   });
 
   test('should access student mode via URL parameter', async ({ page }) => {
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
 
     await expect(page.locator('text=Mark Attendance')).toBeVisible({ timeout: 10000 });
   });
 
   test('should auto-fill code from URL parameter', async ({ page }) => {
-    await page.goto('/?mode=student&code=TESTCD');
+    await gotoWithEmulator(page, '/?mode=student&code=TESTCD');
 
     await expect(page.locator('input#enteredCode')).toBeVisible({ timeout: 10000 });
     const value = await page.inputValue('input#enteredCode');
@@ -168,7 +168,7 @@ test.describe('Student Flow', () => {
 test.describe('Student Info Persistence', () => {
   test.beforeEach(async ({ page }) => {
     // Clear localStorage before each test
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await page.evaluate(() => {
       localStorage.removeItem('neu_student_id');
       localStorage.removeItem('neu_student_name');
@@ -203,7 +203,7 @@ test.describe('Student Info Persistence', () => {
     });
 
     // Navigate to student mode
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Form fields should be pre-filled
@@ -225,7 +225,7 @@ test.describe('Student Info Persistence', () => {
     });
 
     // Navigate to student mode
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
 
     // Welcome banner should be visible with student name
     await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
@@ -241,7 +241,7 @@ test.describe('Student Info Persistence', () => {
     });
 
     // Navigate to student mode
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
 
     // Verify form is pre-filled
@@ -276,7 +276,7 @@ test.describe('Student Info Persistence', () => {
     });
 
     // Navigate to student mode
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
 
     // Initially, "Clear saved info" link should NOT be visible (banner is shown)
@@ -307,7 +307,7 @@ test.describe('Student Info Persistence', () => {
     });
 
     // Navigate to student mode
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Edit the pre-filled student ID
@@ -326,7 +326,7 @@ test.describe('Student Info Persistence', () => {
     });
 
     // Navigate to student mode
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('input#studentName')).toBeVisible({ timeout: 10000 });
 
     // Form should display Vietnamese characters correctly
@@ -345,7 +345,7 @@ test.describe('Student Info Persistence', () => {
     });
 
     // Navigate to student mode
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Welcome banner should NOT be visible
@@ -409,7 +409,7 @@ test.describe('Student Info Persistence', () => {
     }).toPass({ timeout: 15000 });
 
     // Reload the page (simulating returning to try again)
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
     await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
     // Form should be pre-populated with previously entered info
@@ -430,7 +430,7 @@ test.describe('Student Info Persistence', () => {
 test.describe('Quick Confirm Flow (AC6.2)', () => {
   test('should show Quick Confirm screen when saved info exists and code in URL', async ({ page }) => {
     // First navigate to page to get access to localStorage
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Save student info
@@ -441,7 +441,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
     });
 
     // Navigate with code in URL (simulating QR scan)
-    await page.goto('/?mode=student&code=ABCD12');
+    await gotoWithEmulator(page, '/?mode=student&code=ABCD12');
 
     // Should show Quick Confirm screen (not full form)
     // The Quick Confirm screen shows "Welcome back!" heading with name below
@@ -458,7 +458,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
   test('should NOT show Quick Confirm when no code in URL', async ({ page }) => {
     // First navigate to page to get access to localStorage
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Save student info
@@ -469,7 +469,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
     });
 
     // Navigate WITHOUT code in URL
-    await page.goto('/?mode=student');
+    await gotoWithEmulator(page, '/?mode=student');
 
     // Should show welcome banner but NOT Quick Confirm
     await expect(page.locator('text=Welcome back')).toBeVisible({ timeout: 10000 });
@@ -480,7 +480,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
   test('should NOT show Quick Confirm when no saved info', async ({ page }) => {
     // First navigate to page to get access to localStorage
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Clear any saved info
@@ -491,7 +491,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
     });
 
     // Navigate with code in URL
-    await page.goto('/?mode=student&code=ABCD12');
+    await gotoWithEmulator(page, '/?mode=student&code=ABCD12');
 
     // Should show full form (not Quick Confirm)
     await expect(page.locator('input#studentId')).toBeVisible({ timeout: 10000 });
@@ -505,7 +505,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
   test('should switch to full form when clicking Edit my details', async ({ page }) => {
     // First navigate to page to get access to localStorage
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Save student info
@@ -516,7 +516,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
     });
 
     // Navigate with code
-    await page.goto('/?mode=student&code=XYZ789');
+    await gotoWithEmulator(page, '/?mode=student&code=XYZ789');
 
     // Verify Quick Confirm screen
     await expect(page.locator('button:has-text("Confirm Attendance")')).toBeVisible({ timeout: 10000 });
@@ -536,7 +536,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
 
   test('should show Confirm Attendance as primary action button', async ({ page }) => {
     // First navigate to page to get access to localStorage
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
     // Save student info
@@ -547,7 +547,7 @@ test.describe('Quick Confirm Flow (AC6.2)', () => {
     });
 
     // Navigate with code
-    await page.goto('/?mode=student&code=TEST01');
+    await gotoWithEmulator(page, '/?mode=student&code=TEST01');
 
     // Confirm Attendance button should be large and prominent
     const confirmButton = page.locator('button:has-text("Confirm Attendance")');

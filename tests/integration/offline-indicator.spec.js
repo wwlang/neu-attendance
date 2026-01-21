@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { waitForPageLoad } = require('../utils/test-helpers');
+const { waitForPageLoad, gotoWithEmulator } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Offline Indicator Integration Tests
@@ -12,7 +12,7 @@ const { waitForPageLoad } = require('../utils/test-helpers');
 
 test.describe('Offline Indicator', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
   });
 

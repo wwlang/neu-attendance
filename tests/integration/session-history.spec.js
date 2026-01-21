@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { gotoWithEmulator } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Session History Integration Tests (AC8 & AC9)
@@ -17,7 +18,7 @@ const INSTRUCTOR_PIN = '230782';
 
 test.describe('Session History Management (AC8)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
     await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 
@@ -161,7 +162,7 @@ test.describe('Session History Management (AC8)', () => {
 
 test.describe('Edit Attendance Records (AC9)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
     await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 
@@ -250,7 +251,7 @@ test.describe('Edit Attendance Records (AC9)', () => {
 
 test.describe('Full Session Lifecycle with History', () => {
   test('should create session, end it, and view in history', async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
     await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 
@@ -298,7 +299,7 @@ test.describe('Full Session Lifecycle with History', () => {
   });
 
   test('should add manual student to historical session', async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
     await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
 

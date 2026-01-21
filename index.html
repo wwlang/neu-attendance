@@ -278,7 +278,15 @@ let state = {
   analyticsSortColumn: 'rate',
   analyticsSortDirection: 'desc',
   trendChart: null,
-  sessionChart: null
+  sessionChart: null,
+  // AC14: Class Selection with Saved Config
+  previousClasses: [], // Array of { className, radius, lateThreshold, lastUsed }
+  selectedClassConfig: null, // { className, radius, lateThreshold }
+  // Admin Panel
+  isAdmin: false,
+  showAdminPanel: false,
+  adminCleanupRunning: false,
+  adminCleanupProgress: null
 };
 
 // Check if QRCode library is available
@@ -924,6 +932,21 @@ async function checkAndRegisterInstructor(user) {
   return false;
 }
 
+// Check if user is an admin
+async function checkAdmin(user) {
+  try {
+    const adminEmailsSnapshot = await db.ref('config/adminEmails').once('value');
+    const adminEmailsData = adminEmailsSnapshot.val() || '';
+    const adminEmails = typeof adminEmailsData === 'string'
+      ? adminEmailsData.split(',').map(e => e.trim().toLowerCase()).filter(e => e.length > 0)
+      : [];
+    return adminEmails.includes(user.email.toLowerCase());
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    return false;
+  }
+}
+
 async function handleAuthStateChange(user) {
   console.log('[Auth Debug] handleAuthStateChange called:', user ? 'User: ' + user.email : 'No user');
   state.authLoading = false;
@@ -950,21 +973,27 @@ async function handleAuthStateChange(user) {
         state.isInstructor = await checkAndRegisterInstructor(user);
       }
       console.log('[Auth Debug] Final isInstructor state:', state.isInstructor);
+
+      // Check if user is admin
+      state.isAdmin = await checkAdmin(user);
+      console.log('[Auth Debug] isAdmin state:', state.isAdmin);
     } catch (error) {
       console.error('[Auth Debug] Error checking instructor status:', error);
       state.isInstructor = false;
+      state.isAdmin = false;
     }
 
     // If in teacher mode and user is instructor, proceed
     if (state.mode === 'teacher' && state.isInstructor) {
       console.log('[Auth Debug] User is instructor in teacher mode, recovering session...');
       tryRecoverSession();
-      setTimeout(generateSetupQRCodes, 100);
+      loadPreviousClasses(); // AC14: Load class dropdown options
     }
   } else {
     console.log('[Auth Debug] No user, clearing state');
     state.user = null;
     state.isInstructor = false;
+    state.isAdmin = false;
   }
 
   render();
@@ -1012,36 +1041,49 @@ function renderTeacherView() {
     return renderAnalyticsView();
   }
 
+  // Show admin panel
+  if (state.showAdminPanel && state.isAdmin) {
+    return renderAdminPanel();
+  }
+
   if (!state.session) {
     return `
       <div class="pt-8">
         <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back</button>
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-          <div class="flex justify-between items-center mb-6">
+          <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
             <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Start Attendance Session</h2>
-            <button onclick="state.showAnalytics = true; loadAnalyticsData(); render();" class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium text-sm">
-              Analytics
-            </button>
-            <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
-              View History
-            </button>
+            <div class="flex gap-2">
+              ${state.isAdmin ? `
+              <button onclick="state.showAdminPanel = true; render();" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 font-medium text-sm">
+                Admin
+              </button>
+              ` : ''}
+              <button onclick="state.showAnalytics = true; loadAnalyticsData(); render();" class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium text-sm">
+                Analytics
+              </button>
+              <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
+                View History
+              </button>
+            </div>
           </div>
           <div class="space-y-4">
-            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label><input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white"></div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label>
+              ${state.previousClasses.length > 0 ? `
+              <select id="classSelect" onchange="selectPreviousClass(this.value)" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white mb-2">
+                <option value="__new__">+ New Class</option>
+                ${state.previousClasses.map(c => `<option value="${escapeHtml(c.className)}">${escapeHtml(c.className)}</option>`).join('')}
+              </select>
+              ` : ''}
+              <input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white">
+              ${state.previousClasses.length > 0 ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Select a previous class or enter a new name</p>' : ''}
+            </div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="5" max="30" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
             <div id="locationStatus" class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300">Your location will be captured when you start</div>
             <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
           </div>
-        </div>
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mt-6">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">QR Codes for Class</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Print or display these:</p>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="text-center p-4 border-2 border-dashed border-emerald-300 dark:border-emerald-600 rounded-xl"><div id="qr-student-large" class="inline-block bg-white p-2 rounded"></div><p class="font-semibold text-emerald-700 dark:text-emerald-400 mt-2">Student Check-in</p></div>
-            <div class="text-center p-4 border-2 border-dashed border-blue-300 dark:border-blue-600 rounded-xl"><div id="qr-teacher-large" class="inline-block bg-white p-2 rounded"></div><p class="font-semibold text-blue-800 dark:text-blue-400 mt-2">Instructor Panel</p></div>
-          </div>
-          <button onclick="window.print()" class="mt-4 w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium no-print">Print QR Codes</button>
         </div>
       </div>`;
   }
@@ -1228,6 +1270,54 @@ function renderTeacherView() {
         <thead><tr class="border-b-2"><th class="text-left py-2">#</th><th class="text-left py-2">Student ID</th><th class="text-left py-2">Name</th><th class="text-left py-2">Email</th><th class="text-left py-2">Time</th><th class="text-left py-2">Status</th></tr></thead>
         <tbody>${state.attendance.map((a, i) => `<tr class="border-b"><td class="py-1">${i + 1}</td><td class="py-1">${escapeHtml(a.studentId)}</td><td class="py-1">${escapeHtml(a.studentName)}</td><td class="py-1">${escapeHtml(a.email || '')}</td><td class="py-1">${new Date(a.timestamp).toLocaleTimeString()}</td><td class="py-1">${a.isLate ? 'Late' : 'On Time'}</td></tr>`).join('')}</tbody>
       </table>
+    </div>`;
+}
+
+function renderAdminPanel() {
+  const progress = state.adminCleanupProgress;
+  return `
+    <div class="pt-8">
+      <button onclick="state.showAdminPanel = false; render();" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back</button>
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Admin Panel</h2>
+
+        <div class="space-y-6">
+          <!-- Cleanup Test Sessions -->
+          <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <h3 class="font-semibold text-red-800 dark:text-red-400 mb-2">Cleanup Test Sessions</h3>
+            <p class="text-sm text-red-700 dark:text-red-300 mb-4">
+              Deletes all sessions with test-related names (containing "test", "empty", "export", etc.)
+            </p>
+            ${state.adminCleanupRunning ? `
+              <div class="mb-4">
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                  <div class="bg-red-600 h-2 rounded-full transition-all" style="width: ${progress ? (progress.deleted / progress.total * 100) : 0}%"></div>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  Deleting... ${progress ? progress.deleted : 0} / ${progress ? progress.total : 0}
+                </p>
+              </div>
+            ` : `
+              <button onclick="adminCleanupTestSessions()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">
+                Delete All Test Sessions
+              </button>
+            `}
+          </div>
+
+          <!-- Quick Stats -->
+          <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 class="font-semibold text-gray-800 dark:text-white mb-2">Database Stats</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-300">
+              Total sessions loaded: ${state.sessionHistory.length}<br>
+              Test sessions detected: ${state.sessionHistory.filter(isTestSession).length}<br>
+              Real sessions: ${state.sessionHistory.filter(s => !isTestSession(s)).length}
+            </p>
+            <button onclick="loadSessionHistory().then(() => render());" class="mt-2 px-3 py-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded text-sm">
+              Refresh Stats
+            </button>
+          </div>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -1566,6 +1656,167 @@ async function loadSessionHistory() {
     console.error('Failed to load session history:', err);
     state.sessionHistory = [];
     render();
+  }
+}
+
+// AC14: Load previous classes with their last used config
+async function loadPreviousClasses() {
+  try {
+    const snapshot = await db.ref('sessions').orderByChild('createdAt').limitToLast(100).once('value');
+    const classMap = new Map(); // className -> { radius, lateThreshold, lastUsed }
+
+    snapshot.forEach(child => {
+      const session = child.val();
+      const className = session.className;
+      if (!className) return;
+
+      const sessionTime = new Date(session.createdAt).getTime() || 0;
+      const existing = classMap.get(className);
+
+      // Keep the most recent config for each class
+      if (!existing || sessionTime > existing.lastUsed) {
+        classMap.set(className, {
+          className: className,
+          radius: session.radius || 300,
+          lateThreshold: session.lateThresholdMinutes || session.lateThreshold || 10,
+          lastUsed: sessionTime
+        });
+      }
+    });
+
+    // Convert to array and sort by most recently used
+    state.previousClasses = Array.from(classMap.values())
+      .sort((a, b) => b.lastUsed - a.lastUsed);
+
+    render();
+  } catch (err) {
+    console.error('Failed to load previous classes:', err);
+    state.previousClasses = [];
+  }
+}
+
+// AC14: Handle class selection from dropdown
+function selectPreviousClass(className) {
+  if (className === '__new__') {
+    // New class - reset to defaults
+    state.selectedClassConfig = null;
+    document.getElementById('className').value = '';
+    document.getElementById('className').focus();
+    document.getElementById('radius').value = 300;
+    document.getElementById('radiusValue').textContent = '300';
+    document.getElementById('lateThreshold').value = DEFAULT_LATE_THRESHOLD_MINUTES;
+    document.getElementById('lateValue').textContent = DEFAULT_LATE_THRESHOLD_MINUTES;
+    state.lateThreshold = DEFAULT_LATE_THRESHOLD_MINUTES;
+  } else {
+    // Find config for selected class
+    const config = state.previousClasses.find(c => c.className === className);
+    if (config) {
+      state.selectedClassConfig = config;
+      document.getElementById('className').value = config.className;
+      document.getElementById('radius').value = config.radius;
+      document.getElementById('radiusValue').textContent = config.radius;
+      document.getElementById('lateThreshold').value = config.lateThreshold;
+      document.getElementById('lateValue').textContent = config.lateThreshold;
+      state.lateThreshold = config.lateThreshold;
+    }
+  }
+}
+
+// Admin: Identify test sessions by name patterns
+function isTestSession(session) {
+  const name = (session.className || '').toLowerCase();
+  const testPatterns = [
+    /test/i, /empty/i, /export/i, /qr\s/i, /csv/i, /stats/i,
+    /increment/i, /decrement/i, /min zero/i, /participation/i,
+    /archive/i, /active test/i, /history/i, /manual entry/i,
+    /session end/i, /\d{13}$/ // ends with timestamp
+  ];
+  return testPatterns.some(pattern => pattern.test(name));
+}
+
+// Admin: Clean up test sessions from database
+async function adminCleanupTestSessions() {
+  if (!state.isAdmin) {
+    alert('Admin access required');
+    return;
+  }
+
+  if (!confirm('This will delete all test sessions (sessions with "test", "empty", etc. in the name). Continue?')) {
+    return;
+  }
+
+  state.adminCleanupRunning = true;
+  state.adminCleanupProgress = { deleted: 0, total: 0, errors: 0 };
+  render();
+
+  try {
+    // Load all sessions
+    const snapshot = await db.ref('sessions').once('value');
+    const sessions = [];
+    snapshot.forEach(child => {
+      const session = child.val();
+      session.id = child.key;
+      if (isTestSession(session)) {
+        sessions.push(session);
+      }
+    });
+
+    state.adminCleanupProgress.total = sessions.length;
+    render();
+
+    // Delete each test session and its related data
+    for (const session of sessions) {
+      try {
+        await db.ref('sessions/' + session.id).remove();
+        await db.ref('attendance/' + session.id).remove();
+        await db.ref('failed/' + session.id).remove();
+        await db.ref('audit/' + session.id).remove();
+        state.adminCleanupProgress.deleted++;
+      } catch (err) {
+        console.error('Failed to delete session:', session.id, err);
+        state.adminCleanupProgress.errors++;
+      }
+
+      // Update progress every 10 deletions
+      if (state.adminCleanupProgress.deleted % 10 === 0) {
+        render();
+      }
+    }
+
+    alert(`Cleanup complete!\nDeleted: ${state.adminCleanupProgress.deleted} test sessions\nErrors: ${state.adminCleanupProgress.errors}`);
+  } catch (err) {
+    console.error('Cleanup failed:', err);
+    alert('Cleanup failed: ' + err.message);
+  }
+
+  state.adminCleanupRunning = false;
+  state.adminCleanupProgress = null;
+  state.showAdminPanel = false;
+  loadSessionHistory(); // Refresh history
+  render();
+}
+
+// Admin: Delete a specific session
+async function adminDeleteSession(sessionId) {
+  if (!state.isAdmin) {
+    alert('Admin access required');
+    return;
+  }
+
+  if (!confirm('Delete this session and all its attendance data?')) {
+    return;
+  }
+
+  try {
+    await db.ref('sessions/' + sessionId).remove();
+    await db.ref('attendance/' + sessionId).remove();
+    await db.ref('failed/' + sessionId).remove();
+    await db.ref('audit/' + sessionId).remove();
+    alert('Session deleted');
+    loadSessionHistory();
+  } catch (err) {
+    console.error('Failed to delete session:', err);
+    alert('Delete failed: ' + err.message);
   }
 }
 
@@ -1978,7 +2229,6 @@ async function endSession() {
   state.selectedFailedAttempts = new Set();
   state.isReopenedSession = false;
   render();
-  setTimeout(generateSetupQRCodes, 100);
 }
 
 async function approveStudent(firebaseKey, shouldRender = true) {

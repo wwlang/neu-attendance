@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { waitForPageLoad } = require('../utils/test-helpers');
+const { waitForPageLoad, gotoWithEmulator } = require('../utils/test-helpers');
 
 /**
  * NEU Attendance - Student Lookup Integration Tests
@@ -18,7 +18,7 @@ const { waitForPageLoad } = require('../utils/test-helpers');
 
 test.describe('Student Lookup Flow', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
   });
 
@@ -39,7 +39,7 @@ test.describe('Student Lookup Flow', () => {
   });
 
   test('AC1: should access lookup via URL parameter', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
 
     await expect(page.locator('text=My Attendance History')).toBeVisible({ timeout: 10000 });
   });
@@ -55,7 +55,7 @@ test.describe('Student Lookup Flow', () => {
   });
 
   test('AC2: should accept student ID input', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     await page.fill('input#lookupStudentId', '12345678');
@@ -64,7 +64,7 @@ test.describe('Student Lookup Flow', () => {
   });
 
   test('AC2: should submit search on Enter key', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     await page.fill('input#lookupStudentId', 'TESTID123');
@@ -80,7 +80,7 @@ test.describe('Student Lookup Flow', () => {
   });
 
   test('AC5: should show error when student ID is empty', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('button:has-text("Search")')).toBeVisible({ timeout: 10000 });
 
     await page.click('button:has-text("Search")');
@@ -96,7 +96,7 @@ test.describe('Student Lookup Flow', () => {
       localStorage.setItem('neu_student_email', 'test@st.neu.edu.vn');
     });
 
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     const value = await page.inputValue('input#lookupStudentId');
@@ -120,7 +120,7 @@ test.describe('Student Lookup Results Display (AC3)', () => {
     // The table only renders when there are results, so we verify the template
     // by checking the JavaScript source contains the correct column order
     // specifically in the renderLookupResults function
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     // Get the page JavaScript content
@@ -171,7 +171,7 @@ test.describe('Student Lookup Results Display (AC3)', () => {
     // Note: This test requires actual data in Firebase. If no data exists,
     // we'll verify the structure via the table HTML generation pattern.
 
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     // Search for a test student (may or may not have data)
@@ -219,7 +219,7 @@ test.describe('Student Lookup Results Display (AC3)', () => {
 
   test('AC3: should show results sorted by timestamp (most recent first)', async ({ page }) => {
     // This verifies AC3 requirement: Results sorted by timestamp (most recent first)
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     // Search for any student
@@ -251,7 +251,7 @@ test.describe('Student Lookup Results Display (AC3)', () => {
 
   test('AC3: should show On Time badge with green styling', async ({ page }) => {
     // Verify the On Time badge uses emerald/green styling
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
 
     // Check the page source for the On Time badge styling pattern
     const content = await page.content();
@@ -263,7 +263,7 @@ test.describe('Student Lookup Results Display (AC3)', () => {
 
   test('AC3: should show Late badge with orange styling', async ({ page }) => {
     // Verify the Late badge uses orange styling
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
 
     // Check the page source for the Late badge styling pattern
     const content = await page.content();
@@ -276,7 +276,7 @@ test.describe('Student Lookup Results Display (AC3)', () => {
 
 test.describe('Student Lookup Statistics (AC4)', () => {
   test('AC4: should display statistics cards', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     // Search to trigger results display
@@ -301,7 +301,7 @@ test.describe('Student Lookup Statistics (AC4)', () => {
   });
 
   test('AC4: statistics should use correct colors (Corporate design system)', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
 
     // Check the lookup template contains the correct color classes for stats
     // Updated for Corporate design system: Total uses blue instead of indigo
@@ -318,7 +318,7 @@ test.describe('Student Lookup Statistics (AC4)', () => {
 
 test.describe('Student Lookup Tooltips (AC3.1, AC3.2)', () => {
   test('AC3.1: should have participation tooltip explaining what it means', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     // Check that the page contains the participation tooltip text
@@ -327,7 +327,7 @@ test.describe('Student Lookup Tooltips (AC3.1, AC3.2)', () => {
   });
 
   test('AC3.2: should have late threshold info in Late badge', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     // Check that the page contains the late threshold tooltip pattern
@@ -338,7 +338,7 @@ test.describe('Student Lookup Tooltips (AC3.1, AC3.2)', () => {
   });
 
   test('AC3.1: participation header should have tooltip-trigger class', async ({ page }) => {
-    await page.goto('/?mode=lookup');
+    await gotoWithEmulator(page, '/?mode=lookup');
     await expect(page.locator('input#lookupStudentId')).toBeVisible({ timeout: 10000 });
 
     // Check the JavaScript contains the tooltip structure for participation
