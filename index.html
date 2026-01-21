@@ -2177,9 +2177,10 @@ function setupSessionListeners(sessionId) {
     const data = snapshot.val();
     const prevCount = state.attendance.length;
     if (data) {
-      state.attendance = Object.values(data)
-        .map(a => ({
+      state.attendance = Object.entries(data)
+        .map(([key, a]) => ({
           ...a,
+          firebaseKey: key,
           isLate: isLateCheckIn(a.timestamp, state.session.createdAt, state.lateThreshold) || a.lateCheckIn
         }))
         .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));

@@ -177,16 +177,23 @@ async function checkInStudent(context, mainPage, studentId, studentName, student
   await studentPage.context().setGeolocation(location);
   await studentPage.context().grantPermissions(['geolocation']);
 
+  // Clear localStorage first to prevent prefill interference, then navigate
+  await gotoWithEmulator(studentPage, '/');
+  await studentPage.evaluate(() => localStorage.clear());
+
   // Navigate to student mode with code (always use emulator)
   await gotoWithEmulator(studentPage, `/?mode=student&code=${code}`);
 
-  // Wait for student form to be ready
+  // Wait for student form to be ready and page to stabilize
   await expect(studentPage.locator('input#studentId')).toBeVisible({ timeout: 10000 });
+  await studentPage.waitForLoadState('networkidle');
 
-  // Fill student info
-  await studentPage.fill('input#studentId', studentId);
-  await studentPage.fill('input#studentName', studentName);
-  await studentPage.fill('input#studentEmail', studentEmail);
+  // Use JavaScript to set form values directly (more reliable than fill)
+  await studentPage.evaluate(({ studentId, studentName, studentEmail }) => {
+    document.getElementById('studentId').value = studentId;
+    document.getElementById('studentName').value = studentName;
+    document.getElementById('studentEmail').value = studentEmail;
+  }, { studentId, studentName, studentEmail });
 
   // Submit attendance
   await studentPage.click('button:has-text("Submit Attendance")');
