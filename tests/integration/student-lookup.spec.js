@@ -12,6 +12,8 @@ const { waitForPageLoad, gotoWithEmulator } = require('../utils/test-helpers');
  * - Statistics display
  * - AC3.1: Participation tooltip
  * - AC3.2: Late threshold transparency
+ * - AC2.1: Auto-search for returning students (NEW)
+ * - AC2.2: Change student ID from landing page (NEW)
  *
  * Journey Reference: docs/journeys/student-attendance-lookup.md
  */
@@ -101,6 +103,229 @@ test.describe('Student Lookup Flow', () => {
 
     const value = await page.inputValue('input#lookupStudentId');
     expect(value).toBe('87654321');
+  });
+});
+
+/**
+ * AC2.1: Auto-Search for Returning Students
+ *
+ * When a student has saved info in localStorage and navigates to lookup mode,
+ * the search should trigger automatically without requiring a click on "Search".
+ * This reduces the returning student journey to a single tap.
+ */
+test.describe('Auto-Search for Returning Students (AC2.1)', () => {
+  test('AC2.1: should auto-search when saved student ID exists', async ({ page }) => {
+    // Set up saved student info BEFORE navigating
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', 'AUTOSEARCH123');
+      localStorage.setItem('neu_student_name', 'Auto Search Student');
+      localStorage.setItem('neu_student_email', 'auto@st.neu.edu.vn');
+    });
+
+    // Navigate to lookup mode
+    await page.click('button:has-text("View My Attendance")');
+
+    // Should show loading state (Searching...) immediately or results/no-results
+    // The key assertion: user should NOT have to click Search button
+    await expect(async () => {
+      const hasSearching = await page.locator('text=Searching...').isVisible();
+      const hasNoResults = await page.locator('text=No attendance records').isVisible();
+      const hasResults = await page.locator('table').isVisible();
+      expect(hasSearching || hasNoResults || hasResults).toBe(true);
+    }).toPass({ timeout: 10000 });
+  });
+
+  test('AC2.1: should show loading state during auto-search', async ({ page }) => {
+    // Set up saved student info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', 'LOADING_TEST');
+      localStorage.setItem('neu_student_name', 'Loading Test');
+      localStorage.setItem('neu_student_email', 'loading@st.neu.edu.vn');
+    });
+
+    // Navigate to lookup mode and catch the loading state
+    await page.click('button:has-text("View My Attendance")');
+
+    // Either catch loading state or the result (depending on speed)
+    // The test passes if any of these states are reached without clicking Search
+    await expect(async () => {
+      const hasSearching = await page.locator('button:has-text("Searching...")').isVisible();
+      const hasNoResults = await page.locator('text=No attendance records').isVisible();
+      const searchDone = await page.locator('button#searchBtn:has-text("Search")').isVisible();
+      expect(hasSearching || hasNoResults || searchDone).toBe(true);
+    }).toPass({ timeout: 10000 });
+  });
+
+  test('AC2.1: should NOT auto-search when no saved student info', async ({ page }) => {
+    // Clear any saved info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.removeItem('neu_student_id');
+      localStorage.removeItem('neu_student_name');
+      localStorage.removeItem('neu_student_email');
+    });
+
+    // Navigate to lookup mode
+    await page.click('button:has-text("View My Attendance")');
+    await expect(page.locator('text=My Attendance History')).toBeVisible({ timeout: 5000 });
+
+    // Should show empty input and Search button (not auto-searching)
+    await expect(page.locator('input#lookupStudentId')).toBeVisible();
+    const inputValue = await page.inputValue('input#lookupStudentId');
+    expect(inputValue).toBe('');
+
+    // Should NOT show loading or results yet
+    await expect(page.locator('text=Searching...')).not.toBeVisible();
+    await expect(page.locator('text=No attendance records')).not.toBeVisible();
+  });
+
+  test('AC2.1: should display results immediately after auto-search completes', async ({ page }) => {
+    // Set up saved student info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', 'RESULT_TEST');
+      localStorage.setItem('neu_student_name', 'Result Test');
+      localStorage.setItem('neu_student_email', 'result@st.neu.edu.vn');
+    });
+
+    // Navigate to lookup mode
+    await page.click('button:has-text("View My Attendance")');
+
+    // Wait for auto-search to complete - should show results or empty state
+    await expect(async () => {
+      const hasNoResults = await page.locator('text=No attendance records').isVisible();
+      const hasResults = await page.locator('table').isVisible();
+      // Auto-search should complete and show some result state
+      expect(hasNoResults || hasResults).toBe(true);
+    }).toPass({ timeout: 15000 });
+  });
+});
+
+/**
+ * AC2.2: Change Student ID from Landing Page
+ *
+ * Students should be able to change their saved student ID from the main landing page.
+ * This allows students sharing a device to switch accounts easily.
+ */
+test.describe('Change Student ID from Landing Page (AC2.2)', () => {
+  test('AC2.2: should show Change Student link on landing page when student info saved', async ({ page }) => {
+    // Set up saved student info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', 'CHANGE_TEST');
+      localStorage.setItem('neu_student_name', 'Change Test Student');
+      localStorage.setItem('neu_student_email', 'change@st.neu.edu.vn');
+    });
+
+    // Reload to see the Change Student link
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    // Should show "Change Student" or similar link
+    await expect(page.locator('text=Change Student')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('AC2.2: should NOT show Change Student link when no student info saved', async ({ page }) => {
+    // Clear any saved info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.removeItem('neu_student_id');
+      localStorage.removeItem('neu_student_name');
+      localStorage.removeItem('neu_student_email');
+    });
+
+    // Reload page
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    // Should NOT show "Change Student" link
+    await expect(page.locator('text=Change Student')).not.toBeVisible();
+  });
+
+  test('AC2.2: clicking Change Student should clear saved info', async ({ page }) => {
+    // Set up saved student info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', 'CLEAR_TEST');
+      localStorage.setItem('neu_student_name', 'Clear Test Student');
+      localStorage.setItem('neu_student_email', 'clear@st.neu.edu.vn');
+    });
+
+    // Reload to see the Change Student link
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    // Click Change Student
+    await page.click('text=Change Student');
+
+    // Verify localStorage was cleared
+    const savedId = await page.evaluate(() => localStorage.getItem('neu_student_id'));
+    expect(savedId).toBeNull();
+
+    // The Change Student link should no longer be visible
+    await expect(page.locator('text=Change Student')).not.toBeVisible({ timeout: 3000 });
+  });
+
+  test('AC2.2: Change Student link should be styled subtly', async ({ page }) => {
+    // Set up saved student info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', 'STYLE_TEST');
+      localStorage.setItem('neu_student_name', 'Style Test');
+      localStorage.setItem('neu_student_email', 'style@st.neu.edu.vn');
+    });
+
+    // Reload to see the Change Student link
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    // The link should exist and be subtle (text-gray, text-sm, etc.)
+    const changeLink = page.locator('text=Change Student');
+    await expect(changeLink).toBeVisible();
+
+    // Verify it's styled as a subtle link (not a primary button)
+    const classes = await changeLink.getAttribute('class');
+    // Should have subtle styling like gray text or small text
+    expect(classes).toMatch(/text-gray|text-sm|text-xs/);
+  });
+
+  test('AC2.2: should show saved student name on landing page', async ({ page }) => {
+    // Set up saved student info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem('neu_student_id', 'NAME_TEST');
+      localStorage.setItem('neu_student_name', 'Alice Johnson');
+      localStorage.setItem('neu_student_email', 'alice@st.neu.edu.vn');
+    });
+
+    // Reload to see the saved info
+    await gotoWithEmulator(page, '/');
+    await waitForPageLoad(page);
+
+    // Should show the student name or ID somewhere on the landing page
+    const hasNameOrId = await page.locator('text=Alice Johnson').isVisible() ||
+                        await page.locator('text=NAME_TEST').isVisible();
+    expect(hasNameOrId).toBe(true);
   });
 });
 

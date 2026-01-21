@@ -67,6 +67,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     // Get current day/hour for reproducible test
     const now = new Date();
     const currentHour = now.getHours();
+    const uniqueId = Date.now();
 
     // Create timestamp for "last week same time"
     const lastWeek = new Date(now);
@@ -85,10 +86,12 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     await cleanupTestSessions(page);
 
     // Create the "different time" session first (should NOT be selected)
-    await insertSessionWithTimestamp(page, 'Different Hour Class', twoDaysAgo.toISOString());
+    const diffHourClass = `Different Hour ${uniqueId}`;
+    const sameTimeClass = `Same Time Last Week ${uniqueId}`;
+    await insertSessionWithTimestamp(page, diffHourClass, twoDaysAgo.toISOString());
 
     // Create the "same time last week" session (SHOULD be selected)
-    await insertSessionWithTimestamp(page, 'Same Time Last Week', lastWeek.toISOString());
+    await insertSessionWithTimestamp(page, sameTimeClass, lastWeek.toISOString());
 
     // Reload to trigger loadPreviousClasses with fresh data
     await goToInstructorSetup(page);
@@ -97,7 +100,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     const classSelect = page.locator('select#classSelect');
     if (await classSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       const selectedValue = await classSelect.inputValue();
-      expect(selectedValue).toBe('Same Time Last Week');
+      expect(selectedValue).toBe(sameTimeClass);
     }
   });
 
@@ -105,6 +108,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     // Create timestamp for "yesterday at a very different time"
     const now = new Date();
     const currentHour = now.getHours();
+    const uniqueId = Date.now();
 
     // Yesterday at completely different hour
     const yesterday = new Date(now);
@@ -122,10 +126,12 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     await cleanupTestSessions(page);
 
     // Create older session first
-    await insertSessionWithTimestamp(page, 'Older Test Class', twoDaysAgo.toISOString());
+    const olderClass = `Older ${uniqueId}`;
+    const recentClass = `Most Recent ${uniqueId}`;
+    await insertSessionWithTimestamp(page, olderClass, twoDaysAgo.toISOString());
 
     // Create more recent session (should be fallback)
-    await insertSessionWithTimestamp(page, 'Most Recent Test Class', yesterday.toISOString());
+    await insertSessionWithTimestamp(page, recentClass, yesterday.toISOString());
 
     // Reload to trigger loadPreviousClasses
     await goToInstructorSetup(page);
@@ -134,7 +140,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     const classSelect = page.locator('select#classSelect');
     if (await classSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       const selectedValue = await classSelect.inputValue();
-      expect(selectedValue).toBe('Most Recent Test Class');
+      expect(selectedValue).toBe(recentClass);
     }
   });
 
@@ -196,6 +202,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
   test('AC4: Does not match outside hour window', async ({ page }) => {
     const now = new Date();
     const currentHour = now.getHours();
+    const uniqueId = Date.now();
 
     // Create session at different hour, last week (same day)
     const lastWeekDifferentHour = new Date(now);
@@ -210,8 +217,10 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     await goToInstructorSetup(page);
 
     await cleanupTestSessions(page);
-    await insertSessionWithTimestamp(page, 'Same Day Different Hour Test', lastWeekDifferentHour.toISOString());
-    await insertSessionWithTimestamp(page, 'Most Recent Fallback Test', recent.toISOString());
+    const diffHourClass = `Different Hour ${uniqueId}`;
+    const recentClass = `Recent Fallback ${uniqueId}`;
+    await insertSessionWithTimestamp(page, diffHourClass, lastWeekDifferentHour.toISOString());
+    await insertSessionWithTimestamp(page, recentClass, recent.toISOString());
 
     // Reload
     await goToInstructorSetup(page);
@@ -220,13 +229,14 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     const classSelect = page.locator('select#classSelect');
     if (await classSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       const selectedValue = await classSelect.inputValue();
-      expect(selectedValue).toBe('Most Recent Fallback Test');
+      expect(selectedValue).toBe(recentClass);
     }
   });
 
   test('AC5: Does not match sessions older than 14 days', async ({ page }) => {
     const now = new Date();
     const currentHour = now.getHours();
+    const uniqueId = Date.now();
 
     // Create session from 3 weeks ago (same day/hour but too old)
     const threeWeeksAgo = new Date(now);
@@ -241,8 +251,10 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     await goToInstructorSetup(page);
 
     await cleanupTestSessions(page);
-    await insertSessionWithTimestamp(page, 'Old Same Time Test Class', threeWeeksAgo.toISOString());
-    await insertSessionWithTimestamp(page, 'Recent Fallback Test Class', yesterday.toISOString());
+    const oldClass = `Old Same Time ${uniqueId}`;
+    const recentClass = `Recent Fallback ${uniqueId}`;
+    await insertSessionWithTimestamp(page, oldClass, threeWeeksAgo.toISOString());
+    await insertSessionWithTimestamp(page, recentClass, yesterday.toISOString());
 
     // Reload
     await goToInstructorSetup(page);
@@ -251,13 +263,14 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     const classSelect = page.locator('select#classSelect');
     if (await classSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       const selectedValue = await classSelect.inputValue();
-      expect(selectedValue).toBe('Recent Fallback Test Class');
+      expect(selectedValue).toBe(recentClass);
     }
   });
 
   test('Config is loaded from smart default class', async ({ page }) => {
     const now = new Date();
     const currentHour = now.getHours();
+    const uniqueId = Date.now();
 
     // Create session at same time last week with specific config
     const lastWeek = new Date(now);
@@ -269,7 +282,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     await cleanupTestSessions(page);
 
     // Insert session with specific radius and late threshold
-    await insertSessionWithTimestamp(page, 'Config Test Class', lastWeek.toISOString(), {
+    await insertSessionWithTimestamp(page, `Config Test ${uniqueId}`, lastWeek.toISOString(), {
       radius: 150, // Non-default radius
       lateThreshold: 20 // Non-default late threshold
     });
@@ -292,6 +305,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
   test('Smart default can be overridden by user selection', async ({ page }) => {
     const now = new Date();
     const currentHour = now.getHours();
+    const uniqueId = Date.now();
 
     // Create session at same time last week (will be smart default)
     const lastWeek = new Date(now);
@@ -306,8 +320,10 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     await goToInstructorSetup(page);
 
     await cleanupTestSessions(page);
-    await insertSessionWithTimestamp(page, 'Smart Default Test Class', lastWeek.toISOString());
-    await insertSessionWithTimestamp(page, 'Other Test Class', twoDaysAgo.toISOString());
+    const smartDefaultClass = `Smart Default ${uniqueId}`;
+    const otherClass = `Other ${uniqueId}`;
+    await insertSessionWithTimestamp(page, smartDefaultClass, lastWeek.toISOString());
+    await insertSessionWithTimestamp(page, otherClass, twoDaysAgo.toISOString());
 
     // Reload
     await goToInstructorSetup(page);
@@ -316,12 +332,12 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     if (await classSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       // Verify smart default is selected
       let selectedValue = await classSelect.inputValue();
-      expect(selectedValue).toBe('Smart Default Test Class');
+      expect(selectedValue).toBe(smartDefaultClass);
 
       // User can change selection
-      await classSelect.selectOption('Other Test Class');
+      await classSelect.selectOption(otherClass);
       selectedValue = await classSelect.inputValue();
-      expect(selectedValue).toBe('Other Test Class');
+      expect(selectedValue).toBe(otherClass);
     }
   });
 });

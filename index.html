@@ -1101,6 +1101,17 @@ async function handleAuthStateChange(user) {
   render();
 }
 function renderModeSelection() {
+  // AC2.2: Check for saved student info to show "Change Student" option
+  const savedInfo = loadStudentInfo();
+  const savedStudentSection = savedInfo ? `
+    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <p class="text-sm text-gray-600 dark:text-gray-400 text-center">
+        Logged in as <span class="font-medium text-gray-800 dark:text-gray-200">${escapeHtml(savedInfo.studentName)}</span>
+      </p>
+      <button onclick="clearStudentInfo(); render();" class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline mt-1 block mx-auto">Change Student</button>
+    </div>
+  ` : '';
+
   return `
     <div class="flex items-center justify-center min-h-screen">
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
@@ -1111,6 +1122,7 @@ function renderModeSelection() {
           <button onclick="setMode('student')" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors">I'm a Student</button>
           <button onclick="setMode('lookup')" class="w-full py-3 px-6 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors">View My Attendance</button>
         </div>
+        ${savedStudentSection}
         <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
           <p class="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">Or scan a QR code:</p>
           <div class="grid grid-cols-2 gap-4">
@@ -1707,6 +1719,17 @@ function setMode(mode) {
     state.savedStudentInfo = loadStudentInfo();
     state.showSavedInfoBanner = !!state.savedStudentInfo;
     render();
+  }
+  // AC2.1: Auto-search for returning students in lookup mode
+  if (mode === 'lookup') {
+    const savedInfo = loadStudentInfo();
+    if (savedInfo && savedInfo.studentId) {
+      // Trigger auto-search after a brief delay to allow render to complete
+      setTimeout(() => {
+        state.lookupStudentId = savedInfo.studentId;
+        searchAttendance();
+      }, 100);
+    }
   }
 }
 

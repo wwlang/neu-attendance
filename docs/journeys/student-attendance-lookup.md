@@ -16,17 +16,28 @@ Student wants to review their attendance record for personal tracking or to veri
 
 ## Flow
 
-### Primary Flow: View Attendance History
+### Primary Flow: Returning Student (Zero-Click Lookup)
+**This is the principal flow - optimized for returning students.**
+
+1. **Tap "View My Attendance"** -> From main page, tap the lookup button
+2. **See Results Instantly** -> Auto-search triggers, results shown immediately
+3. **Review Statistics** -> Summary cards show total, on-time, and late counts
+4. **Done** -> Can return to home
+
+**Total interaction: 1 tap**
+
+### Secondary Flow: First-Time Lookup
+**Only for students who have never checked in on this device.**
 
 1. **Access Lookup Mode** -> Navigate to main page, click "View My Attendance"
 2. **Enter Student ID** -> Enter student number in the search field
 3. **View Results** -> See attendance records across all courses
-4. **Review Statistics** -> Summary cards show total, on-time, and late counts
-5. **Done** -> Can search again or return to home
+4. **Done** -> Student ID saved for next time
 
-### Alternative Flow: Returning Student (Pre-filled)
-- If student has previously checked in on this device, student ID is pre-filled
-- Student can simply press "Search" to see their records
+### Alternative Flow: Change Student ID
+- Student can change their saved ID from the main landing page
+- "Change Student" link visible when student info is saved
+- Clears saved info and allows entering different ID
 
 ## Detailed Steps
 
@@ -35,12 +46,18 @@ Student wants to review their attendance record for personal tracking or to veri
 - URL changes to `?mode=lookup`
 - Lookup interface displayed with search field
 
-### 2. Enter Student ID
-- Input field accepts student number (e.g., 11223344)
-- If student previously checked in on this device, field is pre-filled from localStorage
-- Press Enter or click "Search" to submit
+### 2. Auto-Search for Returning Students
+- If student ID exists in localStorage, search triggers automatically
+- No need to click "Search" button
+- Loading state shown briefly
+- Results appear without additional interaction
 
-### 3. View Results
+### 3. Enter Student ID (First-Time Only)
+- Input field accepts student number (e.g., 11223344)
+- Press Enter or click "Search" to submit
+- Student ID saved to localStorage for future visits
+
+### 4. View Results
 - System queries all sessions for attendance records matching the student ID
 - Results displayed in a table showing:
   - Course name
@@ -50,7 +67,7 @@ Student wants to review their attendance record for personal tracking or to veri
   - Participation (count)
 - Results sorted by most recent first
 
-### 4. Review Statistics
+### 5. Review Statistics
 - Summary cards at top show:
   - **Total**: Number of attendance records
   - **On Time**: Count of on-time check-ins
@@ -71,6 +88,29 @@ Student wants to review their attendance record for personal tracking or to veri
 - [x] Enter key submits search
 - [x] Search button triggers lookup
 - [x] Loading state shown during search
+
+### AC2.1: Auto-Search for Returning Students
+- [x] When student ID is saved in localStorage, auto-search triggers on page load
+- [x] Search executes automatically without clicking "Search" button
+- [x] Loading state shown during auto-search
+- [x] Results displayed immediately after auto-search completes
+- [x] Total interaction for returning student: 1 tap (View My Attendance)
+
+> **COMPLETE (2026-01-21):** Auto-search implemented in `setMode('lookup')`. When saved
+> student info exists in localStorage, `searchAttendance()` is called automatically after
+> a 100ms delay to allow render to complete. Verified by integration tests:
+> `student-lookup.spec.js` AC2.1 tests.
+
+### AC2.2: Change Student ID from Landing Page
+- [x] "Change Student" link visible on main landing page when student info is saved
+- [x] Clicking "Change Student" clears saved student info from localStorage
+- [x] After clearing, student can enter new ID
+- [x] Link styled subtly (not competing with primary actions)
+
+> **COMPLETE (2026-01-21):** "Change Student" link added to `renderModeSelection()`.
+> Shows student name and subtle "Change Student" link below main buttons when saved
+> info exists. Clicking calls `clearStudentInfo()` and re-renders. Verified by
+> integration tests: `student-lookup.spec.js` AC2.2 tests.
 
 ### AC3: Results Display
 - [x] Results table shows: Course, Date, Time, Status, Participation
@@ -127,19 +167,20 @@ Student wants to review their attendance record for personal tracking or to veri
 
 | Flow | Interactions | Target | Status |
 |------|-------------:|-------:|--------|
-| Returning student (pre-filled ID) | 2 | ≤3 | Pass |
-| New lookup (enter ID) | 3 | ≤3 | Pass |
+| Returning student (auto-search) | 1 | 1 | Pass |
+| First-time lookup (enter ID) | 3 | <=3 | Pass |
+| Change student from landing | 2 | <=3 | Pass |
 
 ### Friction Score
 
 | Dimension | Score | Notes |
 |-----------|------:|-------|
 | Cognitive load | 0 | Single search field, clear results |
-| Input effort | 0 | 1 field, often pre-filled |
+| Input effort | 0 | Auto-search for returning students |
 | Wait time | 1 | Search may take 1-3s |
 | Error risk | 0 | No destructive actions |
 | Permission ask | 0 | No permissions required |
-| **Total** | **1** | Excellent (≤4) |
+| **Total** | **1** | Excellent (<=4) |
 
 ### Permission Timing
 
@@ -149,9 +190,12 @@ No permissions required for this journey.
 - Search response time: < 3 seconds
 - Results per page: All records (scrollable)
 - Pre-fill accuracy: 100% when localStorage available
+- Returning student interaction count: 1 (single tap)
 
 ## Implementation Notes
 - Queries all sessions from Firebase, then filters attendance by student ID
 - Client-side calculation of late status based on session thresholds
 - No authentication required - student ID is the lookup key
 - Privacy consideration: Only shows own attendance (by student ID)
+- Auto-search triggers in `setMode('lookup')` when savedStudentInfo exists
+- "Change Student" link in `renderModeSelection()` when savedStudentInfo exists
