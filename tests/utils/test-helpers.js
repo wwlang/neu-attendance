@@ -9,8 +9,8 @@
 const { expect } = require('@playwright/test');
 
 /**
- * Navigate to a URL ensuring emulator mode is always enabled.
- * This prevents test data from polluting the production database.
+ * Navigate to a URL for tests.
+ * Emulator mode is auto-detected when running on localhost.
  *
  * @param {import('@playwright/test').Page} page
  * @param {string} path - Path to navigate to (e.g., '/', '/?mode=student')
@@ -20,10 +20,7 @@ async function gotoWithEmulator(page, path = '/') {
   // Parse the path to preserve existing query params
   const url = new URL(path, 'http://localhost:3000');
 
-  // Always add emulator=true for test isolation
-  url.searchParams.set('emulator', 'true');
-
-  // Navigate to the full URL
+  // Navigate to the full URL (emulator auto-detected on localhost)
   return page.goto(url.toString());
 }
 

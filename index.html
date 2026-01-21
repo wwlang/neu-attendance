@@ -200,9 +200,8 @@ const db = firebase.database();
 const auth = firebase.auth();
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-// Firebase Emulator detection - connect to local emulator when running tests
-const isEmulatorMode = () => location.hostname === 'localhost' &&
-  new URLSearchParams(location.search).get('emulator') === 'true';
+// Firebase Emulator detection - auto-connect when on localhost
+const isEmulatorMode = () => location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 // Test auth mode - for E2E tests to bypass Google Sign-in popup
 const getTestAuthMode = () => new URLSearchParams(location.search).get('testAuth');
