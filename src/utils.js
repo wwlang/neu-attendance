@@ -235,6 +235,58 @@ function clearStudentInfo() {
   }
 }
 
+/**
+ * Smart default class selection based on day-of-week and hour matching.
+ * P4-05: Finds a class that was held at the same day of week and hour
+ * within the last 14 days, or falls back to the most recent class.
+ *
+ * @param {Array} previousClasses - Array of {className, lastUsed, radius, lateThreshold}
+ * @param {Array} allSessions - Array of {className, createdAt} session objects
+ * @param {Date} now - Current date/time (optional, defaults to new Date())
+ * @returns {string|null} The className to default to, or null if no classes exist
+ */
+function findSmartDefault(previousClasses, allSessions, now = new Date()) {
+  // Edge case: no previous classes
+  if (!previousClasses || previousClasses.length === 0) {
+    return null;
+  }
+
+  // Edge case: no session data to match, fall back to first (most recent) class
+  if (!allSessions || allSessions.length === 0) {
+    return previousClasses[0]?.className || null;
+  }
+
+  const currentDay = now.getDay(); // 0-6 (Sunday-Saturday)
+  const currentHour = now.getHours(); // 0-23
+  const nowTime = now.getTime();
+
+  // Look back 14 days for matching sessions
+  const fourteenDaysAgo = nowTime - (14 * 24 * 60 * 60 * 1000);
+
+  // Find sessions matching day-of-week and hour within lookback window
+  const matches = allSessions.filter(session => {
+    const sessionDate = new Date(session.createdAt);
+    const sessionDay = sessionDate.getDay();
+    const sessionHour = sessionDate.getHours();
+    const sessionTime = sessionDate.getTime();
+
+    return sessionDay === currentDay
+        && sessionHour === currentHour
+        && sessionTime >= fourteenDaysAgo;
+  });
+
+  if (matches.length > 0) {
+    // Return most recent matching session's class
+    const sortedMatches = matches.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return sortedMatches[0].className;
+  }
+
+  // Fallback: most recent class (first in previousClasses, which is sorted by lastUsed)
+  return previousClasses[0]?.className || null;
+}
+
 // Export for Node.js/Jest
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -251,6 +303,7 @@ if (typeof module !== 'undefined' && module.exports) {
     saveStudentInfo,
     loadStudentInfo,
     clearStudentInfo,
+    findSmartDefault,
     STUDENT_INFO_KEYS
   };
 }

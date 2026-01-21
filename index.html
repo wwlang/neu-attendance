@@ -320,6 +320,8 @@ let state = {
   // AC14: Class Selection with Saved Config
   previousClasses: [], // Array of { className, radius, lateThreshold, lastUsed }
   selectedClassConfig: null, // { className, radius, lateThreshold }
+  allSessions: [], // P4-05: All sessions for smart default matching
+  smartDefaultClass: null, // P4-05: Smart default class name
   // Admin Panel
   isAdmin: false,
   showAdminPanel: false,
@@ -771,6 +773,50 @@ function escapeHtml(text) {
 }
 
 // Dark mode toggle button HTML
+
+// P4-05: Smart default class selection based on day-of-week and hour matching
+function findSmartDefault(previousClasses, allSessions, now = new Date()) {
+  // Edge case: no previous classes
+  if (!previousClasses || previousClasses.length === 0) {
+    return null;
+  }
+
+  // Edge case: no session data to match, fall back to first (most recent) class
+  if (!allSessions || allSessions.length === 0) {
+    return previousClasses[0]?.className || null;
+  }
+
+  const currentDay = now.getDay(); // 0-6 (Sunday-Saturday)
+  const currentHour = now.getHours(); // 0-23
+  const nowTime = now.getTime();
+
+  // Look back 14 days for matching sessions
+  const fourteenDaysAgo = nowTime - (14 * 24 * 60 * 60 * 1000);
+
+  // Find sessions matching day-of-week and hour within lookback window
+  const matches = allSessions.filter(session => {
+    const sessionDate = new Date(session.createdAt);
+    const sessionDay = sessionDate.getDay();
+    const sessionHour = sessionDate.getHours();
+    const sessionTime = sessionDate.getTime();
+
+    return sessionDay === currentDay
+        && sessionHour === currentHour
+        && sessionTime >= fourteenDaysAgo;
+  });
+
+  if (matches.length > 0) {
+    // Return most recent matching session's class
+    const sortedMatches = matches.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return sortedMatches[0].className;
+  }
+
+  // Fallback: most recent class (first in previousClasses, which is sorted by lastUsed)
+  return previousClasses[0]?.className || null;
+}
+
 function renderDarkModeToggle() {
   return `
     <button onclick="toggleDarkMode()" class="fixed top-4 right-4 z-40 p-2 rounded-full bg-white dark:bg-gray-700 shadow-lg hover:shadow-lg transition-all no-print" title="Toggle dark mode">
@@ -1129,7 +1175,7 @@ function renderTeacherView() {
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label>
               ${state.previousClasses.length > 0 ? `
               <select id="classSelect" onchange="selectPreviousClass(this.value)" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white">
-                ${state.previousClasses.map((c, i) => `<option value="${escapeHtml(c.className)}"${i === 0 ? ' selected' : ''}>${escapeHtml(c.className)}</option>`).join('')}
+                ${state.previousClasses.map((c, i) => `<option value="${escapeHtml(c.className)}"${(state.smartDefaultClass ? c.className === state.smartDefaultClass : i === 0) ? ' selected' : ''}>${escapeHtml(c.className)}</option>`).join('')}
                 <option value="__new__">+ New Class...</option>
               </select>
               <div id="newClassInput" style="display: none;" class="mt-2">
@@ -1719,11 +1765,12 @@ async function loadSessionHistory() {
   }
 }
 
-// AC14: Load previous classes with their last used config
+// AC14 + P4-05: Load previous classes with smart default selection
 async function loadPreviousClasses() {
   try {
     const snapshot = await db.ref('sessions').orderByChild('createdAt').limitToLast(100).once('value');
     const classMap = new Map(); // className -> { radius, lateThreshold, lastUsed }
+    const allSessions = []; // P4-05: Store all sessions for smart default matching
 
     snapshot.forEach(child => {
       const session = child.val();
@@ -1732,6 +1779,12 @@ async function loadPreviousClasses() {
 
       const sessionTime = new Date(session.createdAt).getTime() || 0;
       const existing = classMap.get(className);
+
+      // P4-05: Store session for smart default matching
+      allSessions.push({
+        className: className,
+        createdAt: session.createdAt
+      });
 
       // Keep the most recent config for each class
       if (!existing || sessionTime > existing.lastUsed) {
@@ -1748,17 +1801,23 @@ async function loadPreviousClasses() {
     state.previousClasses = Array.from(classMap.values())
       .sort((a, b) => b.lastUsed - a.lastUsed);
 
-    // Auto-select the most recent class
+    // P4-05: Store all sessions and compute smart default
+    state.allSessions = allSessions;
+    state.smartDefaultClass = findSmartDefault(state.previousClasses, allSessions);
+
+    // P4-05: Auto-select the smart default class (or most recent as fallback)
     if (state.previousClasses.length > 0) {
-      state.selectedClassConfig = state.previousClasses[0];
-      state.lateThreshold = state.previousClasses[0].lateThreshold;
+      const defaultClassName = state.smartDefaultClass || state.previousClasses[0].className;
+      const config = state.previousClasses.find(c => c.className === defaultClassName) || state.previousClasses[0];
+      state.selectedClassConfig = config;
+      state.lateThreshold = config.lateThreshold;
     }
 
     render();
 
     // Apply config to form after render
     if (state.previousClasses.length > 0) {
-      const config = state.previousClasses[0];
+      const config = state.selectedClassConfig || state.previousClasses[0];
       setTimeout(() => {
         const radiusEl = document.getElementById('radius');
         const radiusValueEl = document.getElementById('radiusValue');
@@ -1773,6 +1832,8 @@ async function loadPreviousClasses() {
   } catch (err) {
     console.error('Failed to load previous classes:', err);
     state.previousClasses = [];
+    state.allSessions = [];
+    state.smartDefaultClass = null;
   }
 }
 

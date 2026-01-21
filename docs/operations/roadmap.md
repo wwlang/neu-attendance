@@ -57,6 +57,8 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P4-03.1 | AC3.1 Participation tooltip | student-attendance-lookup | **Complete** (2026-01-21) |
 | P4-03.2 | AC3.2 Late threshold transparency | student-attendance-lookup | **Complete** (2026-01-21) |
 | P4-04 | Analytics split by class (default view) | analytics-by-class | **Complete** (2026-01-21) |
+| P4-05 | Smart class default selection | 2026-01-21 |
+| P4-05 | Smart class default selection | smart-class-default | **Complete** (2026-01-21) |
 
 ### P4-04: Analytics Split by Class
 
@@ -87,6 +89,35 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - Class selection persists when applying date filters
 - CSV export includes class name in filename when filtered
 - 16 new E2E tests covering all acceptance criteria
+
+### P4-05: Smart Class Default Selection
+
+**Description:** Modify the session start class selector to intelligently default to the most likely class based on the current day of week and time, matching patterns from previous sessions.
+
+**Journey Reference:** `docs/journeys/smart-class-default.md`
+
+**Acceptance Criteria:**
+- [x] AC1: Default to same-day-of-week + same-hour class from previous week
+- [x] AC2: Fall back to most recent class if no match found
+- [x] AC3: Handle edge cases (no previous classes, first time user)
+- [x] AC4: Time matching uses 1-hour window (e.g., 10:00-10:59)
+- [x] AC5: Works correctly across timezone/DST changes (uses local time)
+
+**Technical Notes:**
+- Only affects session start class selector (NOT analytics dropdown)
+- Look back 7-14 days for matching sessions
+- Match by day of week (0-6) and hour (0-23)
+- Store full session data in `loadPreviousClasses()` for matching
+
+**Implementation Notes (2026-01-21):**
+- Added `findSmartDefault()` function to `src/utils.js` with full unit test coverage (16 tests)
+- Added `allSessions` and `smartDefaultClass` to application state
+- Modified `loadPreviousClasses()` to store sessions and compute smart default
+- Updated dropdown rendering to use `smartDefaultClass` for selection
+- Algorithm: Match day-of-week (0-6) AND hour (0-23) within 14-day lookback window
+- Falls back to most recent class when no match found
+- Config (radius, late threshold) auto-loads from smart default class
+
 
 ## Phase 6: UI Refactor
 
@@ -192,6 +223,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P4-03.2 | AC3.2 Late threshold transparency | 2026-01-21 |
 | P6-01 | Corporate design system refactor | 2026-01-21 |
 | P4-04 | Analytics split by class | 2026-01-21 |
+| P4-05 | Smart class default selection | 2026-01-21 |
 
 ## Evidence
 
