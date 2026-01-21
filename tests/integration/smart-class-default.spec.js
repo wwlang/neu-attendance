@@ -28,17 +28,9 @@ async function insertSessionWithTimestamp(page, className, timestamp, config = {
 
 // Helper to delete all test sessions
 async function cleanupTestSessions(page) {
+  // Delete ALL sessions to ensure test isolation
   await page.evaluate(async () => {
-    const snapshot = await db.ref('sessions').once('value');
-    const promises = [];
-    snapshot.forEach(child => {
-      const session = child.val();
-      // Only delete test sessions (those without className or with test markers)
-      if (!session.className || session.className.includes('Test') || session.className.includes('Class')) {
-        promises.push(db.ref(`sessions/${child.key}`).remove());
-      }
-    });
-    await Promise.all(promises);
+    await db.ref('sessions').remove();
   });
 }
 
@@ -177,6 +169,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
   test('AC4: Matches within same hour window', async ({ page }) => {
     const now = new Date();
     const currentHour = now.getHours();
+    const uniqueId = Date.now();
 
     // Create session at start of current hour, last week
     const lastWeekStartOfHour = new Date(now);
@@ -186,7 +179,8 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     await goToInstructorSetup(page);
 
     await cleanupTestSessions(page);
-    await insertSessionWithTimestamp(page, 'Start of Hour Test Class', lastWeekStartOfHour.toISOString());
+    const className = `Hour Window Test ${uniqueId}`;
+    await insertSessionWithTimestamp(page, className, lastWeekStartOfHour.toISOString());
 
     // Reload
     await goToInstructorSetup(page);
@@ -195,7 +189,7 @@ test.describe('P4-05: Smart Class Default Selection', () => {
     const classSelect = page.locator('select#classSelect');
     if (await classSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       const selectedValue = await classSelect.inputValue();
-      expect(selectedValue).toBe('Start of Hour Test Class');
+      expect(selectedValue).toBe(className);
     }
   });
 
