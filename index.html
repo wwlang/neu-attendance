@@ -846,30 +846,78 @@ async function signOut() {
   }
 }
 
+
 async function checkAndRegisterInstructor(user) {
+  console.log('[Auth Debug] checkAndRegisterInstructor called for:', user.email);
+
   try {
     // Check if user's email is in the allowed instructor list
     // Emails stored as comma-separated string for Firebase rules .contains() compatibility
     const emailsSnapshot = await db.ref('config/instructorEmails').once('value');
     const emailsData = emailsSnapshot.val() || '';
-    const allowedEmails = typeof emailsData === 'string' ? emailsData.split(',').map(e => e.trim()) : emailsData;
+    console.log('[Auth Debug] Raw instructorEmails from DB:', emailsData);
 
-    if (allowedEmails.includes(user.email)) {
-      // Register this user as an instructor
-      await db.ref('instructors/' + user.uid).set({
-        email: user.email,
-        name: user.displayName,
-        registeredAt: Date.now()
-      });
-      return true;
+    const allowedEmails = typeof emailsData === 'string'
+      ? emailsData.split(',').map(e => e.trim()).filter(e => e.length > 0)
+      : emailsData;
+    console.log('[Auth Debug] Parsed allowed emails:', allowedEmails);
+    console.log('[Auth Debug] User email from auth token:', user.email);
+
+    // Case-insensitive email matching
+    const userEmailLower = user.email.toLowerCase();
+    const matchingEmail = allowedEmails.find(e => e.toLowerCase() === userEmailLower);
+
+    console.log('[Auth Debug] Case-insensitive match result:', matchingEmail ? `Found: "${matchingEmail}"` : 'No match found');
+
+    if (matchingEmail) {
+      // Check if the stored email exactly matches what's in the auth token
+      // Firebase security rules use .contains() which is case-sensitive
+      const exactMatch = emailsData.includes(user.email);
+      console.log('[Auth Debug] Exact case match (for Firebase rule):', exactMatch);
+
+      if (!exactMatch) {
+        console.warn('[Auth Debug] WARNING: Email case mismatch detected!');
+        console.warn('[Auth Debug] Auth token email: "' + user.email + '"');
+        console.warn('[Auth Debug] Stored email: "' + matchingEmail + '"');
+        console.warn('[Auth Debug] The Firebase security rule requires exact case match.');
+        console.warn('[Auth Debug] Update the database value to match the auth token email exactly.');
+      }
+
+      // Attempt to register this user as an instructor
+      console.log('[Auth Debug] Attempting to write to instructors/' + user.uid);
+      try {
+        await db.ref('instructors/' + user.uid).set({
+          email: user.email,
+          name: user.displayName,
+          registeredAt: Date.now()
+        });
+        console.log('[Auth Debug] Successfully registered as instructor');
+        return true;
+      } catch (writeError) {
+        console.error('[Auth Debug] Failed to write instructor record:', writeError);
+        console.error('[Auth Debug] This is likely a Firebase security rule rejection.');
+        console.error('[Auth Debug] The rule requires: auth.token.email to be contained in config/instructorEmails');
+        console.error('[Auth Debug] Current auth.token.email:', user.email);
+        console.error('[Auth Debug] Current config/instructorEmails:', emailsData);
+
+        // Check if it's a permission error
+        if (writeError.code === 'PERMISSION_DENIED') {
+          console.error('[Auth Debug] PERMISSION_DENIED - The security rule rejected the write.');
+          console.error('[Auth Debug] Make sure the email in config/instructorEmails exactly matches:', user.email);
+        }
+        return false;
+      }
+    } else {
+      console.log('[Auth Debug] Email not in allowed list');
     }
   } catch (error) {
-    console.error('Error checking instructor status:', error);
+    console.error('[Auth Debug] Error in checkAndRegisterInstructor:', error);
   }
   return false;
 }
 
 async function handleAuthStateChange(user) {
+  console.log('[Auth Debug] handleAuthStateChange called:', user ? 'User: ' + user.email : 'No user');
   state.authLoading = false;
 
   if (user) {
@@ -879,34 +927,40 @@ async function handleAuthStateChange(user) {
       displayName: user.displayName,
       photoURL: user.photoURL
     };
+    console.log('[Auth Debug] User state set:', state.user);
 
     // Check if user is instructor
     try {
+      console.log('[Auth Debug] Checking if user is already an instructor...');
       const instructorSnapshot = await db.ref('instructors/' + user.uid).once('value');
       if (instructorSnapshot.exists()) {
+        console.log('[Auth Debug] User found in instructors collection');
         state.isInstructor = true;
       } else {
+        console.log('[Auth Debug] User not in instructors collection, attempting to register...');
         // Try to register as instructor if email is allowed
         state.isInstructor = await checkAndRegisterInstructor(user);
       }
+      console.log('[Auth Debug] Final isInstructor state:', state.isInstructor);
     } catch (error) {
-      console.error('Error checking instructor status:', error);
+      console.error('[Auth Debug] Error checking instructor status:', error);
       state.isInstructor = false;
     }
 
     // If in teacher mode and user is instructor, proceed
     if (state.mode === 'teacher' && state.isInstructor) {
+      console.log('[Auth Debug] User is instructor in teacher mode, recovering session...');
       tryRecoverSession();
       setTimeout(generateSetupQRCodes, 100);
     }
   } else {
+    console.log('[Auth Debug] No user, clearing state');
     state.user = null;
     state.isInstructor = false;
   }
 
   render();
 }
-
 function renderModeSelection() {
   return `
     <div class="flex items-center justify-center min-h-screen">

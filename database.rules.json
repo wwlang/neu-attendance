@@ -86,7 +86,7 @@
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
           },
           "email": {
-            ".validate": "newData.isString() && newData.val().matches(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/)"
+            ".validate": "newData.isString() && newData.val().contains('@')"
           },
           "deviceId": {
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50"
