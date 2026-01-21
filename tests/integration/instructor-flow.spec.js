@@ -55,7 +55,15 @@ test.describe('Instructor Flow', () => {
     await page.click('button:has-text("Access Instructor Mode")');
 
     await expect(page.locator('text=Start Attendance Session')).toBeVisible();
-    await expect(page.locator('input#className')).toBeVisible();
+    // Class selection: either dropdown (if classes exist) or input field
+    const classDropdown = page.locator('select#classSelect');
+    const classNameInput = page.locator('input#className');
+    const hasDropdown = await classDropdown.isVisible({ timeout: 1000 }).catch(() => false);
+    if (hasDropdown) {
+      await expect(classDropdown).toBeVisible();
+    } else {
+      await expect(classNameInput).toBeVisible();
+    }
     await expect(page.locator('input#radius')).toBeVisible();
     await expect(page.locator('input#lateThreshold')).toBeVisible();
   });

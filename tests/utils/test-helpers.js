@@ -135,7 +135,6 @@ async function startInstructorSession(page, className, pin = '230782') {
   // Wait for session setup screen
   // Check for dropdown first (when previous classes exist), then plain input
   const classSelect = page.locator('select#classSelect');
-  const classNameInput = page.locator('input#className');
 
   // Wait for page to be ready - either dropdown or input should exist
   await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
@@ -143,15 +142,16 @@ async function startInstructorSession(page, className, pin = '230782') {
   // If dropdown exists, select "New Class" to show the input
   if (await classSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
     await classSelect.selectOption('__new__');
-    // Wait for input to become visible after selecting New Class
-    await expect(classNameInput).toBeVisible({ timeout: 2000 });
-  } else {
-    // No dropdown, just wait for the input
-    await expect(classNameInput).toBeVisible({ timeout: 2000 });
+    // Wait for the new class input container to be visible
+    await expect(page.locator('#newClassInput')).toBeVisible({ timeout: 3000 });
   }
 
-  // Fill class name and start session
-  await page.fill('input#className', className);
+  // Wait for input to be visible and fill it (retry for stability)
+  await expect(async () => {
+    const input = page.locator('input#className');
+    await expect(input).toBeVisible();
+    await input.fill(className);
+  }).toPass({ timeout: 5000 });
 
   // Wait for button to be ready and click
   const startBtn = page.locator('button:has-text("Start Session")');
