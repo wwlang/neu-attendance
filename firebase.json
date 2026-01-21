@@ -6,9 +6,17 @@
     "database": {
       "port": 9000
     },
+    "auth": {
+      "port": 9099
+    },
+    "singleProjectMode": false,
     "ui": {
       "enabled": true,
       "port": 4000
     }
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
   }
 }

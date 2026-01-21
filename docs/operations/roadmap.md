@@ -7,11 +7,11 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - Device fingerprinting
 - Real-time attendance tracking
 - Failed attempt logging and bulk approval
-- Session history
+- Session history with class dropdown (defaults to most recent)
 - CSV export (attendance + failed attempts)
 - Dark mode support
-- Instructor PIN protection
-- **Unit and integration test coverage**
+- Google Sign-in for instructors (production) / PIN bypass (emulator mode)
+- **95 E2E tests with Firebase emulator isolation**
 
 ## Phase 1: Stability & Polish (Complete)
 
@@ -164,4 +164,5 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 
 - PRD validation: `.claude/evidence/prd-validation-2026-01-13.yaml`
 - Firebase rules: `docs/firebase-security-rules.md`
-- Test coverage: `tests/` directory with 46 unit tests and 48 integration tests
+- Test coverage: `tests/` directory with 95 E2E tests (Playwright)
+- Development setup: `CLAUDE.md` (emulator mode, local dev instructions)

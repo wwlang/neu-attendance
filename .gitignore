@@ -32,3 +32,4 @@ ui-debug.log
 
 # Backup files (keep directory, ignore contents)
 backups/*.json
+scripts/service-account.json

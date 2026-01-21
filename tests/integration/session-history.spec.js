@@ -264,6 +264,13 @@ test.describe('Full Session Lifecycle with History', () => {
 
     // Create unique class name with timestamp
     const className = `History Test ${Date.now()}`;
+    // Handle dropdown if it exists (from previous classes)
+    const classSelect = page.locator('select#classSelect');
+    const classNameInput = page.locator('input#className');
+    if (await classSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await classSelect.selectOption('__new__');
+      await expect(classNameInput).toBeVisible({ timeout: 2000 });
+    }
     await page.fill('input#className', className);
     await page.click('button:has-text("Start Session")');
 
@@ -312,6 +319,13 @@ test.describe('Full Session Lifecycle with History', () => {
 
     // Create session
     const className = `Manual Entry Test ${Date.now()}`;
+    // Handle dropdown if it exists (from previous classes)
+    const classSelect = page.locator('select#classSelect');
+    const classNameInput = page.locator('input#className');
+    if (await classSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await classSelect.selectOption('__new__');
+      await expect(classNameInput).toBeVisible({ timeout: 2000 });
+    }
     await page.fill('input#className', className);
     await page.click('button:has-text("Start Session")');
     await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });

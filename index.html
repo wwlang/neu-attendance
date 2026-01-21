@@ -6,10 +6,10 @@
   <!-- Content Security Policy - restricts resource loading sources -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://apis.google.com https://accounts.google.com https://*.firebasedatabase.app;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://apis.google.com https://accounts.google.com https://*.firebasedatabase.app http://localhost:*;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://accounts.google.com;
     font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com;
+    connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com ws://localhost:* http://localhost:*;
     img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com;
     frame-src https://accounts.google.com https://*.firebaseapp.com;
     frame-ancestors 'none';
@@ -201,9 +201,13 @@ const auth = firebase.auth();
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 // Firebase Emulator detection - connect to local emulator when running tests
-if (location.hostname === 'localhost' && new URLSearchParams(location.search).get('emulator') === 'true') {
+const isEmulatorMode = () => location.hostname === 'localhost' &&
+  new URLSearchParams(location.search).get('emulator') === 'true';
+
+if (isEmulatorMode()) {
   db.useEmulator('localhost', 9000);
-  console.log('Using Firebase Emulator');
+  auth.useEmulator('http://localhost:9099');
+  console.log('[Emulator] Connected to Firebase emulators');
 }
 
 const CODE_REFRESH_SECONDS = 120;
@@ -471,7 +475,8 @@ async function quickConfirmAttendance() {
   }
 
   // Ensure user is authenticated (anonymous auth for students)
-  if (!auth.currentUser) {
+  // Skip in emulator mode since we don't have auth emulator
+  if (!isEmulatorMode() && !auth.currentUser) {
     try {
       await auth.signInAnonymously();
     } catch (authError) {
@@ -660,6 +665,13 @@ function getDistance(lat1, lon1, lat2, lon2) {
 
 function getLocation() {
   return new Promise((resolve, reject) => {
+    // In emulator mode, use mock location for testing (NEU campus)
+    if (isEmulatorMode()) {
+      console.log('[Test Mode] Using mock location');
+      resolve({ lat: 21.0285, lng: 105.8542, accuracy: 10 });
+      return;
+    }
+
     if (!navigator.geolocation) { reject(new Error('Geolocation not supported')); return; }
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
@@ -802,6 +814,29 @@ function renderInstructorAuth() {
       </div>`;
   }
 
+  // Emulator mode: Show PIN entry for testing
+  if (isEmulatorMode()) {
+    return `
+      <div class="flex items-center justify-center min-h-screen">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
+          <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back</button>
+          <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Instructor Access</h2>
+          <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">Enter the instructor PIN to continue</p>
+          <div class="space-y-4">
+            <input type="password" id="instructorPin" maxlength="6" placeholder="Enter PIN" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white text-center text-2xl tracking-widest">
+            <div id="pinError" class="text-red-500 text-sm text-center hidden">Incorrect PIN</div>
+            <button onclick="verifyInstructorPIN()" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">
+              Access Instructor Mode
+            </button>
+          </div>
+          <p class="text-xs text-gray-400 dark:text-gray-500 text-center mt-6">
+            Test mode: Using PIN authentication
+          </p>
+        </div>
+      </div>`;
+  }
+
+  // Production: Show Google Sign-in
   return `
     <div class="flex items-center justify-center min-h-screen">
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
@@ -824,6 +859,24 @@ function renderInstructorAuth() {
         </p>
       </div>
     </div>`;
+}
+
+// PIN verification for emulator/test mode
+const INSTRUCTOR_PIN = '230782';
+function verifyInstructorPIN() {
+  const pinInput = document.getElementById('instructorPin');
+  const pinError = document.getElementById('pinError');
+  const pin = pinInput?.value || '';
+
+  if (pin === INSTRUCTOR_PIN) {
+    state.isInstructor = true;
+    state.user = { email: 'test@emulator.local' }; // Mock user for emulator
+    loadPreviousClasses();
+    render();
+  } else {
+    pinError?.classList.remove('hidden');
+    pinInput?.focus();
+  }
 }
 
 async function signInWithGoogle() {
@@ -1071,13 +1124,16 @@ function renderTeacherView() {
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class Name</label>
               ${state.previousClasses.length > 0 ? `
-              <select id="classSelect" onchange="selectPreviousClass(this.value)" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white mb-2">
-                <option value="__new__">+ New Class</option>
-                ${state.previousClasses.map(c => `<option value="${escapeHtml(c.className)}">${escapeHtml(c.className)}</option>`).join('')}
+              <select id="classSelect" onchange="selectPreviousClass(this.value)" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white">
+                ${state.previousClasses.map((c, i) => `<option value="${escapeHtml(c.className)}"${i === 0 ? ' selected' : ''}>${escapeHtml(c.className)}</option>`).join('')}
+                <option value="__new__">+ New Class...</option>
               </select>
-              ` : ''}
+              <div id="newClassInput" style="display: none;" class="mt-2">
+                <input type="text" id="className" maxlength="100" placeholder="Enter new class name" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white">
+              </div>
+              ` : `
               <input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white">
-              ${state.previousClasses.length > 0 ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Select a previous class or enter a new name</p>' : ''}
+              `}
             </div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="5" max="30" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
@@ -1688,7 +1744,28 @@ async function loadPreviousClasses() {
     state.previousClasses = Array.from(classMap.values())
       .sort((a, b) => b.lastUsed - a.lastUsed);
 
+    // Auto-select the most recent class
+    if (state.previousClasses.length > 0) {
+      state.selectedClassConfig = state.previousClasses[0];
+      state.lateThreshold = state.previousClasses[0].lateThreshold;
+    }
+
     render();
+
+    // Apply config to form after render
+    if (state.previousClasses.length > 0) {
+      const config = state.previousClasses[0];
+      setTimeout(() => {
+        const radiusEl = document.getElementById('radius');
+        const radiusValueEl = document.getElementById('radiusValue');
+        const lateEl = document.getElementById('lateThreshold');
+        const lateValueEl = document.getElementById('lateValue');
+        if (radiusEl) radiusEl.value = config.radius;
+        if (radiusValueEl) radiusValueEl.textContent = config.radius;
+        if (lateEl) lateEl.value = config.lateThreshold;
+        if (lateValueEl) lateValueEl.textContent = config.lateThreshold;
+      }, 0);
+    }
   } catch (err) {
     console.error('Failed to load previous classes:', err);
     state.previousClasses = [];
@@ -1697,22 +1774,30 @@ async function loadPreviousClasses() {
 
 // AC14: Handle class selection from dropdown
 function selectPreviousClass(className) {
+  const newClassInput = document.getElementById('newClassInput');
+
   if (className === '__new__') {
-    // New class - reset to defaults
+    // New class - show input and reset to defaults
     state.selectedClassConfig = null;
-    document.getElementById('className').value = '';
-    document.getElementById('className').focus();
+    if (newClassInput) newClassInput.style.display = 'block';
+    const classNameInput = document.getElementById('className');
+    if (classNameInput) {
+      classNameInput.value = '';
+      classNameInput.focus();
+    }
     document.getElementById('radius').value = 300;
     document.getElementById('radiusValue').textContent = '300';
     document.getElementById('lateThreshold').value = DEFAULT_LATE_THRESHOLD_MINUTES;
     document.getElementById('lateValue').textContent = DEFAULT_LATE_THRESHOLD_MINUTES;
     state.lateThreshold = DEFAULT_LATE_THRESHOLD_MINUTES;
   } else {
+    // Hide new class input
+    if (newClassInput) newClassInput.style.display = 'none';
+
     // Find config for selected class
     const config = state.previousClasses.find(c => c.className === className);
     if (config) {
       state.selectedClassConfig = config;
-      document.getElementById('className').value = config.className;
       document.getElementById('radius').value = config.radius;
       document.getElementById('radiusValue').textContent = config.radius;
       document.getElementById('lateThreshold').value = config.lateThreshold;
@@ -2157,12 +2242,24 @@ async function acquireStudentLocation() {
 }
 
 async function startSession() {
-  const className = document.getElementById('className').value.trim();
-  const radius = parseInt(document.getElementById('radius').value);
-  if (!className) { alert('Please enter a class name'); return; }
-  const btn = document.getElementById('startBtn');
-  btn.disabled = true; btn.textContent = 'Getting location...';
   try {
+    // Get class name from dropdown selection or text input
+    let className;
+    const classSelect = document.getElementById('classSelect');
+    const classNameInput = document.getElementById('className');
+
+    if (classSelect && classSelect.value !== '__new__') {
+      // Using a previous class
+      className = classSelect.value;
+    } else if (classNameInput) {
+      // New class from text input
+      className = classNameInput.value.trim();
+    }
+
+    const radius = parseInt(document.getElementById('radius').value);
+    if (!className) { alert('Please enter a class name'); return; }
+    const btn = document.getElementById('startBtn');
+    btn.disabled = true; btn.textContent = 'Getting location...';
     const location = await getLocation();
     state.teacherLocation = location;
     // Use Firebase push() for cryptographically unique session IDs (SEC-2026-011)
@@ -2176,7 +2273,8 @@ async function startSession() {
       code,
       codeGeneratedAt: Date.now(),
       createdAt: new Date().toISOString(),
-      lateThreshold: state.lateThreshold
+      lateThreshold: state.lateThreshold,
+      active: true
     };
     await sessionRef.set(session);
     await db.ref('activeSession').set(sessionId);
@@ -2191,8 +2289,13 @@ async function startSession() {
 
     render();
   } catch (err) {
+    console.error('[startSession] Error:', err);
     alert('Error: ' + err.message + '\n\nPlease enable location access.');
-    btn.disabled = false; btn.textContent = 'Start Session';
+    const btn = document.getElementById('startBtn');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Start Session';
+    }
   }
 }
 
@@ -2299,7 +2402,8 @@ async function submitAttendance() {
   const msgDiv = document.getElementById('studentMessage');
 
   // Ensure user is authenticated (anonymous auth for students)
-  if (!auth.currentUser) {
+  // Skip in emulator mode since we don't have auth emulator
+  if (!isEmulatorMode() && !auth.currentUser) {
     try {
       await auth.signInAnonymously();
     } catch (authError) {

@@ -1,44 +1,68 @@
 # NEU Attendance - Project Instructions
 
-## Testing: Firebase Emulator Required
+## Local Development
 
-**All tests MUST use the Firebase Emulator. Never run tests against production database.**
+### Emulator Mode
 
-### Before Running Tests
+The app supports an emulator mode for local development and testing. When running locally with `?emulator=true`:
+
+- **Database**: Connects to Firebase emulator (localhost:9000)
+- **Auth**: Connects to Auth emulator (localhost:9099)
+- **Authentication**: Uses PIN-based auth (PIN: `230782`) instead of Google Sign-in
+
+Access emulator mode: `http://localhost:3000/?emulator=true`
+
+### Starting Local Development
 
 ```bash
-# Start Firebase emulator (keep running in separate terminal)
+# Terminal 1: Start the emulators
 npm run emulators
 # Emulator UI: http://localhost:4000
 # Database: http://localhost:9000
+# Auth: http://localhost:9099
+
+# Terminal 2: Start local server
+npx serve -p 3000
+
+# Open browser to http://localhost:3000/?emulator=true
 ```
+
+## Testing
+
+**All tests MUST use the Firebase Emulator. Never run tests against production database.**
 
 ### Test Commands
 
 ```bash
 npm test                   # Unit tests only
-npm run test:e2e           # E2E tests (requires emulator running)
-npm run test:e2e:emulator  # E2E tests with auto-emulator lifecycle
+npm run test:e2e:emulator  # E2E tests (recommended - handles emulator lifecycle)
+npm run test:e2e           # E2E tests (requires emulator already running)
 npm run test:all           # All tests
 ```
 
-### Why Emulator?
+### How Tests Work
 
-- Tests write to `/sessions`, `/attendance`, `/failed`, `/audit`
-- Test data pollutes production if not isolated
-- Emulator provides clean slate for each test run
-- Production data remains untouched
+1. `test:e2e:emulator` swaps `database.rules.json` with `database.rules.test.json` (permissive rules)
+2. Starts Firebase emulators (database + auth)
+3. Runs Playwright tests with `?emulator=true` URL parameter
+4. Restores original rules after tests complete
 
-### Production Database Scripts
+### Test Isolation
 
-For production operations (backup, cleanup), use browser console scripts:
+- Tests use `?emulator=true` URL parameter
+- App detects emulator mode and connects to local emulators
+- PIN auth bypasses Google Sign-in for test automation
+- Permissive rules allow writes without authentication
+
+## Production Database Scripts
+
+For production operations (backup, cleanup):
 
 ```bash
-node scripts/backup-firebase.js     # Generates backup script
+node scripts/backup-firebase.js     # Generates backup script for browser console
 node scripts/archive-test-data.js   # Generates cleanup script
+node scripts/admin-cleanup.js       # Direct cleanup via Admin SDK (requires service account)
 ```
-
-Copy output to browser console when app is open at production URL.
 
 ## Architecture
 
@@ -61,4 +85,7 @@ Use this design system for all UI implementation.
 | `index.html` | Main application |
 | `src/utils.js` | Extracted utility functions |
 | `firebase.json` | Emulator configuration |
-| `scripts/` | Production database scripts |
+| `database.rules.json` | Production security rules |
+| `database.rules.test.json` | Permissive rules for testing |
+| `scripts/admin-cleanup.js` | Admin SDK cleanup script |
+| `tests/utils/test-helpers.js` | E2E test helper functions |

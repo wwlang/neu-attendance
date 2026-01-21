@@ -118,6 +118,10 @@ async function waitForModalClose(page, modalText, timeout = 5000) {
  * @param {string} pin - Instructor PIN (default: '230782')
  */
 async function startInstructorSession(page, className, pin = '230782') {
+  // Ensure geolocation is granted before starting session
+  await page.context().grantPermissions(['geolocation']);
+  await page.context().setGeolocation({ latitude: 21.0285, longitude: 105.8542 });
+
   // Click instructor mode button
   await page.click('button:has-text("I\'m the Instructor")');
 
@@ -129,11 +133,30 @@ async function startInstructorSession(page, className, pin = '230782') {
   await page.click('button:has-text("Access Instructor Mode")');
 
   // Wait for session setup screen
-  await expect(page.locator('input#className')).toBeVisible({ timeout: 5000 });
+  // Check for dropdown first (when previous classes exist), then plain input
+  const classSelect = page.locator('select#classSelect');
+  const classNameInput = page.locator('input#className');
+
+  // Wait for page to be ready - either dropdown or input should exist
+  await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
+
+  // If dropdown exists, select "New Class" to show the input
+  if (await classSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await classSelect.selectOption('__new__');
+    // Wait for input to become visible after selecting New Class
+    await expect(classNameInput).toBeVisible({ timeout: 2000 });
+  } else {
+    // No dropdown, just wait for the input
+    await expect(classNameInput).toBeVisible({ timeout: 2000 });
+  }
 
   // Fill class name and start session
   await page.fill('input#className', className);
-  await page.click('button:has-text("Start Session")');
+
+  // Wait for button to be ready and click
+  const startBtn = page.locator('button:has-text("Start Session")');
+  await expect(startBtn).toBeEnabled({ timeout: 5000 });
+  await startBtn.click();
 
   // Wait for session to start - code display appears
   await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
