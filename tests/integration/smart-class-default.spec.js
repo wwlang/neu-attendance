@@ -2,6 +2,11 @@
  * Smart Class Default Selection - E2E Tests
  *
  * P4-05: Test smart class default selection based on day-of-week and hour matching.
+ *
+ * NOTE: These tests MUST run serially (not in parallel) because they require
+ * complete control over the sessions in the database. Each test cleans up all
+ * sessions and inserts specific test data, which would cause race conditions
+ * if tests ran concurrently.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -55,7 +60,8 @@ async function goToInstructorSetup(page) {
   await expect(setupHeader).toBeVisible();
 }
 
-test.describe('P4-05: Smart Class Default Selection', () => {
+// Use describe.serial to prevent parallel execution - these tests share database state
+test.describe.serial('P4-05: Smart Class Default Selection', () => {
 
   test.beforeEach(async ({ page }) => {
     // Grant geolocation permissions

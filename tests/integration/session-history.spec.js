@@ -325,6 +325,12 @@ test.describe('Full Session Lifecycle with History', () => {
     // Submit - button text is "Add Student" in modal
     await page.click('div.fixed button:has-text("Add Student")');
 
+    // Wait for modal to close (indicates operation completed)
+    await expect(page.locator('text=Add Student Manually')).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for the attendance table to appear (indicates UI refresh completed)
+    await expect(page.locator('table')).toBeVisible({ timeout: 10000 });
+
     // Verify student was added
     await expect(page.locator('text=Test Manual Student')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=99999999')).toBeVisible();
