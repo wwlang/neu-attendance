@@ -11,7 +11,8 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - CSV export (attendance + failed attempts)
 - Dark mode support
 - Google Sign-in for instructors (production) / PIN bypass (emulator mode)
-- **95 E2E tests with Firebase emulator isolation**
+- **Analytics dashboard with class-based filtering**
+- **110 E2E tests with Firebase emulator isolation**
 
 ## Phase 1: Stability & Polish (Complete)
 
@@ -55,6 +56,37 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P4-03 | Student attendance history lookup | student-check-in | **Complete** (2026-01-20) |
 | P4-03.1 | AC3.1 Participation tooltip | student-attendance-lookup | **Complete** (2026-01-21) |
 | P4-03.2 | AC3.2 Late threshold transparency | student-attendance-lookup | **Complete** (2026-01-21) |
+| P4-04 | Analytics split by class (default view) | analytics-by-class | **Complete** (2026-01-21) |
+
+### P4-04: Analytics Split by Class
+
+**Description:** Modify the analytics dashboard to display data split by class by default. Add a class selector dropdown that defaults to the most recent class, with an "All Classes" option for aggregated view.
+
+**Journey Reference:** `docs/journeys/analytics-by-class.md`
+
+**Acceptance Criteria:**
+- [x] AC1: Class selector dropdown with all unique class names
+- [x] AC2: Default selection is most recent class (by session date)
+- [x] AC3: Summary cards (Total Sessions, Avg Attendance, Unique Students) update per class
+- [x] AC4: Trend chart filters to show only selected class sessions
+- [x] AC5: Session comparison bar chart shows only selected class
+- [x] AC6: Student rankings calculate rates within selected class
+- [x] AC7: At-risk students section reflects selected class
+- [x] AC8: "All Classes" option shows aggregated data (current behavior)
+- [x] AC9: Class selection persists during date filter and sorting
+- [x] AC10: CSV export reflects selected class filter
+- [x] AC11: Dark mode support for class selector
+
+**Implementation Notes (2026-01-21):**
+- Added `analyticsSelectedClass` and `analyticsClassList` to state
+- Modified `loadAnalyticsData()` to compute class list from all sessions (before date filter)
+- Added `getFilteredAnalyticsData()` to compute per-class statistics
+- Added `changeAnalyticsClass()` for dropdown handler
+- Modified `renderAnalyticsView()` to show class selector dropdown
+- Class list sorted by most recent session date
+- Class selection persists when applying date filters
+- CSV export includes class name in filename when filtered
+- 16 new E2E tests covering all acceptance criteria
 
 ## Phase 6: UI Refactor
 
@@ -159,10 +191,11 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P4-03.1 | AC3.1 Participation tooltip | 2026-01-21 |
 | P4-03.2 | AC3.2 Late threshold transparency | 2026-01-21 |
 | P6-01 | Corporate design system refactor | 2026-01-21 |
+| P4-04 | Analytics split by class | 2026-01-21 |
 
 ## Evidence
 
 - PRD validation: `.claude/evidence/prd-validation-2026-01-13.yaml`
 - Firebase rules: `docs/firebase-security-rules.md`
-- Test coverage: `tests/` directory with 95 E2E tests (Playwright)
+- Test coverage: `tests/` directory with 110 E2E tests (Playwright)
 - Development setup: `CLAUDE.md` (emulator mode, local dev instructions)

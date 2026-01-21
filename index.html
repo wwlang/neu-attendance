@@ -314,6 +314,9 @@ let state = {
   analyticsSortDirection: 'desc',
   trendChart: null,
   sessionChart: null,
+  // P4-04: Analytics Class Filter
+  analyticsSelectedClass: null, // null = auto-select most recent, "all" = all classes
+  analyticsClassList: [], // Array of unique class names sorted by most recent
   // AC14: Class Selection with Saved Config
   previousClasses: [], // Array of { className, radius, lateThreshold, lastUsed }
   selectedClassConfig: null, // { className, radius, lateThreshold }
@@ -3331,14 +3334,48 @@ async function loadAnalyticsData() {
   try {
     // Load all sessions
     const sessionsSnapshot = await db.ref('sessions').once('value');
-    const sessions = [];
+    let sessions = [];
     sessionsSnapshot.forEach(child => {
       const session = child.val();
       session.id = child.key;
       sessions.push(session);
     });
 
-    // Load attendance for all sessions
+    // P4-04: Compute FULL class list from ALL sessions BEFORE date filter
+    // This ensures class selection persists even when applying date filters
+    const allSessionsByClass = {};
+    let allSessionsCopy = [];
+    sessionsSnapshot.forEach(child => {
+      const session = child.val();
+      session.id = child.key;
+      allSessionsCopy.push(session);
+    });
+    allSessionsCopy.forEach(session => {
+      const className = session.className || 'Unnamed Class';
+      if (!allSessionsByClass[className]) {
+        allSessionsByClass[className] = [];
+      }
+      allSessionsByClass[className].push(session);
+    });
+
+    // Get unique class names sorted by most recent session (from ALL sessions)
+    const fullClassList = Object.keys(allSessionsByClass).sort((a, b) => {
+      const latestA = Math.max(...allSessionsByClass[a].map(s => new Date(s.createdAt).getTime()));
+      const latestB = Math.max(...allSessionsByClass[b].map(s => new Date(s.createdAt).getTime()));
+      return latestB - latestA; // Most recent first
+    });
+
+    // Apply date filter if set
+    if (state.analyticsDateStart || state.analyticsDateEnd) {
+      const startDate = state.analyticsDateStart ? new Date(state.analyticsDateStart).getTime() : 0;
+      const endDate = state.analyticsDateEnd ? new Date(state.analyticsDateEnd + 'T23:59:59').getTime() : Infinity;
+      sessions = sessions.filter(s => {
+        const sessionDate = new Date(s.createdAt).getTime();
+        return sessionDate >= startDate && sessionDate <= endDate;
+      });
+    }
+
+    // Load attendance for date-filtered sessions
     const attendanceBySession = {};
     const studentAttendance = {}; // { studentId: { name, sessions: [...] } }
 
@@ -3366,55 +3403,31 @@ async function loadAnalyticsData() {
       }
     }
 
-    // Calculate statistics
-    const totalSessions = sessions.length;
-    const uniqueStudents = Object.keys(studentAttendance).length;
-
-    // Calculate average attendance rate (per session)
-    let totalAttendanceRate = 0;
-    const sessionStats = sessions.map(s => {
-      const attendance = attendanceBySession[s.id] || [];
-      // Use unique students or attendance count, whichever makes sense
-      const rate = uniqueStudents > 0 ? (attendance.length / uniqueStudents) * 100 : 0;
-      totalAttendanceRate += rate;
-      return {
-        id: s.id,
-        className: s.className,
-        createdAt: s.createdAt,
-        attendanceCount: attendance.length,
-        rate: Math.min(rate, 100) // Cap at 100%
-      };
-    }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-    const avgAttendanceRate = totalSessions > 0 ? totalAttendanceRate / totalSessions : 0;
-
-    // Calculate per-student statistics
-    const studentStats = Object.entries(studentAttendance).map(([studentId, data]) => {
-      const sessionsAttended = data.sessions.length;
-      const rate = totalSessions > 0 ? (sessionsAttended / totalSessions) * 100 : 0;
-      const lateCount = data.sessions.filter(s => s.isLate).length;
-      return {
-        studentId,
-        name: data.name,
-        email: data.email,
-        sessionsAttended,
-        totalSessions,
-        rate,
-        lateCount,
-        isAtRisk: rate < 70
-      };
+    // Group date-filtered sessions by className for data display
+    const sessionsByClass = {};
+    sessions.forEach(session => {
+      const className = session.className || 'Unnamed Class';
+      if (!sessionsByClass[className]) {
+        sessionsByClass[className] = [];
+      }
+      sessionsByClass[className].push(session);
     });
 
-    // Sort by rate descending by default
-    studentStats.sort((a, b) => b.rate - a.rate);
+    // Set FULL class list in state (never filtered by date)
+    state.analyticsClassList = fullClassList;
 
+    // Auto-select most recent class ONLY if not already set or if selection is invalid
+    if (!state.analyticsSelectedClass || (state.analyticsSelectedClass !== 'all' && !fullClassList.includes(state.analyticsSelectedClass))) {
+      state.analyticsSelectedClass = fullClassList[0] || 'all';
+    }
+
+    // Store raw data for filtering
     state.analyticsData = {
-      totalSessions,
-      uniqueStudents,
-      avgAttendanceRate,
-      sessionStats,
-      studentStats,
-      atRiskStudents: studentStats.filter(s => s.isAtRisk)
+      allSessions: sessions,
+      sessionsByClass,
+      attendanceBySession,
+      studentAttendance,
+      classList: fullClassList
     };
 
     state.analyticsLoading = false;
@@ -3433,8 +3446,117 @@ async function loadAnalyticsData() {
   }
 }
 
+// P4-04: Get filtered analytics data based on selected class
+function getFilteredAnalyticsData() {
+  if (!state.analyticsData) return null;
+
+  const { allSessions, sessionsByClass, attendanceBySession, studentAttendance, classList } = state.analyticsData;
+  const selectedClass = state.analyticsSelectedClass;
+
+  // Determine which sessions to include
+  let filteredSessions;
+  if (selectedClass === 'all') {
+    filteredSessions = allSessions;
+  } else {
+    filteredSessions = sessionsByClass[selectedClass] || [];
+  }
+
+  const filteredSessionIds = new Set(filteredSessions.map(s => s.id));
+
+  // Calculate statistics for filtered sessions
+  const totalSessions = filteredSessions.length;
+
+  // Get unique students who attended filtered sessions
+  const studentIdsInFilter = new Set();
+  const filteredStudentData = {};
+
+  Object.entries(studentAttendance).forEach(([studentId, data]) => {
+    const relevantSessions = data.sessions.filter(s => filteredSessionIds.has(s.sessionId));
+    if (relevantSessions.length > 0) {
+      studentIdsInFilter.add(studentId);
+      filteredStudentData[studentId] = {
+        name: data.name,
+        email: data.email,
+        sessions: relevantSessions
+      };
+    }
+  });
+
+  const uniqueStudents = studentIdsInFilter.size;
+
+  // Calculate session stats
+  let totalAttendanceRate = 0;
+  const sessionStats = filteredSessions.map(s => {
+    const attendance = attendanceBySession[s.id] || [];
+    const rate = uniqueStudents > 0 ? (attendance.length / uniqueStudents) * 100 : 0;
+    totalAttendanceRate += rate;
+    return {
+      id: s.id,
+      className: s.className,
+      createdAt: s.createdAt,
+      attendanceCount: attendance.length,
+      rate: Math.min(rate, 100)
+    };
+  }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  const avgAttendanceRate = totalSessions > 0 ? totalAttendanceRate / totalSessions : 0;
+
+  // Calculate per-student statistics for filtered data
+  const studentStats = Object.entries(filteredStudentData).map(([studentId, data]) => {
+    const sessionsAttended = data.sessions.length;
+    const rate = totalSessions > 0 ? (sessionsAttended / totalSessions) * 100 : 0;
+    const lateCount = data.sessions.filter(s => s.isLate).length;
+    return {
+      studentId,
+      name: data.name,
+      email: data.email,
+      sessionsAttended,
+      totalSessions,
+      rate,
+      lateCount,
+      isAtRisk: rate < 70
+    };
+  });
+
+  // Apply current sort
+  const dir = state.analyticsSortDirection === 'asc' ? 1 : -1;
+  studentStats.sort((a, b) => {
+    const column = state.analyticsSortColumn;
+    if (column === 'name') {
+      return dir * a.name.localeCompare(b.name);
+    } else if (column === 'id') {
+      return dir * a.studentId.localeCompare(b.studentId);
+    } else if (column === 'sessions') {
+      return dir * (a.sessionsAttended - b.sessionsAttended);
+    } else if (column === 'rate') {
+      return dir * (a.rate - b.rate);
+    }
+    return 0;
+  });
+
+  return {
+    totalSessions,
+    uniqueStudents,
+    avgAttendanceRate,
+    sessionStats,
+    studentStats,
+    atRiskStudents: studentStats.filter(s => s.isAtRisk),
+    selectedClass
+  };
+}
+
+// P4-04: Change selected class for analytics
+function changeAnalyticsClass(className) {
+  state.analyticsSelectedClass = className;
+  render();
+  setTimeout(() => {
+    initAnalyticsCharts();
+  }, 100);
+}
+
 function initAnalyticsCharts() {
-  if (!state.analyticsData) return;
+  const filtered = getFilteredAnalyticsData();
+  if (!filtered) return;
 
   const isDark = state.darkMode;
   const textColor = isDark ? '#e5e7eb' : '#374151';
@@ -3454,7 +3576,7 @@ function initAnalyticsCharts() {
   const trendCanvas = document.getElementById('trendChart');
   if (trendCanvas) {
     const ctx = trendCanvas.getContext('2d');
-    const data = state.analyticsData.sessionStats;
+    const data = filtered.sessionStats;
 
     state.trendChart = new Chart(ctx, {
       type: 'line',
@@ -3497,7 +3619,7 @@ function initAnalyticsCharts() {
   const sessionCanvas = document.getElementById('sessionChart');
   if (sessionCanvas) {
     const ctx = sessionCanvas.getContext('2d');
-    const data = state.analyticsData.sessionStats.slice(-10); // Last 10 sessions
+    const data = filtered.sessionStats.slice(-10); // Last 10 sessions
 
     state.sessionChart = new Chart(ctx, {
       type: 'bar',
@@ -3541,21 +3663,6 @@ function sortAnalyticsTable(column) {
     state.analyticsSortColumn = column;
     state.analyticsSortDirection = column === 'name' ? 'asc' : 'desc';
   }
-
-  const dir = state.analyticsSortDirection === 'asc' ? 1 : -1;
-  state.analyticsData.studentStats.sort((a, b) => {
-    if (column === 'name') {
-      return dir * a.name.localeCompare(b.name);
-    } else if (column === 'id') {
-      return dir * a.studentId.localeCompare(b.studentId);
-    } else if (column === 'sessions') {
-      return dir * (a.sessionsAttended - b.sessionsAttended);
-    } else if (column === 'rate') {
-      return dir * (a.rate - b.rate);
-    }
-    return 0;
-  });
-
   render();
 }
 
@@ -3576,15 +3683,19 @@ function clearAnalyticsDateFilter() {
 }
 
 function exportAnalyticsCSV() {
-  if (!state.analyticsData) return;
+  const filtered = getFilteredAnalyticsData();
+  if (!filtered) return;
 
-  const { totalSessions, uniqueStudents, avgAttendanceRate, studentStats, sessionStats } = state.analyticsData;
+  const { totalSessions, uniqueStudents, avgAttendanceRate, studentStats, sessionStats, selectedClass } = filtered;
 
   const lines = [];
 
   // Summary section
   lines.push(['NEU Attendance Analytics Report']);
   lines.push(['Generated:', new Date().toISOString()]);
+  if (selectedClass !== 'all') {
+    lines.push(['Class:', selectedClass]);
+  }
   lines.push([]);
   lines.push(['Summary']);
   lines.push(['Total Sessions:', totalSessions]);
@@ -3626,7 +3737,9 @@ function exportAnalyticsCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'analytics_report_' + new Date().toISOString().split('T')[0] + '.csv';
+  // Include class name in filename (sanitized)
+  const classSlug = selectedClass !== 'all' ? '_' + selectedClass.replace(/[^a-zA-Z0-9]/g, '_') : '';
+  a.download = 'analytics_report' + classSlug + '_' + new Date().toISOString().split('T')[0] + '.csv';
   a.click();
 }
 
@@ -3644,23 +3757,38 @@ function renderAnalyticsView() {
   if (!state.analyticsData) {
     return `
       <div class="pt-8">
-        <button onclick="state.showAnalytics = false; render();" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back to Dashboard</button>
+        <button onclick="state.showAnalytics = false; render();" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">&larr; Back to Dashboard</button>
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
           <p class="text-gray-500 dark:text-gray-400">No analytics data available. Start some sessions first!</p>
         </div>
       </div>`;
   }
 
-  const { totalSessions, uniqueStudents, avgAttendanceRate, studentStats, atRiskStudents, sessionStats } = state.analyticsData;
+  const filtered = getFilteredAnalyticsData();
+  if (!filtered) return '';
+
+  const { totalSessions, uniqueStudents, avgAttendanceRate, studentStats, atRiskStudents, sessionStats, selectedClass } = filtered;
+  const classList = state.analyticsClassList || [];
+
   const sortIcon = (col) => state.analyticsSortColumn === col
-    ? (state.analyticsSortDirection === 'asc' ? ' ↑' : ' ↓')
+    ? (state.analyticsSortDirection === 'asc' ? ' &uarr;' : ' &darr;')
     : '';
 
   return `
     <div class="pt-8 space-y-6">
-      <div class="flex justify-between items-center no-print">
-        <button onclick="state.showAnalytics = false; render();" class="text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">← Back to Dashboard</button>
+      <div class="flex flex-wrap justify-between items-center gap-4 no-print">
         <h2 class="text-xl font-bold text-gray-800 dark:text-white">Analytics Dashboard</h2>
+        <button onclick="state.showAnalytics = false; render();" class="text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">&larr; Back to Dashboard</button>
+        <div class="flex items-center gap-3">
+          <label for="analyticsClassFilter" class="text-sm font-medium text-gray-700 dark:text-gray-300">Class:</label>
+          <select id="analyticsClassFilter" onchange="changeAnalyticsClass(this.value)"
+            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white">
+            ${classList.map(name => `
+              <option value="${escapeHtml(name)}" ${selectedClass === name ? 'selected' : ''}>${escapeHtml(name)}</option>
+            `).join('')}
+            <option value="all" ${selectedClass === 'all' ? 'selected' : ''}>All Classes</option>
+          </select>
+        </div>
         <button onclick="exportAnalyticsCSV()" class="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 font-medium text-sm">Export Report</button>
       </div>
 
@@ -3697,7 +3825,7 @@ function renderAnalyticsView() {
       <!-- Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Attendance Trend</h3>
+          <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Attendance Trend${selectedClass !== 'all' ? ' (' + escapeHtml(selectedClass) + ')' : ''}</h3>
           <div style="height: 250px;">
             <canvas id="trendChart"></canvas>
           </div>
