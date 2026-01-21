@@ -30,7 +30,7 @@ test.describe('QR Code Generation', () => {
     await gotoWithEmulator(page, '/');
     await waitForPageLoad(page);
 
-    await authenticateAsInstructor(page, '230782');
+    await authenticateAsInstructor(page);
 
     // QR codes should NOT be visible on setup page - only after session starts
     await expect(page.locator('#qr-student-large')).not.toBeVisible({ timeout: 5000 });

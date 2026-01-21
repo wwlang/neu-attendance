@@ -14,20 +14,11 @@ const { gotoWithEmulator } = require('../utils/test-helpers');
  * - Add/Edit/Remove attendance records
  */
 
-const INSTRUCTOR_PIN = '230782';
-
 test.describe('Session History Management (AC8)', () => {
   test.beforeEach(async ({ page }) => {
-    await gotoWithEmulator(page, '/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
-
-    // Navigate to instructor mode
-    await page.click('button:has-text("I\'m the Instructor")');
-    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
+    // Navigate directly with testAuth for automatic instructor authentication
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
   });
 
   test('should open history view and show sessions', async ({ page }) => {
@@ -162,16 +153,9 @@ test.describe('Session History Management (AC8)', () => {
 
 test.describe('Edit Attendance Records (AC9)', () => {
   test.beforeEach(async ({ page }) => {
-    await gotoWithEmulator(page, '/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
-
-    // Navigate to instructor mode
-    await page.click('button:has-text("I\'m the Instructor")');
-    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
+    // Navigate directly with testAuth for automatic instructor authentication
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
   });
 
   test('should open Add Student modal', async ({ page }) => {
@@ -251,16 +235,9 @@ test.describe('Edit Attendance Records (AC9)', () => {
 
 test.describe('Full Session Lifecycle with History', () => {
   test('should create session, end it, and view in history', async ({ page }) => {
-    await gotoWithEmulator(page, '/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
-
-    // Navigate to instructor mode
-    await page.click('button:has-text("I\'m the Instructor")');
-    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
+    // Navigate directly with testAuth for automatic instructor authentication
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
 
     // Create unique class name with timestamp
     const className = `History Test ${Date.now()}`;
@@ -306,16 +283,9 @@ test.describe('Full Session Lifecycle with History', () => {
   });
 
   test('should add manual student to historical session', async ({ page }) => {
-    await gotoWithEmulator(page, '/');
-    await page.waitForSelector('text=Loading...', { state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.locator('h1:has-text("Quick Attendance")')).toBeVisible({ timeout: 10000 });
-
-    // Navigate to instructor mode
-    await page.click('button:has-text("I\'m the Instructor")');
-    await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
-    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
+    // Navigate directly with testAuth for automatic instructor authentication
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
 
     // Create session
     const className = `Manual Entry Test ${Date.now()}`;

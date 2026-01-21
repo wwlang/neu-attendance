@@ -12,14 +12,12 @@ const {
  * NEU Attendance - Instructor Flow Integration Tests
  *
  * Tests the complete instructor journey:
- * - PIN authentication
+ * - Authentication (via testAuth in emulator mode)
  * - Session creation and configuration
  * - Code display and rotation
  * - Attendance monitoring
  * - Session management
  */
-
-const INSTRUCTOR_PIN = '230782';
 
 test.describe('Instructor Flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -33,26 +31,15 @@ test.describe('Instructor Flow', () => {
     await expect(page.locator('button:has-text("I\'m a Student")')).toBeVisible();
   });
 
-  test('should navigate to PIN entry when clicking instructor button', async ({ page }) => {
+  test('should navigate to sign-in when clicking instructor button', async ({ page }) => {
     await page.click('button:has-text("I\'m the Instructor")');
     await expect(page.locator('text=Instructor Access')).toBeVisible();
-    await expect(page.locator('input#instructorPin')).toBeVisible();
+    // Should show Google Sign-in button
+    await expect(page.locator('text=Sign in with Google')).toBeVisible();
   });
 
-  test('should reject incorrect PIN', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', '000000');
-    await page.click('button:has-text("Access Instructor Mode")');
-
-    await expect(page.locator('text=Incorrect PIN')).toBeVisible();
-    // Should still be on PIN entry screen
-    await expect(page.locator('input#instructorPin')).toBeVisible();
-  });
-
-  test('should accept correct PIN and show session setup', async ({ page }) => {
-    await page.click('button:has-text("I\'m the Instructor")');
-    await page.fill('input#instructorPin', INSTRUCTOR_PIN);
-    await page.click('button:has-text("Access Instructor Mode")');
+  test('should show session setup after authentication', async ({ page }) => {
+    await authenticateAsInstructor(page);
 
     await expect(page.locator('text=Start Attendance Session')).toBeVisible();
     // Class selection: either dropdown (if classes exist) or input field
@@ -69,7 +56,7 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should show session configuration options', async ({ page }) => {
-    await authenticateAsInstructor(page, INSTRUCTOR_PIN);
+    await authenticateAsInstructor(page);
 
     // Check radius slider - updated for larger max value
     const radiusSlider = page.locator('input#radius');
@@ -85,12 +72,12 @@ test.describe('Instructor Flow', () => {
   });
 
   test('should show View History button', async ({ page }) => {
-    await authenticateAsInstructor(page, INSTRUCTOR_PIN);
+    await authenticateAsInstructor(page);
     await expect(page.locator('button:has-text("View History")')).toBeVisible();
   });
 
   test('should open and close history view', async ({ page }) => {
-    await authenticateAsInstructor(page, INSTRUCTOR_PIN);
+    await authenticateAsInstructor(page);
 
     // Open history
     await goToHistoryView(page);

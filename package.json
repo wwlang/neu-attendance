@@ -12,8 +12,7 @@
     "test:e2e": "npx playwright test",
     "test:e2e:headed": "npx playwright test --headed",
     "test:all": "npm run test:unit && npm run test:e2e",
-    "emulators": "firebase emulators:start",
-    "emulators:test": "cp database.rules.json database.rules.backup.json && cp database.rules.test.json database.rules.json && firebase emulators:start",
+    "emulators": "cp database.rules.json database.rules.prod.json && cp database.rules.test.json database.rules.json && firebase emulators:start; cp database.rules.prod.json database.rules.json",
     "test:e2e:emulator": "cp database.rules.json database.rules.backup.json && cp database.rules.test.json database.rules.json && firebase emulators:exec 'npx playwright test'; EXIT_CODE=$?; cp database.rules.backup.json database.rules.json; exit $EXIT_CODE"
   },
   "repository": {

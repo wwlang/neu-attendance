@@ -115,22 +115,14 @@ async function waitForModalClose(page, modalText, timeout = 5000) {
  * Start an instructor session with proper waits
  * @param {import('@playwright/test').Page} page
  * @param {string} className
- * @param {string} pin - Instructor PIN (default: '230782')
  */
-async function startInstructorSession(page, className, pin = '230782') {
+async function startInstructorSession(page, className) {
   // Ensure geolocation is granted before starting session
   await page.context().grantPermissions(['geolocation']);
   await page.context().setGeolocation({ latitude: 21.0285, longitude: 105.8542 });
 
-  // Click instructor mode button
-  await page.click('button:has-text("I\'m the Instructor")');
-
-  // Wait for PIN input to be visible
-  await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
-
-  // Fill PIN and submit
-  await page.fill('input#instructorPin', pin);
-  await page.click('button:has-text("Access Instructor Mode")');
+  // Navigate with testAuth=instructor for automatic authentication
+  await gotoWithEmulator(page, '/?testAuth=instructor');
 
   // Wait for session setup screen
   // Check for dropdown first (when previous classes exist), then plain input
@@ -259,15 +251,12 @@ async function endSessionAndGoToHistory(page) {
 }
 
 /**
- * Navigate to instructor mode with PIN authentication
+ * Navigate to instructor mode with test authentication
  * @param {import('@playwright/test').Page} page
- * @param {string} pin
  */
-async function authenticateAsInstructor(page, pin = '230782') {
-  await page.click('button:has-text("I\'m the Instructor")');
-  await expect(page.locator('input#instructorPin')).toBeVisible({ timeout: 5000 });
-  await page.fill('input#instructorPin', pin);
-  await page.click('button:has-text("Access Instructor Mode")');
+async function authenticateAsInstructor(page) {
+  // Navigate with testAuth=instructor for automatic authentication
+  await gotoWithEmulator(page, '/?testAuth=instructor');
   await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
 }
 
