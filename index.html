@@ -475,8 +475,7 @@ async function quickConfirmAttendance() {
   }
 
   // Ensure user is authenticated (anonymous auth for students)
-  // Skip in emulator mode since we don't have auth emulator
-  if (!isEmulatorMode() && !auth.currentUser) {
+  if (!auth.currentUser) {
     try {
       await auth.signInAnonymously();
     } catch (authError) {
@@ -863,16 +862,32 @@ function renderInstructorAuth() {
 
 // PIN verification for emulator/test mode
 const INSTRUCTOR_PIN = '230782';
-function verifyInstructorPIN() {
+async function verifyInstructorPIN() {
   const pinInput = document.getElementById('instructorPin');
   const pinError = document.getElementById('pinError');
   const pin = pinInput?.value || '';
 
   if (pin === INSTRUCTOR_PIN) {
-    state.isInstructor = true;
-    state.user = { email: 'test@emulator.local' }; // Mock user for emulator
-    loadPreviousClasses();
-    render();
+    try {
+      // Sign in anonymously to satisfy Firebase auth rules
+      const userCredential = await auth.signInAnonymously();
+      const uid = userCredential.user.uid;
+
+      // Register as instructor in emulator database
+      await db.ref(`instructors/${uid}`).set({
+        email: 'test@emulator.local',
+        registeredAt: Date.now()
+      });
+
+      state.isInstructor = true;
+      state.user = { email: 'test@emulator.local', uid };
+      loadPreviousClasses();
+      render();
+    } catch (error) {
+      console.error('[Emulator] Auth error:', error);
+      pinError.textContent = 'Auth error: ' + error.message;
+      pinError?.classList.remove('hidden');
+    }
   } else {
     pinError?.classList.remove('hidden');
     pinInput?.focus();
@@ -2401,18 +2416,6 @@ async function submitAttendance() {
   const enteredCode = document.getElementById('enteredCode').value.trim().toUpperCase();
   const msgDiv = document.getElementById('studentMessage');
 
-  // Ensure user is authenticated (anonymous auth for students)
-  // Skip in emulator mode since we don't have auth emulator
-  if (!isEmulatorMode() && !auth.currentUser) {
-    try {
-      await auth.signInAnonymously();
-    } catch (authError) {
-      console.error('Anonymous auth failed:', authError);
-      msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Authentication error. Please refresh and try again.</div>';
-      return;
-    }
-  }
-
   // BUG FIX: Save student info FIRST (before any validation)
   // This ensures info is saved on ANY submission attempt, not just success
   // Journey Reference: student-check-in.md AC6.1
@@ -2421,6 +2424,7 @@ async function submitAttendance() {
     state.savedStudentInfo = { studentId, studentName, studentEmail };
   }
 
+  // Validate inputs before attempting auth
   if (!studentId || !studentName || !studentEmail || !enteredCode) {
     msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Please fill in all fields</div>';
     return;
@@ -2432,6 +2436,17 @@ async function submitAttendance() {
   if (!studentEmail.includes('@')) {
     msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Please enter a valid email address</div>';
     return;
+  }
+
+  // Ensure user is authenticated (anonymous auth for students)
+  if (!auth.currentUser) {
+    try {
+      await auth.signInAnonymously();
+    } catch (authError) {
+      console.error('Anonymous auth failed:', authError);
+      msgDiv.innerHTML = '<div class="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">Authentication error. Please refresh and try again.</div>';
+      return;
+    }
   }
 
   const btn = document.getElementById('submitBtn');
