@@ -822,15 +822,23 @@ async function signInWithGoogle() {
   try {
     state.authLoading = true;
     render();
-    // Use redirect instead of popup (more reliable, no popup blockers)
-    await auth.signInWithRedirect(googleProvider);
-    // User will be redirected to Google, then back to this page
-    // Auth state listener will handle the rest when they return
+    // Use popup for Brave/privacy browsers (redirect has cross-domain issues)
+    console.log('[Auth Debug] Starting Google sign-in with popup...');
+    const result = await auth.signInWithPopup(googleProvider);
+    console.log('[Auth Debug] Popup sign-in successful:', result.user?.email);
+    // Auth state listener will handle the rest
   } catch (error) {
-    console.error('Sign-in error:', error);
+    console.error('[Auth Debug] Sign-in error:', error.code, error.message);
     state.authLoading = false;
     render();
-    alert('Sign-in failed: ' + error.message);
+    if (error.code === 'auth/popup-closed-by-user') {
+      // User closed the popup - don't show an error
+      console.log('[Auth Debug] User closed popup');
+    } else if (error.code === 'auth/popup-blocked') {
+      alert('Popup was blocked. Please allow popups for this site and try again.');
+    } else {
+      alert('Sign-in failed: ' + error.message);
+    }
   }
 }
 
