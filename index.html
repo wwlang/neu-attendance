@@ -2742,10 +2742,31 @@ async function reopenSessionFromDetail(sessionId) {
 }
 
 // Navigate from history detail view to active session view
-function goToActiveSession() {
+async function goToActiveSession() {
+  const sessionId = state.selectedHistorySession?.id;
   state.selectedHistorySession = null;
   state.selectedSessionAttendance = [];
   state.showHistory = false;
+
+  // If we have the session ID, load it as the active session
+  if (sessionId && !state.session) {
+    try {
+      const sessionSnapshot = await db.ref('sessions/' + sessionId).once('value');
+      const session = sessionSnapshot.val();
+      if (session && !session.endedAt) {
+        state.session = session;
+        state.currentCode = session.code;
+        state.timeLeft = Math.max(0, CODE_REFRESH_SECONDS - Math.floor((Date.now() - session.codeGeneratedAt) / 1000));
+        state.lateThreshold = session.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
+        saveSessionToStorage(sessionId);
+        setupCodeRotation();
+        setupSessionListeners(sessionId);
+      }
+    } catch (err) {
+      console.error('Failed to load session:', err);
+    }
+  }
+
   render();
 }
 
