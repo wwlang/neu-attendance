@@ -17,7 +17,7 @@
   <title>Quick Attendance - NEU</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" integrity="sha384-ajMUFBUFMCyjh8uxJg6bkGcKe9RTolyjwbxB3yES0QQMenP3Oztj/W9vA2SJPcIh" crossorigin="anonymous"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js" integrity="sha384-f6/UpzjTjIXASlp20cArQsaRh1EvHVJd5kegy/gYR9W2D0a32TnEqUEiW4Zm/5O0" crossorigin="anonymous"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js" integrity="sha384-xD1t9dGSVKobUztxDkv6xUI0H4AnFz0NxwlgDJJ7FDlblG9xxr1Z9iauCZuJYj6p" crossorigin="anonymous"></script>
   <!-- QRCode library (davidshimjs/qrcodejs) with SRI -->
   <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
   <script>
@@ -326,6 +326,47 @@ let state = {
   showAdminPanel: false,
   adminCleanupRunning: false,
   adminCleanupProgress: null
+};
+
+// M1 FIX: Simple in-memory cache with TTL for reducing Firebase queries
+const cache = {
+  data: {},
+  
+  // Set a cached value with TTL in milliseconds
+  set(key, value, ttlMs = 5 * 60 * 1000) {
+    this.data[key] = {
+      value: value,
+      expiresAt: Date.now() + ttlMs
+    };
+  },
+  
+  // Get a cached value, returns null if expired or missing
+  get(key) {
+    const entry = this.data[key];
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      delete this.data[key];
+      return null;
+    }
+    return entry.value;
+  },
+  
+  // Invalidate a specific key or all keys matching a prefix
+  invalidate(keyOrPrefix) {
+    if (keyOrPrefix) {
+      // Invalidate all keys starting with the prefix
+      Object.keys(this.data).forEach(key => {
+        if (key.startsWith(keyOrPrefix)) {
+          delete this.data[key];
+        }
+      });
+    }
+  },
+  
+  // Clear all cache
+  clear() {
+    this.data = {};
+  }
 };
 
 // Check if QRCode library is available
@@ -983,13 +1024,32 @@ async function signOut() {
 }
 
 
+// Debug logging helper - only logs in emulator mode (H3, M3)
+function debugLog(...args) {
+  if (isEmulatorMode()) {
+    console.log(...args);
+  }
+}
+
+function debugWarn(...args) {
+  if (isEmulatorMode()) {
+    console.warn(...args);
+  }
+}
+
+function debugError(...args) {
+  if (isEmulatorMode()) {
+    console.error(...args);
+  }
+}
+
 async function checkAndRegisterInstructor(user) {
-  console.log('[Auth Debug] checkAndRegisterInstructor called for:', user.email);
+  debugLog('[Auth Debug] checkAndRegisterInstructor called for:', user.email);
 
   try {
     // In emulator mode, auto-register any signed-in user as instructor
     if (isEmulatorMode()) {
-      console.log('[Emulator] Auto-registering user as instructor');
+      debugLog('[Emulator] Auto-registering user as instructor');
       await db.ref('instructors/' + user.uid).set({
         email: user.email,
         name: user.displayName || 'Test Instructor',
@@ -1000,65 +1060,66 @@ async function checkAndRegisterInstructor(user) {
 
     // Check if user's email is in the allowed instructor list
     // Emails stored as comma-separated string for Firebase rules .contains() compatibility
+    // H3: Emails should be stored in lowercase for consistent matching
     const emailsSnapshot = await db.ref('config/instructorEmails').once('value');
     const emailsData = emailsSnapshot.val() || '';
-    console.log('[Auth Debug] Raw instructorEmails from DB:', emailsData);
+    debugLog('[Auth Debug] Raw instructorEmails from DB:', emailsData);
 
     const allowedEmails = typeof emailsData === 'string'
       ? emailsData.split(',').map(e => e.trim()).filter(e => e.length > 0)
       : emailsData;
-    console.log('[Auth Debug] Parsed allowed emails:', allowedEmails);
-    console.log('[Auth Debug] User email from auth token:', user.email);
+    debugLog('[Auth Debug] Parsed allowed emails:', allowedEmails);
+    debugLog('[Auth Debug] User email from auth token:', user.email);
 
-    // Case-insensitive email matching
+    // Case-insensitive email matching (H3)
     const userEmailLower = user.email.toLowerCase();
     const matchingEmail = allowedEmails.find(e => e.toLowerCase() === userEmailLower);
 
-    console.log('[Auth Debug] Case-insensitive match result:', matchingEmail ? `Found: "${matchingEmail}"` : 'No match found');
+    debugLog('[Auth Debug] Case-insensitive match result:', matchingEmail ? `Found: "${matchingEmail}"` : 'No match found');
 
     if (matchingEmail) {
       // Check if the stored email exactly matches what's in the auth token
       // Firebase security rules use .contains() which is case-sensitive
       const exactMatch = emailsData.includes(user.email);
-      console.log('[Auth Debug] Exact case match (for Firebase rule):', exactMatch);
+      debugLog('[Auth Debug] Exact case match (for Firebase rule):', exactMatch);
 
       if (!exactMatch) {
-        console.warn('[Auth Debug] WARNING: Email case mismatch detected!');
-        console.warn('[Auth Debug] Auth token email: "' + user.email + '"');
-        console.warn('[Auth Debug] Stored email: "' + matchingEmail + '"');
-        console.warn('[Auth Debug] The Firebase security rule requires exact case match.');
-        console.warn('[Auth Debug] Update the database value to match the auth token email exactly.');
+        debugWarn('[Auth Debug] WARNING: Email case mismatch detected!');
+        debugWarn('[Auth Debug] Auth token email: "' + user.email + '"');
+        debugWarn('[Auth Debug] Stored email: "' + matchingEmail + '"');
+        debugWarn('[Auth Debug] The Firebase security rule requires exact case match.');
+        debugWarn('[Auth Debug] Update the database value to match the auth token email exactly.');
       }
 
       // Attempt to register this user as an instructor
-      console.log('[Auth Debug] Attempting to write to instructors/' + user.uid);
+      debugLog('[Auth Debug] Attempting to write to instructors/' + user.uid);
       try {
         await db.ref('instructors/' + user.uid).set({
           email: user.email,
           name: user.displayName,
           registeredAt: Date.now()
         });
-        console.log('[Auth Debug] Successfully registered as instructor');
+        debugLog('[Auth Debug] Successfully registered as instructor');
         return true;
       } catch (writeError) {
-        console.error('[Auth Debug] Failed to write instructor record:', writeError);
-        console.error('[Auth Debug] This is likely a Firebase security rule rejection.');
-        console.error('[Auth Debug] The rule requires: auth.token.email to be contained in config/instructorEmails');
-        console.error('[Auth Debug] Current auth.token.email:', user.email);
-        console.error('[Auth Debug] Current config/instructorEmails:', emailsData);
+        debugError('[Auth Debug] Failed to write instructor record:', writeError);
+        debugError('[Auth Debug] This is likely a Firebase security rule rejection.');
+        debugError('[Auth Debug] The rule requires: auth.token.email to be contained in config/instructorEmails');
+        debugError('[Auth Debug] Current auth.token.email:', user.email);
+        debugError('[Auth Debug] Current config/instructorEmails:', emailsData);
 
         // Check if it's a permission error
         if (writeError.code === 'PERMISSION_DENIED') {
-          console.error('[Auth Debug] PERMISSION_DENIED - The security rule rejected the write.');
-          console.error('[Auth Debug] Make sure the email in config/instructorEmails exactly matches:', user.email);
+          debugError('[Auth Debug] PERMISSION_DENIED - The security rule rejected the write.');
+          debugError('[Auth Debug] Make sure the email in config/instructorEmails exactly matches:', user.email);
         }
         return false;
       }
     } else {
-      console.log('[Auth Debug] Email not in allowed list');
+      debugLog('[Auth Debug] Email not in allowed list');
     }
   } catch (error) {
-    console.error('[Auth Debug] Error in checkAndRegisterInstructor:', error);
+    debugError('[Auth Debug] Error in checkAndRegisterInstructor:', error);
   }
   return false;
 }
@@ -1079,7 +1140,7 @@ async function checkAdmin(user) {
 }
 
 async function handleAuthStateChange(user) {
-  console.log('[Auth Debug] handleAuthStateChange called:', user ? 'User: ' + user.email : 'No user');
+  debugLog('[Auth Debug] handleAuthStateChange called:', user ? 'User: ' + user.email : 'No user');
   state.authLoading = false;
 
   if (user) {
@@ -1089,34 +1150,34 @@ async function handleAuthStateChange(user) {
       displayName: user.displayName,
       photoURL: user.photoURL
     };
-    console.log('[Auth Debug] User state set:', state.user);
+    debugLog('[Auth Debug] User state set:', state.user);
 
     // Check if user is instructor
     try {
-      console.log('[Auth Debug] Checking if user is already an instructor...');
+      debugLog('[Auth Debug] Checking if user is already an instructor...');
       const instructorSnapshot = await db.ref('instructors/' + user.uid).once('value');
       if (instructorSnapshot.exists()) {
-        console.log('[Auth Debug] User found in instructors collection');
+        debugLog('[Auth Debug] User found in instructors collection');
         state.isInstructor = true;
       } else {
-        console.log('[Auth Debug] User not in instructors collection, attempting to register...');
+        debugLog('[Auth Debug] User not in instructors collection, attempting to register...');
         // Try to register as instructor if email is allowed
         state.isInstructor = await checkAndRegisterInstructor(user);
       }
-      console.log('[Auth Debug] Final isInstructor state:', state.isInstructor);
+      debugLog('[Auth Debug] Final isInstructor state:', state.isInstructor);
 
       // Check if user is admin
       state.isAdmin = await checkAdmin(user);
-      console.log('[Auth Debug] isAdmin state:', state.isAdmin);
+      debugLog('[Auth Debug] isAdmin state:', state.isAdmin);
     } catch (error) {
-      console.error('[Auth Debug] Error checking instructor status:', error);
+      debugError('[Auth Debug] Error checking instructor status:', error);
       state.isInstructor = false;
       state.isAdmin = false;
     }
 
     // If in teacher mode and user is instructor, proceed
     if (state.mode === 'teacher' && state.isInstructor) {
-      console.log('[Auth Debug] User is instructor in teacher mode, recovering session...');
+      debugLog('[Auth Debug] User is instructor in teacher mode, recovering session...');
       tryRecoverSession();
       loadPreviousClasses(); // AC14: Load class dropdown options
     }
@@ -1812,10 +1873,14 @@ async function loadSessionHistory() {
       sessions.push(session);
     });
 
-    // Fetch real attendance counts for sessions that don't have stored counts
-    // This fixes the "0" stats issue for sessions created before counts were stored
-    for (const session of sessions) {
-      if (session.attendanceCount === undefined || session.attendanceCount === null) {
+    // H2 FIX: Fetch real attendance counts for sessions that don't have stored counts
+    // Use Promise.all to parallelize queries instead of sequential await in loop
+    const sessionsNeedingCounts = sessions.filter(
+      s => s.attendanceCount === undefined || s.attendanceCount === null
+    );
+    
+    if (sessionsNeedingCounts.length > 0) {
+      const countPromises = sessionsNeedingCounts.map(async (session) => {
         try {
           const attendanceSnapshot = await db.ref('attendance/' + session.id).once('value');
           const attendanceData = attendanceSnapshot.val() || {};
@@ -1827,7 +1892,8 @@ async function loadSessionHistory() {
           session.attendanceCount = 0;
           session.lateCount = 0;
         }
-      }
+      });
+      await Promise.all(countPromises);
     }
 
     state.sessionHistory = sessions.reverse(); // Most recent first
@@ -3466,13 +3532,13 @@ async function incrementParticipation(firebaseKey) {
 
   try {
     const ref = db.ref('attendance/' + state.session.id + '/' + firebaseKey);
-    const snapshot = await ref.once('value');
-    const current = snapshot.val()?.participation || 0;
-    await ref.update({ participation: current + 1 });
+    // L2 FIX: Use ServerValue.increment to avoid read-then-write race condition
+    await ref.update({ participation: firebase.database.ServerValue.increment(1) });
 
     // Update local state for immediate UI feedback
     const attendanceIndex = state.attendance.findIndex(a => a.firebaseKey === firebaseKey);
     if (attendanceIndex !== -1) {
+      const current = state.attendance[attendanceIndex].participation || 0;
       state.attendance[attendanceIndex].participation = current + 1;
       render();
     }
@@ -3490,15 +3556,20 @@ async function decrementParticipation(firebaseKey) {
 
   try {
     const ref = db.ref('attendance/' + state.session.id + '/' + firebaseKey);
-    const snapshot = await ref.once('value');
-    const current = snapshot.val()?.participation || 0;
-    const newValue = Math.max(0, current - 1);
-    await ref.update({ participation: newValue });
+    // L2 FIX: Use ServerValue.increment(-1) but first check local state for minimum 0
+    const attendanceIndex = state.attendance.findIndex(a => a.firebaseKey === firebaseKey);
+    const currentLocal = attendanceIndex !== -1 ? (state.attendance[attendanceIndex].participation || 0) : 0;
+    
+    if (currentLocal <= 0) {
+      // Already at minimum, no need to update
+      return;
+    }
+    
+    await ref.update({ participation: firebase.database.ServerValue.increment(-1) });
 
     // Update local state for immediate UI feedback
-    const attendanceIndex = state.attendance.findIndex(a => a.firebaseKey === firebaseKey);
     if (attendanceIndex !== -1) {
-      state.attendance[attendanceIndex].participation = newValue;
+      state.attendance[attendanceIndex].participation = currentLocal - 1;
       render();
     }
   } catch (err) {
@@ -3517,13 +3588,13 @@ async function incrementParticipationHistory(firebaseKey) {
   try {
     const sessionId = state.selectedHistorySession.id;
     const ref = db.ref('attendance/' + sessionId + '/' + firebaseKey);
-    const snapshot = await ref.once('value');
-    const current = snapshot.val()?.participation || 0;
-    await ref.update({ participation: current + 1 });
+    // L2 FIX: Use ServerValue.increment to avoid read-then-write race condition
+    await ref.update({ participation: firebase.database.ServerValue.increment(1) });
     
     // Update local state for immediate UI feedback
     const attendanceIndex = state.selectedSessionAttendance.findIndex(a => a.firebaseKey === firebaseKey);
     if (attendanceIndex !== -1) {
+      const current = state.selectedSessionAttendance[attendanceIndex].participation || 0;
       state.selectedSessionAttendance[attendanceIndex].participation = current + 1;
       render();
     }
@@ -3542,15 +3613,20 @@ async function decrementParticipationHistory(firebaseKey) {
   try {
     const sessionId = state.selectedHistorySession.id;
     const ref = db.ref('attendance/' + sessionId + '/' + firebaseKey);
-    const snapshot = await ref.once('value');
-    const current = snapshot.val()?.participation || 0;
-    const newValue = Math.max(0, current - 1);
-    await ref.update({ participation: newValue });
+    // L2 FIX: Use ServerValue.increment(-1) but first check local state for minimum 0
+    const attendanceIndex = state.selectedSessionAttendance.findIndex(a => a.firebaseKey === firebaseKey);
+    const currentLocal = attendanceIndex !== -1 ? (state.selectedSessionAttendance[attendanceIndex].participation || 0) : 0;
+    
+    if (currentLocal <= 0) {
+      // Already at minimum, no need to update
+      return;
+    }
+    
+    await ref.update({ participation: firebase.database.ServerValue.increment(-1) });
     
     // Update local state for immediate UI feedback
-    const attendanceIndex = state.selectedSessionAttendance.findIndex(a => a.firebaseKey === firebaseKey);
     if (attendanceIndex !== -1) {
-      state.selectedSessionAttendance[attendanceIndex].participation = newValue;
+      state.selectedSessionAttendance[attendanceIndex].participation = currentLocal - 1;
       render();
     }
   } catch (err) {
@@ -3567,7 +3643,15 @@ async function loadAnalyticsData() {
   render();
 
   try {
-    // Load all sessions
+    // H1 FIX: Apply default date filter (last 30 days) if no filter is set
+    // This prevents loading ALL historical data on initial load
+    if (!state.analyticsDateStart && !state.analyticsDateEnd) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      state.analyticsDateStart = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+
+    // Load all sessions (still needed for class list)
     const sessionsSnapshot = await db.ref('sessions').once('value');
     let sessions = [];
     sessionsSnapshot.forEach(child => {
@@ -3600,28 +3684,40 @@ async function loadAnalyticsData() {
       return latestB - latestA; // Most recent first
     });
 
-    // Apply date filter if set
-    if (state.analyticsDateStart || state.analyticsDateEnd) {
-      const startDate = state.analyticsDateStart ? new Date(state.analyticsDateStart).getTime() : 0;
-      const endDate = state.analyticsDateEnd ? new Date(state.analyticsDateEnd + 'T23:59:59').getTime() : Infinity;
-      sessions = sessions.filter(s => {
-        const sessionDate = new Date(s.createdAt).getTime();
-        return sessionDate >= startDate && sessionDate <= endDate;
-      });
-    }
+    // Apply date filter (H1: always have a default filter now)
+    const startDate = state.analyticsDateStart ? new Date(state.analyticsDateStart).getTime() : 0;
+    const endDate = state.analyticsDateEnd ? new Date(state.analyticsDateEnd + 'T23:59:59').getTime() : Infinity;
+    sessions = sessions.filter(s => {
+      const sessionDate = new Date(s.createdAt).getTime();
+      return sessionDate >= startDate && sessionDate <= endDate;
+    });
 
-    // Load attendance for date-filtered sessions
+    // H1 FIX: Load attendance for date-filtered sessions using Promise.all
+    // This parallelizes the N queries instead of sequential await in loop
     const attendanceBySession = {};
     const studentAttendance = {}; // { studentId: { name, sessions: [...] } }
 
-    for (const session of sessions) {
+    // First try to use cached counts from session documents
+    const sessionsNeedingAttendance = sessions.filter(s => 
+      s.attendanceCount === undefined || s.attendanceCount === null
+    );
+    
+    // Fetch attendance data in parallel
+    const attendancePromises = sessions.map(async (session) => {
       const attendanceSnapshot = await db.ref('attendance/' + session.id).once('value');
       const attendanceData = attendanceSnapshot.val() || {};
       const attendanceList = Object.values(attendanceData);
-      attendanceBySession[session.id] = attendanceList;
-
+      return { sessionId: session.id, attendanceList, className: session.className };
+    });
+    
+    const attendanceResults = await Promise.all(attendancePromises);
+    
+    // Process results
+    for (const result of attendanceResults) {
+      attendanceBySession[result.sessionId] = result.attendanceList;
+      
       // Track per-student attendance
-      for (const record of attendanceList) {
+      for (const record of result.attendanceList) {
         if (!studentAttendance[record.studentId]) {
           studentAttendance[record.studentId] = {
             name: record.studentName,
@@ -3630,8 +3726,8 @@ async function loadAnalyticsData() {
           };
         }
         studentAttendance[record.studentId].sessions.push({
-          sessionId: session.id,
-          className: session.className,
+          sessionId: result.sessionId,
+          className: result.className,
           timestamp: record.timestamp,
           isLate: record.isLate || record.lateCheckIn
         });

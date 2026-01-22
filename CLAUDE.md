@@ -18,6 +18,17 @@
 
 Without Anonymous auth enabled, students will see "Permission Denied" when trying to submit attendance.
 
+### Instructor Email Configuration (H3)
+
+**Instructor emails stored in `config/instructorEmails` must be lowercase for consistent matching.**
+
+The Firebase security rules use case-sensitive `.contains()` matching. To avoid case mismatch issues:
+1. Store all instructor emails in lowercase in the database
+2. The client normalizes email comparison to lowercase
+3. When adding new instructors, ensure emails are lowercased before storing
+
+Example database value: `john.doe@neu.edu,jane.smith@neu.edu` (not `John.Doe@neu.edu`)
+
 ## Local Development
 
 ### Emulator Mode
@@ -95,6 +106,25 @@ node scripts/admin-cleanup.js       # Direct cleanup via Admin SDK (requires ser
 **Reference:** `docs/decisions/design-system.md`
 
 Use this design system for all UI implementation.
+
+## Security Notes (M4)
+
+### Public Read Access on Attendance Data
+
+The attendance records have public read access (`".read": true`). **This is intentional and required** for the QR-code based attendance system to work:
+
+1. Students scan a QR code that links to `/?mode=student&code=XXXXXX`
+2. The student page needs to verify the code is valid by reading session data
+3. Students submit attendance without creating accounts (anonymous auth)
+4. After submission, the page shows success/failure feedback
+
+Without public read access, students would need authenticated accounts to check attendance status, which defeats the purpose of the quick QR-code based system.
+
+**Mitigations:**
+- Attendance records only contain: student ID, name, email, timestamp, location
+- No sensitive data is stored in attendance records
+- Write access requires authentication (`auth != null`)
+- Students cannot modify existing records
 
 ## Key Files
 
