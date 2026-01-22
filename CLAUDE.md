@@ -1,5 +1,23 @@
 # NEU Attendance - Project Instructions
 
+## Production Setup
+
+### Firebase Authentication Requirements
+
+**IMPORTANT:** The production app requires Anonymous Authentication to be enabled in Firebase Console.
+
+1. Go to [Firebase Console](https://console.firebase.google.com) and select your project
+2. Navigate to **Authentication** > **Sign-in method**
+3. Enable **Anonymous** provider
+
+**Why this is required:**
+- Teachers authenticate via Google Sign-in
+- Students submit attendance anonymously (no account required)
+- Firebase security rules use `auth != null` to validate writes
+- Anonymous auth provides the `auth` context for student submissions without requiring accounts
+
+Without Anonymous auth enabled, students will see "Permission Denied" when trying to submit attendance.
+
 ## Local Development
 
 ### Emulator Mode
