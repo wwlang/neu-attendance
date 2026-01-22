@@ -857,6 +857,17 @@ function render() {
       generateQRCodes();
     }
   }
+
+  // Generate QR code for history detail view when session is active
+  if (state.selectedHistorySession && !state.selectedHistorySession.endedAt) {
+    const historyQrContainer = document.getElementById('qr-history-student-checkin');
+    if (historyQrContainer && state.selectedHistorySession.code) {
+      historyQrContainer.innerHTML = '';
+      const baseUrl = getBaseUrl();
+      const qrUrl = `${baseUrl}?mode=student&code=${state.selectedHistorySession.code}`;
+      safeQRGenerate(historyQrContainer, qrUrl, { width: 180 });
+    }
+  }
 }
 
 function renderInstructorAuth() {
@@ -2772,8 +2783,30 @@ function renderSessionDetailView() {
             <p class="text-sm text-blue-700 dark:text-blue-500">Total</p>
           </div>
         </div>
+
+        ${!isEnded ? `
+        <!-- QR Code for Active Session -->
+        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="text-center">
+              <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">Student Check-in QR</h3>
+              <div id="qr-history-student-checkin" class="bg-white p-3 rounded-lg inline-block"></div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Scan to check in</p>
+            </div>
+            <div class="flex flex-col items-center justify-center">
+              <div class="text-center mb-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">Current Code</p>
+                <p class="text-4xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">${escapeHtml(session.code || '')}</p>
+              </div>
+              <a href="?mode=teacher" class="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                ← Go to Active Session View
+              </a>
+            </div>
+          </div>
+        </div>
+        ` : ''}
       </div>
-      
+
       <!-- Attendance List with Edit Options (AC8 & AC9) -->
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Attendance List</h3>

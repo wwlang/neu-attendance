@@ -198,6 +198,59 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - Use Firebase Storage security rules to restrict access to session instructor
 - Consider using canvas for image compression before upload
 
+## Phase 7: Bug Fixes
+
+| Task ID | Description | Journey | Status |
+|---------|-------------|---------|--------|
+| P7-01 | Fix student permission denied errors on production | student-submission-auth | Pending |
+| P7-02 | Fix QR code missing when reopening session from history | session-reopen-qr | Pending |
+
+### P7-01: Fix Student Permission Denied Errors
+
+**Description:** Students receive "Permission Denied" errors when submitting attendance on the production site. Investigation indicates anonymous authentication may not be enabled in Firebase Console.
+
+**Journey Reference:** `docs/journeys/student-submission-auth.md`
+
+**Root Cause Analysis:**
+- Firebase security rules require `auth != null` for attendance writes
+- Code calls `auth.signInAnonymously()` before database writes
+- If Anonymous Authentication is disabled in Firebase Console, students cannot authenticate
+- Emulator mode works because it auto-enables all auth methods
+
+**Acceptance Criteria:**
+- [ ] AC1: Enable Anonymous Authentication in Firebase Console (production)
+- [ ] AC2: Verify students can submit attendance without permission errors
+- [ ] AC3: Add E2E test for student submission on emulator (validates auth flow)
+- [ ] AC4: Add clear error message if anonymous auth fails
+- [ ] AC5: Document Firebase Console configuration in setup guide
+
+**Verification:**
+1. Firebase Console > Authentication > Sign-in method > Anonymous = Enabled
+2. Test student submission on production site
+3. No "Permission Denied" errors in browser console
+
+### P7-02: Fix QR Code Missing When Reopening Session
+
+**Description:** When an instructor reopens a session from history, the QR code does not appear. The QR code should be visible immediately after reopening.
+
+**Journey Reference:** `docs/journeys/session-reopen-qr.md`
+
+**Root Cause Analysis:**
+- `reopenSession()` correctly sets `state.session` and `state.currentCode`
+- `state.showHistory` is set to `false` to switch from history to session view
+- QR generation condition at render(): `state.session && state.currentCode && (!state.cachedQRCode || state.cachedQRCode.code !== state.currentCode)`
+- Potential issue: `state.cachedQRCode` may contain stale data causing condition to fail
+
+**Acceptance Criteria:**
+- [ ] AC1: Clear `state.cachedQRCode` when reopening session
+- [ ] AC2: QR code appears within 500ms of reopen completion
+- [ ] AC3: QR code contains correct URL with new attendance code
+- [ ] AC4: Add E2E test: reopen session and verify QR code visibility
+- [ ] AC5: Add E2E test: scan QR code after reopen and verify auto-fill
+
+**Technical Fix:**
+Add `state.cachedQRCode = null;` in `reopenSession()` before `render()` to force QR regeneration.
+
 ## Completed
 
 | Task ID | Description | Completed |

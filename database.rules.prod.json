@@ -77,7 +77,7 @@
         "$oderedId": {
           // Students can create new records, instructors can update any record
           ".write": "(auth != null && !data.exists()) || (auth != null && root.child('instructors').child(auth.uid).exists())",
-          ".validate": "newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'timestamp'])",
+          ".validate": "newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'location', 'distance', 'timestamp'])",
 
           "studentId": {
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 20"
