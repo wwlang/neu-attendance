@@ -25,6 +25,27 @@ async function gotoWithEmulator(page, path = '/') {
 }
 
 /**
+ * Wait for test authentication to complete
+ * Used when navigating to pages with testAuth parameter
+ * @param {import('@playwright/test').Page} page
+ * @param {number} timeout
+ */
+async function waitForTestAuth(page, timeout = 15000) {
+  // Wait for the test auth console log indicating auth is ready
+  // The app logs "[Test Auth] Setting up test authentication:" when auth starts
+  // We need to wait for auth.currentUser to be set
+
+  // Use page.evaluate to check if auth.currentUser is set
+  await expect(async () => {
+    const hasAuth = await page.evaluate(() => {
+      // @ts-ignore - auth is defined in the page context
+      return window.auth && window.auth.currentUser !== null;
+    });
+    expect(hasAuth).toBe(true);
+  }).toPass({ timeout });
+}
+
+/**
  * Wait for attendance count to reach expected value
  * @param {import('@playwright/test').Page} page
  * @param {number} expectedCount
@@ -153,6 +174,8 @@ async function startInstructorSession(page, className) {
 
 /**
  * Check in a student with proper waits
+ * Uses testAuth=student for reliable pre-authentication
+ *
  * @param {import('@playwright/test').BrowserContext} context
  * @param {import('@playwright/test').Page} mainPage - Instructor's page
  * @param {string} studentId
@@ -161,10 +184,17 @@ async function startInstructorSession(page, className) {
  * @param {Object} options
  * @param {number} [options.expectedCount] - Expected attendance count after check-in
  * @param {{latitude: number, longitude: number}} [options.location] - Geolocation
+ * @param {string} [options.mockLat] - Override latitude via URL param (for testing different locations)
+ * @param {string} [options.mockLng] - Override longitude via URL param (for testing different locations)
  * @returns {Promise<void>}
  */
 async function checkInStudent(context, mainPage, studentId, studentName, studentEmail, options = {}) {
-  const { expectedCount, location = { latitude: 21.0285, longitude: 105.8542 } } = options;
+  const {
+    expectedCount,
+    location = { latitude: 21.0285, longitude: 105.8542 },
+    mockLat,
+    mockLng
+  } = options;
 
   // Get the current code from instructor page
   const codeElement = mainPage.locator('.code-display').first();
@@ -181,11 +211,21 @@ async function checkInStudent(context, mainPage, studentId, studentName, student
   await gotoWithEmulator(studentPage, '/');
   await studentPage.evaluate(() => localStorage.clear());
 
-  // Navigate to student mode with code (always use emulator)
-  await gotoWithEmulator(studentPage, `/?mode=student&code=${code}`);
+  // Build student URL with testAuth=student for pre-authentication
+  // This ensures signInAnonymously() is called at page load, avoiding race conditions
+  let studentUrl = `/?mode=student&code=${code}&testAuth=student`;
+  if (mockLat !== undefined && mockLng !== undefined) {
+    studentUrl += `&mockLat=${mockLat}&mockLng=${mockLng}`;
+  }
+  await gotoWithEmulator(studentPage, studentUrl);
 
-  // Wait for student form to be ready and page to stabilize
+  // Wait for student form to be ready
   await expect(studentPage.locator('input#studentId')).toBeVisible({ timeout: 10000 });
+
+  // Wait for test auth to complete (auth.currentUser to be set)
+  await waitForTestAuth(studentPage, 15000);
+
+  // Wait for page to stabilize
   await studentPage.waitForLoadState('networkidle');
 
   // Use Playwright's native fill() method which properly triggers input events
@@ -355,6 +395,7 @@ async function enableShowArchived(page) {
 
 module.exports = {
   gotoWithEmulator,
+  waitForTestAuth,
   waitForAttendanceCount,
   waitForParticipationUpdate,
   waitForHistoryParticipationUpdate,
