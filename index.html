@@ -839,10 +839,6 @@ function render() {
       content += renderInstructorAuth();
     } else {
       content += renderTeacherView();
-      // Only regenerate QR codes when the code actually changes
-      if (state.session && state.currentCode && (!state.cachedQRCode || state.cachedQRCode.code !== state.currentCode)) {
-        setTimeout(generateQRCodes, 100);
-      }
     }
   } else if (state.mode === 'student') {
     content += renderStudentView();
@@ -853,6 +849,14 @@ function render() {
   app.innerHTML = content;
   updateOnlineStatus();
   renderModals();
+
+  // Generate QR codes AFTER innerHTML to ensure DOM element exists
+  // Only regenerate when code changes (prevents race conditions with Firebase listeners)
+  if (state.mode === 'teacher' && state.isInstructor && state.session && state.currentCode) {
+    if (!state.cachedQRCode || state.cachedQRCode.code !== state.currentCode) {
+      generateQRCodes();
+    }
+  }
 }
 
 function renderInstructorAuth() {
@@ -2107,6 +2111,8 @@ async function reopenSession(sessionId) {
     setupSessionListeners(sessionId);
 
     state.isRecovering = false;
+    // Clear cached QR code to force regeneration with new code (P7-02 fix)
+    state.cachedQRCode = null;
     render();
 
   } catch (err) {
