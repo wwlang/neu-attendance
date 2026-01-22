@@ -20,20 +20,35 @@ const {
  */
 
 /**
+ * Wait for state.session.id to be set (ensures session is fully initialized)
+ * @param {import('@playwright/test').Page} page
+ * @param {number} timeout
+ * @returns {Promise<string>}
+ */
+async function waitForSessionReady(page, timeout = 20000) {
+  let sessionId = null;
+  await expect(async () => {
+    sessionId = await page.evaluate(() => {
+      // @ts-ignore - state is defined in page context
+      return typeof state !== 'undefined' && state.session ? state.session.id : null;
+    });
+    expect(sessionId).not.toBeNull();
+  }).toPass({ timeout });
+  return sessionId;
+}
+
+/**
  * Create a failed check-in attempt by writing directly to Firebase
  * This bypasses the student form which has auth issues in E2E tests
+ * Uses state.session.id to ensure we write to the same session the listener is watching
  * @param {import('@playwright/test').Page} instructorPage
  * @param {string} studentId
  * @param {string} studentName
  * @param {string} email
  */
 async function createFailedAttempt(instructorPage, studentId, studentName, email) {
-  // Get the current session ID from Firebase
-  const sessionId = await instructorPage.evaluate(async () => {
-    // @ts-ignore - db is defined in page context
-    const snapshot = await db.ref('activeSession').once('value');
-    return snapshot.val();
-  });
+  // Get the current session ID from app state (what the listener is watching)
+  const sessionId = await waitForSessionReady(instructorPage);
 
   // Create a failed attempt record directly in Firebase
   // This simulates a student submitting from too far away (distance > radius)
@@ -56,15 +71,18 @@ async function createFailedAttempt(instructorPage, studentId, studentName, email
     });
   }, { sessionId, studentId, studentName, email });
 
-  // Wait for the failed attempt to appear on instructor page
-  // The failed attempts panel might be collapsed, so we need to expand it first
-  const showButton = instructorPage.locator('button:has-text("Show")');
-  if (await showButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await showButton.click();
-  }
+  // Wait for the Firebase listener to pick up the change
+  // Use polling with expect().toPass() to handle timing variations
+  await expect(async () => {
+    // The failed attempts panel might be collapsed, so we need to expand it first
+    const showButton = instructorPage.locator('button:has-text("Show")');
+    if (await showButton.isVisible({ timeout: 500 }).catch(() => false)) {
+      await showButton.click();
+    }
 
-  // Wait for the student ID to appear in failed attempts section
-  await expect(instructorPage.locator(`text=${studentId}`).first()).toBeVisible({ timeout: 10000 });
+    // Check if the student ID appears in failed attempts section
+    await expect(instructorPage.locator(`text=${studentId}`).first()).toBeVisible();
+  }).toPass({ timeout: 15000, intervals: [100, 200, 500, 1000, 2000] });
 }
 
 test.describe('Dismiss Failed Attempts', () => {

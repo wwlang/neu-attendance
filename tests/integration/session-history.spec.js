@@ -20,59 +20,34 @@ const { gotoWithEmulator, startInstructorSession, checkInStudent } = require('..
  */
 
 /**
+ * Wait for state.session.id to be set (ensures session is fully initialized)
+ * @param {import('@playwright/test').Page} page
+ * @param {number} timeout
+ * @returns {Promise<string>}
+ */
+async function waitForSessionReady(page, timeout = 20000) {
+  let sessionId = null;
+  await expect(async () => {
+    sessionId = await page.evaluate(() => {
+      // @ts-ignore - state is defined in page context
+      return typeof state !== 'undefined' && state.session ? state.session.id : null;
+    });
+    expect(sessionId).not.toBeNull();
+  }).toPass({ timeout });
+  return sessionId;
+}
+
+/**
  * Add late attendance directly via Firebase (bypasses student form auth issues)
- * Tries multiple methods to get session ID reliably:
- * 1. state.session.id (if set)
- * 2. Parse from URL in QR code on page
- * 3. activeSession Firebase reference
+ * Uses state.session.id to ensure we write to the same session the listener is watching
  * @param {import('@playwright/test').Page} instructorPage - Instructor page with Firebase context
  * @param {string} studentId
  * @param {string} studentName
  * @param {string} email
  */
 async function addLateAttendanceDirectly(instructorPage, studentId, studentName, email) {
-  // Get the session ID using multiple fallback methods
-  const sessionId = await instructorPage.evaluate(async () => {
-    // Method 1: Check state.session.id (may not be set on reopened sessions)
-    // @ts-ignore - state is defined in page context
-    if (window.state && window.state.session && window.state.session.id) {
-      console.log('[Test] Got session ID from state.session.id');
-      return window.state.session.id;
-    }
-
-    // Method 2: Get from activeSession Firebase reference
-    // @ts-ignore - db is defined in page context
-    const snapshot = await db.ref('activeSession').once('value');
-    const activeId = snapshot.val();
-    if (activeId) {
-      console.log('[Test] Got session ID from activeSession:', activeId);
-      return activeId;
-    }
-
-    // Method 3: Look for session ID in the sessions that are currently running
-    // This is a fallback for edge cases where activeSession isn't set yet
-    // @ts-ignore - state is defined in page context
-    if (window.state && window.state.session) {
-      // The session object should exist even without an id field
-      // Try to find it by matching the current code
-      const currentCode = window.state.currentCode;
-      if (currentCode) {
-        // @ts-ignore
-        const sessionsSnapshot = await db.ref('sessions').orderByChild('code').equalTo(currentCode).once('value');
-        const sessions = sessionsSnapshot.val();
-        if (sessions) {
-          const sessionIds = Object.keys(sessions);
-          if (sessionIds.length > 0) {
-            console.log('[Test] Got session ID by matching code:', sessionIds[0]);
-            return sessionIds[0];
-          }
-        }
-      }
-    }
-
-    console.log('[Test] Could not find session ID');
-    return null;
-  });
+  // Wait for state.session.id to be set (what the listener is watching)
+  const sessionId = await waitForSessionReady(instructorPage);
 
   if (!sessionId) {
     throw new Error('No active session found - cannot add attendance');
@@ -96,6 +71,24 @@ async function addLateAttendanceDirectly(instructorPage, studentId, studentName,
       isLate: true
     });
   }, { sessionId, studentId, studentName, email });
+
+  // Wait for the Firebase listener to pick up the change and render
+  // Use polling with expect().toPass() to handle timing variations
+  await expect(async () => {
+    // Check if the table exists and contains our student name
+    const found = await instructorPage.evaluate((expectedName) => {
+      const table = document.querySelector('table');
+      if (!table) return false;
+      const cells = table.querySelectorAll('td');
+      for (const cell of cells) {
+        if (cell.textContent && cell.textContent.includes(expectedName)) {
+          return true;
+        }
+      }
+      return false;
+    }, studentName);
+    expect(found).toBe(true);
+  }).toPass({ timeout: 15000, intervals: [100, 200, 500, 1000, 2000] });
 }
 
 test.describe('Session History Management (AC8)', () => {
@@ -607,9 +600,6 @@ test.describe('Reopen Session from History (P7-02)', () => {
     // Wait for the UI to fully render and listeners to be set up
     await page.waitForLoadState('networkidle');
 
-    // Small delay to ensure Firebase listeners are connected
-    await page.waitForTimeout(1000);
-
     // Add late attendance directly via Firebase (bypasses student form auth issues)
     // This still validates that:
     // 1. Session was properly reopened
@@ -618,8 +608,8 @@ test.describe('Reopen Session from History (P7-02)', () => {
     // 4. Instructor page updates via Firebase listeners
     await addLateAttendanceDirectly(page, '77777777', 'Late Student', 'late@test.edu.vn');
 
-    // Verify attendance appears on instructor page
-    await expect(page.locator('text=Late Student').first()).toBeVisible({ timeout: 15000 });
+    // Verify attendance appears on instructor page (addLateAttendanceDirectly waits for this)
+    await expect(page.locator('text=Late Student').first()).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=77777777').first()).toBeVisible();
   });
 });

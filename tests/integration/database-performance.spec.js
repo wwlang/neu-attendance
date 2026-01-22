@@ -28,55 +28,49 @@ const {
  */
 
 /**
- * Add attendance directly via Firebase (bypasses student form auth issues)
- * Tries multiple methods to get session ID reliably:
- * 1. state.session.id (if set)
- * 2. activeSession Firebase reference
- * 3. Match by current code
+ * Get session ID from the app's state (what the listener is actually watching)
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<string|null>}
+ */
+async function getStateSessionId(page) {
+  return await page.evaluate(() => {
+    // @ts-ignore - state is defined in page context
+    return typeof state !== 'undefined' && state.session ? state.session.id : null;
+  });
+}
+
+/**
+ * Wait for state.session.id to be set (ensures session is fully initialized)
+ * @param {import('@playwright/test').Page} page
+ * @param {number} timeout
+ * @returns {Promise<string>}
+ */
+async function waitForSessionReady(page, timeout = 20000) {
+  let sessionId = null;
+  await expect(async () => {
+    sessionId = await getStateSessionId(page);
+    expect(sessionId).not.toBeNull();
+  }).toPass({ timeout });
+  return sessionId;
+}
+
+/**
+ * Add attendance directly via Firebase and wait for UI update via listener
+ * Uses state.session.id to ensure we write to the same session the listener is watching
  * @param {import('@playwright/test').Page} page - Instructor page with Firebase context
  * @param {string} studentId
  * @param {string} studentName
  * @param {string} email
  */
 async function addAttendanceDirectly(page, studentId, studentName, email) {
-  // Get the session ID using multiple fallback methods
-  const sessionId = await page.evaluate(async () => {
-    // Method 1: Check state.session.id (may not be set on reopened sessions)
-    // @ts-ignore - state is defined in page context
-    if (window.state && window.state.session && window.state.session.id) {
-      return window.state.session.id;
-    }
-
-    // Method 2: Get from activeSession Firebase reference
-    // @ts-ignore - db is defined in page context
-    const snapshot = await db.ref('activeSession').once('value');
-    const activeId = snapshot.val();
-    if (activeId) {
-      return activeId;
-    }
-
-    // Method 3: Look for session ID by matching current code
-    // @ts-ignore - state is defined in page context
-    if (window.state && window.state.currentCode) {
-      const currentCode = window.state.currentCode;
-      // @ts-ignore
-      const sessionsSnapshot = await db.ref('sessions').orderByChild('code').equalTo(currentCode).once('value');
-      const sessions = sessionsSnapshot.val();
-      if (sessions) {
-        const sessionIds = Object.keys(sessions);
-        if (sessionIds.length > 0) {
-          return sessionIds[0];
-        }
-      }
-    }
-
-    return null;
-  });
+  // Get session ID from app state (this is what the listener is watching)
+  const sessionId = await waitForSessionReady(page);
 
   if (!sessionId) {
     throw new Error('No active session found - cannot add attendance');
   }
 
+  // Write attendance data directly to Firebase
   await page.evaluate(async ({ sessionId, studentId, studentName, email }) => {
     // @ts-ignore - db is defined in page context
     const attendanceRef = db.ref(`attendance/${sessionId}`).push();
@@ -94,6 +88,39 @@ async function addAttendanceDirectly(page, studentId, studentName, email) {
       isLate: false
     });
   }, { sessionId, studentId, studentName, email });
+
+  // Wait for the Firebase listener to pick up the change and render
+  // The app's setupSessionListeners will automatically update state.attendance and call render()
+  // Use polling with expect().toPass() to handle timing variations
+  await expect(async () => {
+    // Check if the table exists and contains our student ID
+    const found = await page.evaluate((expectedStudentId) => {
+      const table = document.querySelector('table');
+      if (!table) return false;
+      const cells = table.querySelectorAll('td');
+      for (const cell of cells) {
+        if (cell.textContent && cell.textContent.includes(expectedStudentId)) {
+          return true;
+        }
+      }
+      return false;
+    }, studentId);
+    expect(found).toBe(true);
+  }).toPass({ timeout: 15000, intervals: [100, 200, 500, 1000, 2000] });
+}
+
+/**
+ * Navigate from history view back to dashboard
+ * @param {import('@playwright/test').Page} page
+ */
+async function goBackToDashboard(page) {
+  // Click "Back to Dashboard" button (note: it's a button, not a link)
+  const backButton = page.locator('button:has-text("Back to Dashboard")');
+  await expect(backButton).toBeVisible({ timeout: 5000 });
+  await backButton.click();
+
+  // Wait for dashboard to be visible
+  await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
 }
 
 test.describe('Database Performance', () => {
@@ -155,12 +182,13 @@ test.describe('Database Performance', () => {
 
     await startInstructorSession(page, 'Student Perf Test');
 
-    // Wait for session to stabilize and listeners to be set up
+    // Wait for session to be fully initialized in app state
+    await waitForSessionReady(page);
+
+    // Wait for session to stabilize
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500); // Small delay for Firebase listeners
 
     // Create a request monitor on the instructor page
-    // (We monitor the instructor page since we're adding attendance directly)
     const monitor = new RequestMonitor(page, {
       patterns: thresholds.patterns,
       n1Threshold: thresholds.n1Threshold,
@@ -170,12 +198,10 @@ test.describe('Database Performance', () => {
     // Add attendance directly via Firebase (bypasses student form auth issues)
     await addAttendanceDirectly(page, 'PERF001', 'Performance Test Student', 'perf@test.edu');
 
-    // Wait for the attendance to appear on instructor page
-    // Use .first() to handle case where student ID appears in multiple places
-    await expect(page.locator('text=PERF001').first()).toBeVisible({ timeout: 10000 });
+    // The student should now be visible (addAttendanceDirectly waits for this)
+    await expect(page.locator('text=PERF001').first()).toBeVisible({ timeout: 5000 });
 
-    // Verify thresholds - note: this is checking the Firebase listener updates
-    // not the student form submission, but still validates data flow performance
+    // Verify thresholds
     const limits = thresholds.flows['student-checkin'];
     monitor.assertMaxRequests(limits.maxRequests, 'Student check-in');
     monitor.assertMaxPayload(limits.maxKB, 'Student check-in');
@@ -289,9 +315,6 @@ test.describe('Database Performance', () => {
       console.warn('Duplicate requests detected (consider caching):', duplicates);
     }
 
-    // We warn but don't fail on duplicates for now - this can be tightened later
-    // monitor.assertNoDuplicates('Session flow');
-
     if (process.env.DEBUG_PERFORMANCE) {
       monitor.logReport();
     }
@@ -310,16 +333,17 @@ test.describe('Database Performance', () => {
     await authenticateAsInstructor(page);
     await startInstructorSession(page, 'Full Flow Perf Test');
 
-    // Wait for session to stabilize and listeners to be set up
+    // Wait for session to be fully initialized in app state
+    await waitForSessionReady(page);
+
+    // Wait for session to stabilize
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500); // Small delay for Firebase listeners
 
     // Add attendance directly via Firebase (bypasses student form auth issues)
     await addAttendanceDirectly(page, 'FULL001', 'Full Flow Student', 'full@test.edu');
 
-    // Wait for the attendance to appear
-    // Use .first() to handle case where student ID appears in multiple places
-    await expect(page.locator('text=FULL001').first()).toBeVisible({ timeout: 10000 });
+    // The student should now be visible (addAttendanceDirectly waits for this)
+    await expect(page.locator('text=FULL001').first()).toBeVisible({ timeout: 5000 });
 
     // End session
     page.once('dialog', (dialog) => dialog.accept());
@@ -359,10 +383,13 @@ test.describe('Database Performance', () => {
       n1Threshold: thresholds.n1Threshold,
     });
 
-    // Navigate to analytics
-    await page.click('button:has-text("Analytics")');
-    // Use "Analytics Dashboard" which is the actual text in the app
-    await expect(page.locator('text=Analytics Dashboard')).toBeVisible({ timeout: 10000 });
+    // Navigate to analytics - use polling pattern for button click and view visibility
+    await expect(async () => {
+      const analyticsBtn = page.locator('button:has-text("Analytics")');
+      await expect(analyticsBtn).toBeVisible();
+      await analyticsBtn.click();
+      await expect(page.locator('text=Analytics Dashboard')).toBeVisible();
+    }).toPass({ timeout: 15000 });
 
     // Wait for analytics data to load
     await page.waitForLoadState('networkidle');
@@ -417,9 +444,17 @@ test.describe('Performance Report Generation', () => {
     console.log('History view:', monitor.getReport());
     monitor.reset();
 
-    // Analytics view - use "Analytics Dashboard" which is the actual text
-    await page.click('button:has-text("Analytics")');
-    await expect(page.locator('text=Analytics Dashboard')).toBeVisible({ timeout: 10000 });
+    // Go back to dashboard before clicking Analytics
+    await goBackToDashboard(page);
+    await page.waitForLoadState('networkidle');
+
+    // Analytics view - use polling pattern for button click and view visibility
+    await expect(async () => {
+      const analyticsBtn = page.locator('button:has-text("Analytics")');
+      await expect(analyticsBtn).toBeVisible();
+      await analyticsBtn.click();
+      await expect(page.locator('text=Analytics Dashboard')).toBeVisible();
+    }).toPass({ timeout: 15000 });
     await page.waitForLoadState('networkidle');
     console.log('Analytics view:', monitor.getReport());
 
