@@ -536,13 +536,13 @@ test.describe('Reopen Session from History (P7-02)', () => {
     // Wait for page to fully load
     await studentPage.waitForLoadState('networkidle');
 
-    // Clear localStorage and set form values directly (more reliable than fill)
+    // Clear localStorage first
     await studentPage.evaluate(() => localStorage.clear());
-    await studentPage.evaluate(({ studentId, studentName, studentEmail }) => {
-      document.getElementById('studentId').value = studentId;
-      document.getElementById('studentName').value = studentName;
-      document.getElementById('studentEmail').value = studentEmail;
-    }, { studentId: '77777777', studentName: 'Late Student', studentEmail: 'late@test.edu.vn' });
+
+    // Use Playwright's native fill() method for proper event triggering
+    await studentPage.locator('input#studentId').fill('77777777');
+    await studentPage.locator('input#studentName').fill('Late Student');
+    await studentPage.locator('input#studentEmail').fill('late@test.edu.vn');
 
     // Submit attendance
     await studentPage.click('button:has-text("Submit Attendance")');

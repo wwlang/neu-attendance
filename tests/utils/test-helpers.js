@@ -188,12 +188,10 @@ async function checkInStudent(context, mainPage, studentId, studentName, student
   await expect(studentPage.locator('input#studentId')).toBeVisible({ timeout: 10000 });
   await studentPage.waitForLoadState('networkidle');
 
-  // Use JavaScript to set form values directly (more reliable than fill)
-  await studentPage.evaluate(({ studentId, studentName, studentEmail }) => {
-    document.getElementById('studentId').value = studentId;
-    document.getElementById('studentName').value = studentName;
-    document.getElementById('studentEmail').value = studentEmail;
-  }, { studentId, studentName, studentEmail });
+  // Use Playwright's native fill() method which properly triggers input events
+  await studentPage.locator('input#studentId').fill(studentId);
+  await studentPage.locator('input#studentName').fill(studentName);
+  await studentPage.locator('input#studentEmail').fill(studentEmail);
 
   // Submit attendance
   await studentPage.click('button:has-text("Submit Attendance")');

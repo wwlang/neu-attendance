@@ -100,12 +100,10 @@ test.describe('Database Performance', () => {
     await gotoWithEmulator(studentPage, `/?mode=student&code=${code}`);
     await expect(studentPage.locator('input#studentId')).toBeVisible({ timeout: 10000 });
 
-    // Fill form
-    await studentPage.evaluate(() => {
-      document.getElementById('studentId').value = 'PERF001';
-      document.getElementById('studentName').value = 'Performance Test Student';
-      document.getElementById('studentEmail').value = 'perf@test.edu';
-    });
+    // Fill form using Playwright's fill() method for proper event triggering
+    await studentPage.locator('input#studentId').fill('PERF001');
+    await studentPage.locator('input#studentName').fill('Performance Test Student');
+    await studentPage.locator('input#studentEmail').fill('perf@test.edu');
 
     // Submit
     await studentPage.click('button:has-text("Submit Attendance")');

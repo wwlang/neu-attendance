@@ -605,7 +605,7 @@ async function quickConfirmAttendance() {
 
   // Check location if available
   if (state.studentLocation && session.location) {
-    const distance = haversineDistance(state.studentLocation.latitude, state.studentLocation.longitude, session.location.latitude, session.location.longitude);
+    const distance = haversineDistance(state.studentLocation.lat, state.studentLocation.lng, session.location.lat, session.location.lng);
     if (distance > session.radius) {
       await logFailedAttempt(sessionId, { studentId, studentName, studentEmail, deviceId, code, reason: `Too far: ${Math.round(distance)}m`, location: state.studentLocation, distance: Math.round(distance) });
       showMessage(`You're ${Math.round(distance)}m away (limit: ${session.radius}m). Your attempt has been logged for instructor review.`, 'error');
@@ -649,7 +649,7 @@ async function quickConfirmAttendance() {
       uid: auth.currentUser.uid,
       timestamp: now,
       location: state.studentLocation || null,
-      distance: state.studentLocation && session.location ? Math.round(haversineDistance(state.studentLocation.latitude, state.studentLocation.longitude, session.location.latitude, session.location.longitude)) : null,
+      distance: state.studentLocation && session.location ? Math.round(haversineDistance(state.studentLocation.lat, state.studentLocation.lng, session.location.lat, session.location.lng)) : null,
       codeUsed: code.toUpperCase(),
       isLate,
       isLateRejoin,
@@ -750,11 +750,29 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+
 function getLocation() {
   return new Promise((resolve, reject) => {
-    // In emulator mode, use mock location for testing (NEU campus)
+    // In emulator mode, check for URL parameters to override mock location
+    // This allows E2E tests to simulate different geolocation scenarios
     if (isEmulatorMode()) {
-      console.log('[Test Mode] Using mock location');
+      const params = new URLSearchParams(window.location.search);
+      const mockLat = params.get('mockLat');
+      const mockLng = params.get('mockLng');
+      
+      if (mockLat !== null && mockLng !== null) {
+        // Use URL parameters for mock location (allows testing different locations)
+        const lat = parseFloat(mockLat);
+        const lng = parseFloat(mockLng);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          console.log('[Test Mode] Using URL mock location:', lat, lng);
+          resolve({ lat, lng, accuracy: 10 });
+          return;
+        }
+      }
+      
+      // Default mock location (NEU campus)
+      console.log('[Test Mode] Using default mock location');
       resolve({ lat: 21.0285, lng: 105.8542, accuracy: 10 });
       return;
     }
