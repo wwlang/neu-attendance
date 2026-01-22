@@ -77,7 +77,7 @@
         "$oderedId": {
           // Students can create new records, instructors can update any record
           ".write": "(auth != null && !data.exists()) || (auth != null && root.child('instructors').child(auth.uid).exists())",
-          ".validate": "newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'location', 'distance', 'timestamp'])",
+          ".validate": "newData.hasChildren(['studentId', 'studentName', 'email', 'deviceId', 'timestamp'])",
 
           "studentId": {
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 20"
@@ -160,21 +160,30 @@
     },
 
     // Audit trail - instructors only
+    // Updated to support flexible action names and details object structure
     "audit": {
       ".read": "auth != null && root.child('instructors').child(auth.uid).exists()",
       "$sessionId": {
         "$recordId": {
           ".write": "auth != null && root.child('instructors').child(auth.uid).exists()",
-          ".validate": "newData.hasChildren(['action', 'studentId', 'timestamp'])",
+          ".validate": "newData.hasChildren(['action', 'timestamp'])",
 
           "action": {
-            ".validate": "newData.isString() && (newData.val() == 'manual_approve' || newData.val() == 'increment_participation' || newData.val() == 'decrement_participation')"
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50"
           },
-          "studentId": {
-            ".validate": "newData.isString()"
+          "details": {
+            // Flexible details object - validation at field level is optional
+            ".validate": "newData.exists()"
           },
           "timestamp": {
-            ".validate": "newData.isNumber()"
+            ".validate": "newData.isString() || newData.isNumber()"
+          },
+          "performedBy": {
+            ".validate": "newData.isString()"
+          },
+          // Legacy fields for backward compatibility
+          "studentId": {
+            ".validate": "newData.isString()"
           }
         }
       }

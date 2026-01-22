@@ -1372,6 +1372,9 @@ function renderTeacherView() {
               <button onclick="bulkApproveSelected()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
                 Approve Selected (${state.selectedFailedAttempts.size})
               </button>
+              <button onclick="bulkDismissSelected()" class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium">
+                Dismiss Selected (${state.selectedFailedAttempts.size})
+              </button>
             ` : ''}
           </div>
 
@@ -1397,9 +1400,14 @@ function renderTeacherView() {
                     </div>
                     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Device: ${escapeHtml(f.deviceId)}</p>
                   </div>
-                  <button onclick="approveStudent('${f.firebaseKey}')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
-                    Approve
-                  </button>
+                  <div class="flex gap-2">
+                    <button onclick="approveStudent('${f.firebaseKey}')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium whitespace-nowrap">
+                      Approve
+                    </button>
+                    <button onclick="dismissFailedAttempt('${f.firebaseKey}')" class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium whitespace-nowrap">
+                      Dismiss
+                    </button>
+                  </div>
                 </div>
               </div>
             `).join('')}
@@ -1714,6 +1722,21 @@ async function bulkApproveSelected() {
   const keys = Array.from(state.selectedFailedAttempts);
   for (const key of keys) {
     await approveStudent(key, false); // false = don't re-render for each
+  }
+
+  state.selectedFailedAttempts.clear();
+  render();
+}
+
+async function bulkDismissSelected() {
+  if (state.selectedFailedAttempts.size === 0) return;
+
+  const count = state.selectedFailedAttempts.size;
+  if (!confirm(`Dismiss ${count} selected failed attempt(s)? This cannot be undone.`)) return;
+
+  const keys = Array.from(state.selectedFailedAttempts);
+  for (const key of keys) {
+    await dismissFailedAttempt(key, false); // false = don't re-render for each
   }
 
   state.selectedFailedAttempts.clear();
@@ -2500,6 +2523,37 @@ async function approveStudent(firebaseKey, shouldRender = true) {
 
   } catch (err) {
     if (shouldRender) alert('Error approving student: ' + err.message);
+  }
+}
+
+// Dismiss a failed attempt without approving
+async function dismissFailedAttempt(firebaseKey, shouldRender = true) {
+  if (!state.session) return;
+
+  try {
+    const snapshot = await db.ref('failed/' + state.session.id + '/' + firebaseKey).once('value');
+    const failedData = snapshot.val();
+
+    if (!failedData) {
+      if (shouldRender) alert('Record not found');
+      return;
+    }
+
+    // Remove from failed attempts
+    await db.ref('failed/' + state.session.id + '/' + firebaseKey).remove();
+
+    // Log audit trail
+    await logAuditTrail(state.session.id, 'DISMISS_FAILED', {
+      studentId: failedData.studentId,
+      studentName: failedData.studentName,
+      reason: failedData.reason
+    });
+
+    // Remove from selection
+    state.selectedFailedAttempts.delete(firebaseKey);
+
+  } catch (err) {
+    if (shouldRender) alert('Error dismissing failed attempt: ' + err.message);
   }
 }
 
