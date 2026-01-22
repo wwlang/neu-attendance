@@ -509,20 +509,21 @@ async function quickConfirmAttendance() {
     btn.textContent = 'Confirming...';
   }
 
-  // Ensure user is authenticated (anonymous auth for students)
-  if (!auth.currentUser) {
-    try {
-      await auth.signInAnonymously();
-    } catch (authError) {
-      console.error('Anonymous auth failed:', authError);
-      showMessage('Authentication error. Please refresh and try again.', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
-      return;
+  try {
+    // Ensure user is authenticated (anonymous auth for students)
+    if (!auth.currentUser) {
+      try {
+        await auth.signInAnonymously();
+      } catch (authError) {
+        console.error('Anonymous auth failed:', authError);
+        showMessage('Authentication error. Please refresh and try again.', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+        return;
+      }
     }
-  }
 
-  // Use saved student info for submission
-  const studentId = savedInfo.studentId;
+    // Use saved student info for submission
+    const studentId = savedInfo.studentId;
   const studentName = savedInfo.studentName;
   const studentEmail = savedInfo.studentEmail;
   const deviceId = state.deviceId;
@@ -598,26 +599,37 @@ async function quickConfirmAttendance() {
   const isLateRejoin = session.isReopenedForLate || false;
 
   // Success - record attendance
-  await attendanceRef.push({
-    studentId,
-    studentName,
-    email: studentEmail,
-    deviceId,
-    uid: auth.currentUser.uid,
-    timestamp: now,
-    location: state.studentLocation || null,
-    distance: state.studentLocation && session.location ? Math.round(haversineDistance(state.studentLocation.latitude, state.studentLocation.longitude, session.location.latitude, session.location.longitude)) : null,
-    codeUsed: code.toUpperCase(),
-    isLate,
-    isLateRejoin,
-    quickConfirm: true
-  });
+  try {
+    await attendanceRef.push({
+      studentId,
+      studentName,
+      email: studentEmail,
+      deviceId,
+      uid: auth.currentUser.uid,
+      timestamp: now,
+      location: state.studentLocation || null,
+      distance: state.studentLocation && session.location ? Math.round(haversineDistance(state.studentLocation.latitude, state.studentLocation.longitude, session.location.latitude, session.location.longitude)) : null,
+      codeUsed: code.toUpperCase(),
+      isLate,
+      isLateRejoin,
+      quickConfirm: true
+    });
 
-  // Play success sound
-  playSuccessBeep();
+    // Play success sound
+    playSuccessBeep();
 
-  showMessage(`✓ Attendance confirmed for ${session.className}!${isLate ? ' (Late)' : ''} You can close this page.`, 'success');
-  if (btn) { btn.disabled = false; btn.textContent = '✓ Confirmed!'; }
+    showMessage(`✓ Attendance confirmed for ${session.className}!${isLate ? ' (Late)' : ''} You can close this page.`, 'success');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Confirmed!'; }
+  } catch (writeError) {
+    console.error('Failed to record attendance:', writeError);
+    showMessage('Failed to record attendance. Please try again. Error: ' + writeError.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+  }
+  } catch (error) {
+    console.error('Attendance confirmation failed:', error);
+    showMessage('Something went wrong. Please try again. Error: ' + error.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Confirm Attendance'; }
+  }
 }
 
 // Offline detection
