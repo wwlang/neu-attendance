@@ -61,17 +61,16 @@ async function createFailedAttempt(context, instructorPage, studentId, studentNa
   // Submit attendance
   await studentPage.click('button:has-text("Submit Attendance")');
 
-  // Wait for ANY result - the failure message OR the button showing submitted/confirming state
-  // The response should eventually show, but due to async Firebase operations, we look for multiple indicators
-  const resultLocator = studentPage.locator('text=/logged.*instructor|away.*logged|too far/i')
-    .or(studentPage.locator('button:has-text("Submitted")'))
-    .or(studentPage.locator('text=Failed'))
-    .or(studentPage.locator('text=error'));
+  // Wait for the "Too far" message specifically since we're at location (0,0)
+  // The app should show: "You're Xm away (limit: Ym). Your attempt has been logged for instructor review."
+  const failureMessage = studentPage.locator('text=/away.*logged|logged.*instructor|too far/i')
+    .or(studentPage.locator('text=error'))
+    .or(studentPage.locator('button:has-text("Submitted")'));
 
-  await expect(resultLocator.first()).toBeVisible({ timeout: 20000 });
+  await expect(failureMessage.first()).toBeVisible({ timeout: 30000 });
 
-  // Give a bit more time for Firebase to sync the failed attempt
-  await studentPage.waitForTimeout(1000);
+  // Give time for Firebase to sync the failed attempt
+  await studentPage.waitForTimeout(2000);
 
   await studentPage.close();
 
@@ -84,10 +83,13 @@ async function createFailedAttempt(context, instructorPage, studentId, studentNa
 
   // Wait for the student ID to appear in failed attempts section
   // Use .first() to handle case where the ID might appear in multiple places
-  await expect(instructorPage.locator(`text=${studentId}`).first()).toBeVisible({ timeout: 15000 });
+  await expect(instructorPage.locator(`text=${studentId}`).first()).toBeVisible({ timeout: 20000 });
 }
 
 test.describe('Dismiss Failed Attempts', () => {
+  // Run these tests serially to avoid test pollution
+  test.describe.configure({ mode: 'serial' });
+
   test('should show Dismiss button next to each failed attempt', async ({ page, context }) => {
     // Start a session
     await startInstructorSession(page, 'Dismiss Test Class');
