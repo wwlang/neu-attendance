@@ -13,6 +13,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - Google Sign-in for instructors (production) / PIN bypass (emulator mode)
 - **Analytics dashboard with class-based filtering**
 - **Course setup wizard with scheduled sessions**
+- **Remote location selection via interactive map (Leaflet + Nominatim)**
 - **Zero-minute late threshold support (0-60 min range)**
 - **E2E tests with Firebase emulator isolation**
 - **Test stability improvements (serial execution, retries, data reset)**
@@ -207,6 +208,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 |---------|-------------|---------|--------|
 | P7-01 | Fix student permission denied errors on production | student-submission-auth | Pending |
 | P7-02 | Fix QR code missing when reopening session from history | session-reopen-qr | Pending |
+| P7-03 | Fix attendance duplicate studentId race condition | attendance-deduplication | Pending |
 
 ### P7-01: Fix Student Permission Denied Errors
 
@@ -254,12 +256,49 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 **Technical Fix:**
 Add `state.cachedQRCode = null;` in `reopenSession()` before `render()` to force QR regeneration.
 
+### P7-03: Fix Attendance Duplicate StudentId Race Condition
+
+**Description:** Race condition allows same student to check in twice when submissions occur simultaneously. The current check-then-write pattern is not atomic.
+
+**Journey Reference:** `docs/journeys/attendance-deduplication.md`
+
+**Root Cause Analysis:**
+- Current attendance uses `push()` for record IDs: `attendance/{sessionId}/{pushId}`
+- Application queries for existing studentId before writing
+- Check-then-write is NOT atomic: two simultaneous requests can both pass the check
+- Result: duplicate records for same student in same session
+
+**Solution:**
+Use studentId as the key with write-once security rule:
+- New structure: `attendance/{sessionId}/{studentId}`
+- Security rule: `.write": "!data.exists()"` prevents overwrites
+- Single atomic `set()` operation - no race condition possible
+
+**Acceptance Criteria:**
+- [ ] AC1: Attendance records stored at `attendance/{sessionId}/{studentId}` (not push ID)
+- [ ] AC2: Security rule `.write": "!data.exists()"` deployed for write-once enforcement
+- [ ] AC3: `submitAttendance()` uses `set()` at studentId path instead of `push()`
+- [ ] AC4: `approveStudent()` and `addStudent()` use `set()` at studentId path
+- [ ] AC5: PERMISSION_DENIED error translated to "Already checked in" message
+- [ ] AC6: Migration script converts existing records to new structure
+- [ ] AC7: Migration handles duplicates: keep earliest, log removed
+- [ ] AC8: E2E test: rapid double-submission results in single record
+- [ ] AC9: E2E test: security rule blocks second write attempt
+
+**Technical Notes:**
+- Migration required for existing data
+- Backwards compatibility during migration window
+- No transaction needed - single atomic operation
+
 ## Phase 8: Course Management
 
 | Task ID | Description | Journey | Status |
 |---------|-------------|---------|--------|
 | P8-01 | Course setup wizard with scheduled sessions | course-setup | **Complete** (2026-01-23) |
+| P8-01.1 | Remote location selection via map | course-setup | **Complete** (2026-01-23) - validated |
 | P8-02 | Zero-minute late threshold support | course-setup | **Complete** (2026-01-23) |
+| P8-03 | Course defaults with session override | course-defaults | Pending |
+| P8-04 | Rename Classroom Radius to Location Radius | course-defaults | Pending |
 
 ### P8-01: Course Setup & Scheduled Sessions
 
@@ -284,6 +323,32 @@ Add `state.cachedQRCode = null;` in `reopenSession()` before `render()` to force
 - Added `loadTodaySessions()` and `activateScheduledSession()` functions
 - Sessions have `status` field: "scheduled" | "active" | "ended" | "cancelled"
 
+### P8-01.1: Remote Location Selection (Map)
+
+**Description:** Allow instructors to set course location via interactive map without being physically present at the classroom. Enables remote course setup.
+
+**Journey Reference:** `docs/journeys/course-setup.md` (Step 3: Location - Option B)
+
+**Acceptance Criteria:**
+- [x] AC1: Step 3 shows tabbed UI (Use GPS / Select on Map)
+- [x] AC2: Map tab shows interactive Leaflet map
+- [x] AC3: Click on map places marker and sets location
+- [x] AC4: Address search with Nominatim geocoding
+- [x] AC5: Radius circle preview updates in real-time
+- [x] AC6: Switching tabs preserves entered location
+- [x] AC7: Map-selected location allows proceeding to Step 4
+
+**Implementation Notes (2026-01-23):**
+- Added Leaflet CDN (CSS + JS) to index.html
+- Updated CSP: unpkg.com, nominatim.openstreetmap.org, *.tile.openstreetmap.org
+- Added `locationMethod` state field ('gps' | 'map')
+- Created map functions: initCourseSetupMap(), destroyCourseSetupMap(), onMapClick(), updateMapMarker(), updateMapRadius(), searchAddress(), debounceAddressSearch(), selectSearchResult(), setLocationMethod()
+- Map properly destroyed on tab switch and step navigation
+- 8 new E2E tests covering all map functionality
+
+**Validation Status:** PASSED (2026-01-23)
+**Evidence:** `.claude/evidence/remote-location-selection-2026-01-23.yaml`
+
 ### P8-02: Zero-Minute Late Threshold
 
 **Description:** Allow instructors to set late threshold to 0 minutes for strict attendance policies where any check-in after session start is marked late.
@@ -300,6 +365,56 @@ Add `state.cachedQRCode = null;` in `reopenSession()` before `render()` to force
 - Changed slider from `min="5" max="30"` to `min="0" max="60"`
 - Database rules already supported 0-60 range
 - Calculation logic uses strict `>` comparison (works correctly with 0)
+
+### P8-03: Course Defaults with Session Override
+
+**Description:** Move Location Radius and Late Threshold configuration from "Start Attendance Session" to "Course Setup Wizard" as course-level defaults. When activating a scheduled session, these defaults are inherited but can be optionally overridden for that specific session. Quick sessions remain unchanged.
+
+**Journey Reference:** `docs/journeys/course-defaults.md`
+
+**Rationale:**
+- **Reduced friction**: Instructors configure settings once during course setup, not every session
+- **Consistency**: Same settings apply across all class meetings
+- **Speed**: One-tap activation without required configuration
+- **Flexibility**: Override capability for exceptions (different room, exam day)
+
+**Acceptance Criteria:**
+- [ ] AC1: Course record stores `radius` and `lateThreshold` as defaults
+- [ ] AC2: Scheduled session activation uses course defaults without additional input
+- [ ] AC3: Collapsible "Session Settings" panel on activation for optional override
+- [ ] AC4: Override sliders pre-filled with course default values
+- [ ] AC5: Override values stored on session record only (not course)
+- [ ] AC6: "Reset to Course Defaults" button in override panel
+- [ ] AC7: Quick session flow unchanged (settings configured at session start)
+- [ ] AC8: Backward compatibility: existing courses use defaults (300m, 10 min)
+- [ ] AC9: Session history shows actual values used (default or override)
+- [ ] AC10: E2E test: activate session with defaults only
+- [ ] AC11: E2E test: activate session with override values
+
+**Technical Notes:**
+- Override UI should be collapsible/optional (not required interaction)
+- Session record may have `radiusOverride` and `lateThresholdOverride` fields
+- Effective value: `session.radiusOverride ?? course.radius ?? 300`
+- No migration required - null fields fall back to defaults
+
+### P8-04: Rename Classroom Radius to Location Radius
+
+**Description:** Rename "Classroom Radius" to "Location Radius" throughout the application for accuracy. The term "Location Radius" better describes the GPS distance check, which works for any location (lecture hall, lab, field site), not just traditional classrooms.
+
+**Journey Reference:** `docs/journeys/course-defaults.md` (AC1: Terminology Update)
+
+**Acceptance Criteria:**
+- [ ] AC1.1: Course Setup Wizard Step 3 label changed to "Location Radius"
+- [ ] AC1.2: Quick Session start label changed to "Location Radius"
+- [ ] AC1.3: Session history/details display "Location Radius"
+- [ ] AC1.4: Tooltips and help text updated
+- [ ] AC1.5: No changes to database field names (remains `radius`)
+- [ ] AC1.6: Update consistency matrix and journey documentation
+
+**Technical Notes:**
+- UI-only change, no database migration
+- Search for "Classroom Radius" and "classroom radius" in codebase
+- Update both light and dark mode UI elements
 
 ## Phase 9: Test Infrastructure
 
@@ -339,9 +454,32 @@ Add `state.cachedQRCode = null;` in `reopenSession()` before `render()` to force
    - Syntax error was causing page to fail to load
 
 **Results:**
-- 153 tests passing (previously many were flaky)
-- 4 tests failing (course setup wizard - feature incomplete, not stability issue)
+- 164 tests passing (all tests)
 - 0 flaky tests
+
+## Phase 10: Operations
+
+| Task ID | Description | Journey | Status |
+|---------|-------------|---------|--------|
+| P10-01 | Auto-close sessions at scheduled end time | session-lifecycle | Pending |
+
+### P10-01: Auto-Close Sessions at End Time
+
+**Description:** Automatically close/end sessions when the scheduled end time is reached (e.g., 12:15pm). Prevents students from checking in after class ends.
+
+**Journey Reference:** `docs/journeys/session-lifecycle.md`
+
+**Acceptance Criteria:**
+- [ ] AC1: Sessions with schedule.end time are auto-closed at that time
+- [ ] AC2: Active session shows countdown to end time
+- [ ] AC3: Instructor can manually extend session if needed
+- [ ] AC4: Notification shown when session is about to auto-close (5 min warning)
+- [ ] AC5: Closed sessions cannot accept new check-ins
+
+**Technical Notes:**
+- Option A: Client-side timer that triggers session end
+- Option B: Cloud Function triggered by schedule (more reliable)
+- Consider timezone handling for Vietnam (UTC+7)
 
 ## Completed
 
@@ -370,13 +508,15 @@ Add `state.cachedQRCode = null;` in `reopenSession()` before `render()` to force
 | P4-04 | Analytics split by class | 2026-01-21 |
 | P4-05 | Smart class default selection | 2026-01-21 |
 | P8-01 | Course setup wizard with scheduled sessions | 2026-01-23 |
+| P8-01.1 | Remote location selection via map | 2026-01-23 |
 | P8-02 | Zero-minute late threshold support | 2026-01-23 |
 | P9-01 | Firebase emulator test stability improvements | 2026-01-23 |
 
 ## Evidence
 
 - PRD validation: `.claude/evidence/prd-validation-2026-01-13.yaml`
+- Remote location selection: `.claude/evidence/remote-location-selection-2026-01-23.yaml`
 - Firebase rules: `docs/firebase-security-rules.md`
-- Test coverage: `tests/` directory with 157 E2E tests (Playwright)
+- Test coverage: `tests/` directory with 164 E2E tests (Playwright)
 - Development setup: `CLAUDE.md` (emulator mode, local dev instructions)
-- Test stability: 153/157 tests passing, 0 flaky (2026-01-23)
+- Test stability: 164/164 tests passing, 0 flaky (2026-01-23)

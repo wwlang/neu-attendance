@@ -11,10 +11,10 @@ Authoritative values for parameters shared across journeys.
 | Code grace period | **180s** | `index.html:81` | student-check-in, instructor-session |
 | Recently expired window | **30s** | `index.html` | student-check-in, instructor-session |
 | Code rotation interval | **120s** | `index.html` | instructor-session, student-check-in |
-| Default classroom radius | **300m** | `index.html` | instructor-session, course-setup |
-| Radius range | 20-500m | `index.html` | instructor-session, course-setup |
-| Default late threshold | **10 min** | `index.html` | instructor-session, student-lookup, course-setup |
-| Late threshold range | **0-60 min** | `index.html` | instructor-session, course-setup |
+| Default location radius | **300m** | `index.html` | instructor-session, course-setup, course-defaults |
+| Location radius range | 20-500m | `index.html` | instructor-session, course-setup, course-defaults |
+| Default late threshold | **10 min** | `index.html` | instructor-session, student-lookup, course-setup, course-defaults |
+| Late threshold range | **0-60 min** | `index.html` | instructor-session, course-setup, course-defaults |
 | Instructor PIN | 230782 | `index.html` | instructor-session |
 | History default view | 7 days | `index.html` | instructor-session |
 | At-risk attendance threshold | 70% | lecturer-dashboard | lecturer-dashboard |
@@ -37,9 +37,19 @@ Consistent labels and meanings across all journeys.
 | **Rejoined** | Late check-in during a reopened session | instructor-session |
 | **Participation** | Instructor-recorded count of student contributions | instructor-session, student-lookup |
 | **Archived** | Session hidden from default history view | instructor-session |
-| **Course** | A configured class with schedule for session generation | course-setup |
-| **Scheduled session** | Pre-created session awaiting activation | course-setup |
+| **Course** | A configured class with schedule for session generation | course-setup, course-defaults |
+| **Scheduled session** | Pre-created session awaiting activation | course-setup, course-defaults |
 | **Quick session** | Ad-hoc session created without course setup | instructor-session |
+| **Location Radius** | Maximum GPS distance from session location for valid check-in | course-setup, course-defaults, instructor-session |
+| **Late Threshold** | Minutes after session start before check-ins marked late | course-setup, course-defaults, instructor-session |
+| **Course Default** | Setting value stored at course level, inherited by sessions | course-defaults |
+| **Session Override** | Temporary adjustment to a setting for single session only | course-defaults |
+
+### Terminology Changes
+
+| Old Term | New Term | Reason | Task |
+|----------|----------|--------|------|
+| Classroom Radius | Location Radius | More accurate for any location (lab, field site) | P8-04 (Pending) |
 
 ## Feature Visibility Matrix
 
@@ -61,6 +71,7 @@ What each actor can see and configure.
 | Analytics dashboard | No | Yes (planned) | |
 | Course setup | No | Yes | |
 | Scheduled sessions | No | Yes | |
+| Session override settings | No | Yes (at activation) | |
 
 ### Visibility Gaps Identified
 
@@ -79,6 +90,7 @@ Consistent back/cancel behavior.
 | Session history | Return to instructor dashboard | N/A |
 | Edit modal | Close without saving | Same as back |
 | Course setup wizard | Previous step | Cancel returns to dashboard |
+| Session activation override | Collapse panel (discard changes) | Same as back |
 
 ## Error Message Consistency
 
@@ -110,6 +122,7 @@ Landing Page
 └── Instructor Mode (?mode=teacher)
     ├── instructor-attendance-session.md (PIN required)
     ├── course-setup.md (Setup New Course)
+    ├── course-defaults.md (Session activation with defaults/override)
     └── lecturer-dashboard.md (planned)
 ```
 
@@ -121,10 +134,46 @@ Landing Page
 | Student lookup | `?mode=lookup` | Main page "View My Attendance" |
 | Instructor session | `?mode=teacher` | Main page "I'm the Instructor" |
 | Course setup | `?mode=teacher&view=courseSetup` | Dashboard "Setup New Course" |
+| Session activation | `?mode=teacher` | Dashboard "Activate" button on scheduled session |
 | Analytics dashboard | `?mode=analytics` (planned) | Instructor dashboard "Analytics" |
+
+## Settings Configuration Flow
+
+Where settings are configured and how they flow through the system.
+
+```
+Course Setup (one-time)
+├── Location Radius: 20-500m (default 300m)
+└── Late Threshold: 0-60 min (default 10 min)
+    │
+    ▼
+Scheduled Session Generation
+├── Sessions inherit course defaults
+└── No settings stored on session record yet
+    │
+    ▼
+Session Activation
+├── Default path: Use course defaults (no input required)
+└── Override path: Optionally adjust settings
+    ├── Override sliders pre-filled with course values
+    ├── Changes apply to this session only
+    └── Override values stored on session record
+    │
+    ▼
+Active Session
+└── Uses: session.radiusOverride ?? course.radius ?? 300
+
+Quick Session (no course)
+└── All settings configured at session start
+```
 
 ## Last Updated
 
 - **Date**: 2026-01-23
-- **Verified by**: Course setup feature implementation
-- **Changes**: Updated late threshold range to 0-60 min, added course setup terminology and parameters
+- **Verified by**: Course defaults feature planning
+- **Changes**:
+  - Added Location Radius / Late Threshold terminology
+  - Added Course Default / Session Override terms
+  - Added terminology change tracking (Classroom Radius -> Location Radius)
+  - Added Settings Configuration Flow diagram
+  - Added course-defaults journey cross-reference
