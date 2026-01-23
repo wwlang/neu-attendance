@@ -232,6 +232,10 @@ async function setupTestAuth() {
       state.isInstructor = true;
       state.user = { email: 'test@emulator.local', uid, displayName: 'Test Instructor' };
       state.mode = 'teacher';
+      state.authLoading = false;
+      state.showCourseSetup = false;
+      state.showHistory = false;
+      state.showAnalytics = false;
       await loadPreviousClasses();
       console.log('[Test Auth] Registered as instructor, navigating to setup');
     }
@@ -3023,7 +3027,12 @@ function renderCourseSetupWizard() {
 
 function renderTodaysSessions() {
   if (state.todaysSessions.length === 0) {
-    return '';
+    return `
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+      <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Today's Sessions</h3>
+      <p class="text-gray-500 dark:text-gray-400 text-center py-4">No scheduled sessions today</p>
+    </div>
+  `;
   }
   
   return `

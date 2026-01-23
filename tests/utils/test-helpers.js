@@ -294,11 +294,24 @@ async function endSessionAndGoToHistory(page) {
 
 /**
  * Navigate to instructor mode with test authentication
+ * Handles potential stale state by closing any open wizard/modal first
  * @param {import('@playwright/test').Page} page
  */
 async function authenticateAsInstructor(page) {
   // Navigate with testAuth=instructor for automatic authentication
   await gotoWithEmulator(page, '/?testAuth=instructor');
+
+  // Wait for page to fully load
+  await page.waitForLoadState('networkidle');
+
+  // Check if wizard is unexpectedly open (from stale state) and close it
+  const cancelButton = page.locator('button:has-text("Cancel")');
+  if (await cancelButton.isVisible({ timeout: 500 }).catch(() => false)) {
+    await cancelButton.click();
+    await page.waitForLoadState('networkidle');
+  }
+
+  // Now wait for the instructor dashboard
   await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 5000 });
 }
 
