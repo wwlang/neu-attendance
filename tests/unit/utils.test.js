@@ -9,6 +9,7 @@
  * - Time formatting
  * - XSS prevention
  * - Validation logic
+ * - First name extraction (P2-12)
  */
 
 const {
@@ -21,7 +22,8 @@ const {
   isValidEmail,
   isValidCode,
   getUrlParams,
-  getBaseUrl
+  getBaseUrl,
+  getFirstName
 } = require('../../src/utils');
 
 describe('generateCode', () => {
@@ -346,5 +348,43 @@ describe('getBaseUrl', () => {
   test('handles URL without query or hash', () => {
     const result = getBaseUrl('https://example.com/app');
     expect(result).toBe('https://example.com/app');
+  });
+});
+
+describe('getFirstName (P2-12)', () => {
+  test('extracts first name from full name with space', () => {
+    expect(getFirstName('John Smith')).toBe('John');
+    expect(getFirstName('Nguyen Van Duc')).toBe('Nguyen');
+    expect(getFirstName('Jean-Luc Picard')).toBe('Jean-Luc');
+  });
+
+  test('returns full name for single-name entries', () => {
+    expect(getFirstName('Madonna')).toBe('Madonna');
+    expect(getFirstName('Prince')).toBe('Prince');
+  });
+
+  test('handles leading/trailing whitespace', () => {
+    expect(getFirstName('  John Smith  ')).toBe('John');
+    expect(getFirstName('   Nguyen   ')).toBe('Nguyen');
+  });
+
+  test('returns null for null/undefined', () => {
+    expect(getFirstName(null)).toBeNull();
+    expect(getFirstName(undefined)).toBeNull();
+  });
+
+  test('returns null for empty string', () => {
+    expect(getFirstName('')).toBeNull();
+    expect(getFirstName('   ')).toBeNull();
+  });
+
+  test('returns null for non-string values', () => {
+    expect(getFirstName(123)).toBeNull();
+    expect(getFirstName({})).toBeNull();
+    expect(getFirstName([])).toBeNull();
+  });
+
+  test('handles names with multiple spaces', () => {
+    expect(getFirstName('Mary   Jane   Watson')).toBe('Mary');
   });
 });

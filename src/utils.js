@@ -249,6 +249,24 @@ function clearStudentInfo() {
 }
 
 /**
+ * Extracts the first name from a display name string.
+ * P2-12: Used for personalized greeting on instructor dashboard.
+ *
+ * @param {string} displayName - Full name string (e.g., "John Smith")
+ * @returns {string|null} First name (e.g., "John") or null if displayName is empty/null
+ */
+function getFirstName(displayName) {
+  if (!displayName || typeof displayName !== 'string') {
+    return null;
+  }
+  const trimmed = displayName.trim();
+  if (trimmed === '') {
+    return null;
+  }
+  return trimmed.split(' ')[0];
+}
+
+/**
  * Smart default class selection based on day-of-week and hour matching.
  * P4-05: Finds a class that was held at the same day of week and hour
  * within the last 14 days, or falls back to the most recent class.
@@ -507,6 +525,7 @@ if (typeof module !== 'undefined' && module.exports) {
     saveStudentInfo,
     loadStudentInfo,
     clearStudentInfo,
+    getFirstName,
     findSmartDefault,
     STUDENT_INFO_KEYS,
     // Course setup exports

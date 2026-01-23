@@ -27,7 +27,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P1-03 | Input sanitization for XSS prevention | student-check-in | **Complete** (2026-01-13) |
 | P1-04 | Improve mobile responsiveness | both | **Complete** (2026-01-13) |
 
-## Phase 2: Enhanced Features (Complete)
+## Phase 2: Enhanced Features
 
 | Task ID | Description | Journey | Status |
 |---------|-------------|---------|--------|
@@ -41,6 +41,191 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P2-08 | Export failed attempts to CSV | instructor-attendance-session | **Complete** (2026-01-13) |
 | P2-09 | Countdown audio warning | instructor-attendance-session | **Complete** (2026-01-13) |
 | P2-10 | Unit and integration test coverage | both | **Complete** (2026-01-13) |
+| P2-11 | Session history default view - 14 days | session-history-default | **Complete** (2026-01-23) |
+| P2-12 | Personalized greeting on instructor dashboard | instructor-greeting | **Complete** (2026-01-23) |
+| P2-13 | Personalized greeting for returning students | student-greeting | Pending |
+| P2-14 | Larger QR codes for easier scanning | larger-qr-codes | **Complete** (2026-01-23) |
+
+### P2-11: Session History Default View - 14 Days
+
+**Description:** Extend the default session history view from 7 days to 14 days for improved instructor workflow. Instructors often need to review sessions from the previous week, but the current 7-day default requires manual filter adjustment.
+
+**Journey Reference:** `docs/journeys/session-history-default.md`
+
+**Problem Statement:**
+- Current default shows only last 7 days of sessions
+- Instructors frequently need to review previous week's sessions
+- Requires manual date range adjustment for each session
+- Analytics view uses different default period
+
+**Acceptance Criteria:**
+- [x] AC1: Session history loads with 14-day default filter
+- [x] AC2: Displays sessions from (today - 14 days) to today
+- [x] AC3: Manual date range filter available for custom periods
+- [x] AC4: Analytics dashboard defaults to same 14-day period
+- [ ] AC5: Default filter persists across page navigation
+- [ ] AC6: Date range applies before class selection dropdown
+- [x] AC7: "Show All Sessions" toggle available for viewing all
+- [ ] AC8: CSV export respects current date filter
+
+**Technical Notes:**
+- Change hardcoded 7 to 14 in `getDefaultDateRange()` function
+- No database changes required (pure UI/filter logic)
+- Configuration value could be made adjustable in future phases
+
+**Files to Modify:**
+- `index.html` - Update `getDefaultDateRange()` and filter UI
+- `src/utils.js` - Move default range calculation to utility function (if not already there)
+- Tests - E2E tests verifying 14-day default in history and analytics views
+
+**Effort Estimate:** ~2-4 hours including tests
+
+### P2-12: Personalized Greeting on Instructor Dashboard
+
+**Description:** Display a friendly personalized greeting at the top of the instructor dashboard after Google authentication. Shows the instructor's first name extracted from their Google account display name, creating a welcoming experience and confirming successful identity recognition.
+
+**Journey Reference:** `docs/journeys/instructor-greeting.md`
+
+**Problem Statement:**
+- Instructors authenticate with Google but receive no personalization
+- No visual confirmation that the correct account is logged in
+- Dashboard feels impersonal and generic
+
+**Acceptance Criteria:**
+- [x] AC1: Greeting visible when instructor authenticated with Google
+- [ ] AC1.2: Greeting hides when in emulator PIN mode (no display name)
+- [ ] AC1.3: Greeting positioned in header area above main content
+- [x] AC1.4: Uses friendly informal tone ("Hi," not "Hello,")
+- [ ] AC1.5: First name properly capitalized
+- [x] AC2: First name extracted from `auth.currentUser.displayName`
+- [x] AC2.2: Splits on space and uses first element
+- [ ] AC2.3: Works with multi-word first names
+- [ ] AC2.4: Single-name accounts supported
+- [ ] AC3.1: If displayName is missing/null, show "Hi, Instructor!" (fallback)
+- [ ] AC3.2: If displayName is empty string, use fallback
+- [ ] AC3.3: Fallback message uses same styling as personalized greeting
+- [ ] AC3.4: No console errors for missing displayName
+- [ ] AC4.1: Uses existing design system font (Inter)
+- [ ] AC4.2: Font size appropriate for header (18-20px)
+- [ ] AC4.3: Text color uses theme-aware color (no hardcoded hex)
+- [ ] AC4.4: No hardcoded color hex values
+- [ ] AC4.5: Proper spacing/padding from edges and other header elements
+- [ ] AC5: Greeting visible and responsive on all screen sizes (320px+)
+- [ ] AC6: Text readable in light and dark mode with sufficient contrast
+- [ ] AC7: Greeting updates when user logs out and logs back in
+- [ ] AC8: "Hi," and fallback text extracted to localization strings
+
+**Technical Implementation:**
+- Extract first name using: `displayName.trim().split(' ')[0]`
+- Fallback: "Hi, Instructor!" if displayName unavailable
+- Position: Header area next to title
+- No additional network requests
+- No new dependencies required
+
+**Files to Modify:**
+- `index.html` - Add greeting element in header, localization strings
+- `src/utils.js` - Add `getFirstName()` utility function
+- Tests - E2E tests for greeting display in both auth modes
+
+**Effort Estimate:** ~1-2 hours including tests
+
+### P2-13: Personalized Greeting for Returning Students
+
+**Description:** Display a personalized greeting ("Welcome back, [First Name]!") for returning students on the check-in page. Uses the student's name stored from their previous check-in to create a welcoming experience.
+
+**Journey Reference:** `docs/journeys/student-greeting.md`
+
+**Problem Statement:**
+- Returning students see the same generic check-in form every time
+- No recognition of previous visits
+- Missed opportunity for welcoming personalization
+
+**Acceptance Criteria:**
+- [ ] AC1.1: Greeting visible when `savedStudentInfo` exists in localStorage
+- [ ] AC1.2: Greeting hidden for first-time students (no saved info)
+- [ ] AC1.3: Greeting positioned above check-in form
+- [ ] AC1.4: Uses warm tone ("Welcome back," not "Hello,")
+- [ ] AC1.5: First name extracted from saved `studentName` field
+- [ ] AC2.1: First name extracted by splitting on space: `name.split(' ')[0]`
+- [ ] AC2.2: Works with multi-word first names (hyphenated: "Jean-Luc")
+- [ ] AC2.3: Single-name entries display full name
+- [ ] AC2.4: Handles leading/trailing whitespace (trim before split)
+- [ ] AC3.1: If `studentName` is null/empty, hide greeting entirely
+- [ ] AC3.2: No console errors for malformed localStorage data
+- [ ] AC3.3: Graceful degradation if localStorage unavailable
+- [ ] AC4.1: Uses existing design system font (Inter)
+- [ ] AC4.2: Text size appropriate for mobile (16-18px)
+- [ ] AC4.3: Theme-aware colors (no hardcoded hex values)
+- [ ] AC4.4: Proper spacing from form elements
+- [ ] AC5.1: Readable in light mode
+- [ ] AC5.2: Readable in dark mode
+- [ ] AC5.3: Sufficient contrast ratio (WCAG AA 4.5:1)
+- [ ] AC6.1: Visible on mobile (>= 320px)
+- [ ] AC6.2: Does not break layout on any screen size
+
+**Technical Implementation:**
+- Data source: `localStorage.getItem('savedStudentInfo')` with `studentName` field
+- Extract first name: `name.trim().split(' ')[0]`
+- Render in `renderStudentForm()` before form elements
+- No network requests required
+- No new dependencies
+
+**Files to Modify:**
+- `index.html` - Add greeting element in student form, render logic
+- `src/utils.js` - Add `getGreetingName()` utility function (optional)
+- Tests - E2E tests for greeting display with/without saved info
+
+**Effort Estimate:** ~1-2 hours including tests
+
+### P2-14: Larger QR Codes for Easier Scanning
+
+**Description:** Double the QR code size on the instructor session view and add a fullscreen mode for classroom projection. Current QR codes are difficult to scan, especially on smaller student devices or in large lecture halls.
+
+**Journey Reference:** `docs/journeys/larger-qr-codes.md`
+
+**Problem Statement:**
+- Current QR code size (~200px) is difficult to scan from distance
+- Students with smaller phones struggle to focus camera
+- Large classrooms need projection-friendly display
+- No way to maximize QR for better visibility
+
+**Acceptance Criteria:**
+- [ ] AC1.1: QR code default size doubled (from ~200px to ~400px)
+- [ ] AC1.2: QR code remains square (1:1 aspect ratio)
+- [ ] AC1.3: Maintains scan reliability at new size
+- [ ] AC1.4: Does not pixelate or lose clarity
+- [ ] AC2.1: QR code scales down on smaller screens (< 600px width)
+- [ ] AC2.2: Minimum readable size maintained on mobile
+- [ ] AC2.3: Does not break layout on tablet/desktop
+- [ ] AC2.4: Attendance code text scales proportionally
+- [ ] AC3.1: Fullscreen button visible on QR code container
+- [ ] AC3.2: Clicking button expands QR to fill viewport
+- [ ] AC3.3: Attendance code displayed below QR in fullscreen
+- [ ] AC3.4: Background uses high contrast (white/light gray)
+- [ ] AC3.5: Click anywhere or press Escape to exit fullscreen
+- [ ] AC3.6: Works with browser fullscreen API where available
+- [ ] AC4.1: QR code readable in light mode
+- [ ] AC4.2: QR code readable in dark mode
+- [ ] AC4.3: Fullscreen button visible in both themes
+- [ ] AC4.4: Fullscreen mode uses light background regardless of theme
+- [ ] AC5.1: Fullscreen QR has sufficient padding from edges
+- [ ] AC5.2: Attendance code text large enough to read from back of room
+- [ ] AC5.3: Session/class info visible in fullscreen mode
+
+**Technical Implementation:**
+- CSS: Increase `.qr-container` max-width from ~200px to 400px
+- Add responsive breakpoints for smaller screens
+- Create fullscreen overlay with QR, code, and class name
+- Handle Escape key and click-to-exit
+- CSS-only fullscreen (no browser API dependency)
+
+**Files to Modify:**
+- `index.html` - Add fullscreen overlay HTML, update QR container sizing
+- CSS - Update `.qr-container` styles, add fullscreen overlay styles
+- JavaScript - Add `toggleQRFullscreen()` function, keyboard handler
+- Tests - E2E tests for QR sizing and fullscreen toggle
+
+**Effort Estimate:** ~2-3 hours including tests
 
 ## Phase 3: Security & Compliance
 
@@ -50,6 +235,180 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P3-02 | Rate limiting on check-ins | student-check-in | **Complete** - Client-side debounce added |
 | P3-03 | Data retention policy implementation | both | Pending |
 | P3-04 | GDPR-compliant data export | instructor-attendance-session | Pending |
+| P3-05 | Cross-session device sharing detection | device-sharing-detection | Pending |
+| P3-06 | Attendance history device verification | attendance-history-device-verification | Pending |
+
+### P3-05: Cross-Session Device Sharing Detection
+
+**Description:** Detect and flag potential attendance fraud when a device ID is used by different students across multiple sessions. Provides first-use policy acknowledgment, student warnings, and real-time instructor alerts while allowing legitimate device sharing scenarios.
+
+**Journey Reference:** `docs/journeys/device-sharing-detection.md`
+
+**Problem Statement:**
+- Currently, device fingerprinting only blocks same-device check-ins within a single session
+- Students could use one phone to check in for absent friends across different sessions
+- No visibility into cross-session device sharing patterns
+- Instructors cannot detect proxy attendance fraud
+
+**Acceptance Criteria:**
+
+1. **Device Policy Acknowledgment (First Use)**
+   - [ ] AC1.1: On first device use, show policy warning modal before check-in
+   - [ ] AC1.2: Modal text explains device linking and fraud flagging policy
+   - [ ] AC1.3: "I Understand" button required to proceed
+   - [ ] AC1.4: Acknowledgment stored in `deviceAcknowledgments/{deviceId}`
+   - [ ] AC1.5: Warning only shows once per device (not per session)
+   - [ ] AC1.6: Modal respects dark mode styling
+
+2. **Device History Tracking**
+   - [ ] AC2.1: On successful check-in, record to `deviceHistory/{deviceId}/{studentId}`
+   - [ ] AC2.2: Store `firstSeen`, `lastSeen`, `sessionCount` timestamps
+   - [ ] AC2.3: Update `lastSeen` and increment `sessionCount` on repeat check-ins
+   - [ ] AC2.4: History persists across sessions (not session-scoped)
+
+3. **Cross-Session Detection**
+   - [ ] AC3.1: Before check-in, query `deviceHistory/{deviceId}` for other students
+   - [ ] AC3.2: If different studentId found, trigger flagged flow
+   - [ ] AC3.3: Detection considers all historical students, not just most recent
+   - [ ] AC3.4: Comparison uses normalized studentId (case-insensitive, trimmed)
+
+4. **Student Warning for Flagged Device**
+   - [ ] AC4.1: Show warning modal when device previously used by another student
+   - [ ] AC4.2: Display masked previous student ID (e.g., "A*****123")
+   - [ ] AC4.3: Inform student check-in will be flagged to instructor
+   - [ ] AC4.4: Provide "Cancel" and "Proceed Anyway" options
+   - [ ] AC4.5: "Cancel" returns to form without submitting
+   - [ ] AC4.6: "Proceed Anyway" submits with flagged status
+
+5. **Flagged Attendance Record**
+   - [ ] AC5.1: Flagged check-ins include `flagged` object in record
+   - [ ] AC5.2: `flagged.reason` set to 'device_shared'
+   - [ ] AC5.3: `flagged.previousStudentId` contains other student's ID
+   - [ ] AC5.4: `flagged.acknowledged` indicates student saw warning
+
+6. **Instructor Real-Time Alerts**
+   - [ ] AC6.1: When flagged check-in occurs during active session, show alert banner
+   - [ ] AC6.2: Alert shows student name, device ID, and previous user
+   - [ ] AC6.3: Alert has "Dismiss" action to hide it
+   - [ ] AC6.4: Multiple flagged check-ins queue as separate alerts
+   - [ ] AC6.5: Alert visible for 30 seconds if not dismissed
+
+7. **Instructor Attendance List Integration**
+   - [ ] AC7.1: Flagged check-ins highlighted with warning icon in attendance list
+   - [ ] AC7.2: Tooltip/hover shows flag details (reason, previous student)
+   - [ ] AC7.3: Filter option to show only flagged check-ins
+   - [ ] AC7.4: Flagged status included in CSV export
+
+8. **Session Summary Integration**
+   - [ ] AC8.1: Session summary shows count of flagged check-ins
+   - [ ] AC8.2: Flagged student list with details in summary modal
+   - [ ] AC8.3: Export includes flag information in separate column
+
+9. **Privacy Considerations**
+   - [ ] AC9.1: Device history stored per instructor (not globally accessible)
+   - [ ] AC9.2: Student warning shows masked ID, not full studentId/name
+   - [ ] AC9.3: History data can be purged on request (data retention)
+   - [ ] AC9.4: No PII in deviceHistory - only studentIds and timestamps
+
+10. **Edge Cases**
+    - [ ] AC10.1: Handle device with 3+ different students gracefully
+    - [ ] AC10.2: Works correctly if deviceHistory lookup fails (network error)
+    - [ ] AC10.3: Works correctly for manual instructor adds (deviceId: 'MANUAL')
+    - [ ] AC10.4: First-time user warning appears even if device history exists
+    - [ ] AC10.5: Acknowledgment and history creation are atomic
+
+**Data Model:**
+```
+deviceHistory/
+  {deviceId}/
+    {studentId}/
+      firstSeen: timestamp
+      lastSeen: timestamp
+      sessionCount: number
+
+deviceAcknowledgments/
+  {deviceId}/
+    acknowledged: true
+    timestamp: number
+    studentId: string
+
+attendance/{sessionId}/{studentId}/
+  ...existing fields...
+  flagged:  // Optional, only present if flagged
+    reason: 'device_shared'
+    previousStudentId: string
+    previousStudentName: string
+    acknowledged: boolean
+```
+
+**Technical Notes:**
+- Device history adds one database read before check-in
+- Use `.limitToLast(10)` on device history to cap query size
+- Cache acknowledgment status in localStorage to skip read on repeat visits
+- Only flag if previous student's last check-in was within 30 days
+- Consider instructor whitelist for known shared devices
+
+### P3-06: Attendance History Device Verification
+
+**Description:** Restrict attendance history lookup to only allow viewing from devices that have previously been used to check in with that student ID. This prevents students from viewing other students' attendance records by guessing student IDs.
+
+**Journey Reference:** `docs/journeys/attendance-history-device-verification.md`
+
+**Problem Statement:**
+- Currently, anyone can view any student's attendance history by entering their student ID
+- No verification that the requester is the actual student
+- Privacy concern: students can snoop on other students' attendance records
+- Device fingerprinting is captured during check-in but not used for history access
+
+**Acceptance Criteria:**
+
+1. **Device Verification**
+   - [ ] AC1.1: Before showing history, query attendance records for submitted student ID
+   - [ ] AC1.2: Extract all unique device IDs from student's attendance records
+   - [ ] AC1.3: Compare current device fingerprint against extracted device IDs
+   - [ ] AC1.4: Match required to proceed (case-insensitive comparison)
+
+2. **Authorized Access**
+   - [ ] AC2.1: If device matches, allow viewing attendance history
+   - [ ] AC2.2: All existing functionality preserved (stats, table, sorting)
+   - [ ] AC2.3: No additional friction for authorized users after first warning
+
+3. **First-Time Warning**
+   - [ ] AC3.1: On first authorized access, show warning modal before results
+   - [ ] AC3.2: Warning text: "Your attendance history is tied to this device for privacy. You can only view your history from a device you've previously used to check in."
+   - [ ] AC3.3: "I Understand" button required to proceed
+   - [ ] AC3.4: Acknowledgment stored in localStorage (device-scoped)
+   - [ ] AC3.5: Warning only shown once per device (not per search)
+
+4. **Denied Access**
+   - [ ] AC4.1: If no device match, show denial message
+   - [ ] AC4.2: Message: "This device has not been used to check in with this student ID. You can only view attendance history from a device you've previously used for check-in."
+   - [ ] AC4.3: No attendance data shown
+   - [ ] AC4.4: Clear call-to-action to return to home
+
+5. **Edge Cases**
+   - [ ] AC5.1: Students with no attendance records see "No records found" (not denial)
+   - [ ] AC5.2: Handle device fingerprint unavailable (deny access with explanation)
+   - [ ] AC5.3: Handle network errors gracefully (retry option)
+   - [ ] AC5.4: Manual instructor-added records (deviceId: 'MANUAL') do not count for verification
+
+6. **UI/UX**
+   - [ ] AC6.1: Warning and denial modals use consistent styling
+   - [ ] AC6.2: Dark mode support for all modals
+   - [ ] AC6.3: Mobile-friendly modal sizing
+
+**Technical Implementation:**
+- Query attendance by studentId, extract unique deviceIds
+- Compare current fingerprint against set of valid deviceIds
+- Store warning acknowledgment in localStorage
+- No database changes required (uses existing deviceId field)
+
+**Files to Modify:**
+- `index.html` - Add verification logic before showing results, add modals
+- `src/utils.js` - Add `verifyDeviceAccess()` function
+- Tests - E2E tests for authorized, denied, and edge case scenarios
+
+**Effort Estimate:** ~3-4 hours including tests
 
 ## Phase 4: Analytics & Reporting
 
@@ -61,8 +420,8 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P4-03.1 | AC3.1 Participation tooltip | student-attendance-lookup | **Complete** (2026-01-21) |
 | P4-03.2 | AC3.2 Late threshold transparency | student-attendance-lookup | **Complete** (2026-01-21) |
 | P4-04 | Analytics split by class (default view) | analytics-by-class | **Complete** (2026-01-21) |
-| P4-05 | Smart class default selection | 2026-01-21 |
 | P4-05 | Smart class default selection | smart-class-default | **Complete** (2026-01-21) |
+| P4-06 | Analytics dashboard styling & default filter improvements | analytics-dashboard-improvements | Pending |
 
 ### P4-04: Analytics Split by Class
 
@@ -122,6 +481,71 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - Falls back to most recent class when no match found
 - Config (radius, late threshold) auto-loads from smart default class
 
+### P4-06: Analytics Dashboard Styling & Default Filter Improvements
+
+**Description:** Improve the analytics dashboard with two UI/UX enhancements: (1) Make the "At-Risk Students (Below 70%)" section use the same table format as the "Student Attendance Ranking" for visual consistency, and (2) Change the default date filter from 14 days to "All Sessions" to show instructors the full picture of student attendance across the entire term.
+
+**Journey Reference:** `docs/journeys/analytics-dashboard-improvements.md`
+
+**Problem Statement:**
+- At-Risk Students section displays in a different format (cards/list) than Student Attendance Ranking (table), creating visual inconsistency
+- Analytics dashboard defaults to showing only last 14 days of data, forcing instructors to manually adjust filters to see full term trends
+- Instructors want to see complete attendance picture by default without applying filters
+
+**Acceptance Criteria:**
+
+1. **At-Risk Students Table Format (Core)**
+   - [ ] AC1: At-Risk Students section displays as table with columns: Student ID, Name, Sessions Attended, Total Sessions, Attendance Rate
+   - [ ] AC2: Table styling (padding, fonts, row height, borders) matches Student Attendance Ranking table exactly
+   - [ ] AC3: Hover states on at-risk rows match ranking table styling
+   - [ ] AC4: Table supports sorting by each column (click header to sort)
+   - [ ] AC5: Sortable columns show visual indicators (arrows) on headers
+   - [ ] AC6: Sessions Attended column displays correct attendance count
+   - [ ] AC7: Attendance Rate displays in percentage format (e.g., "72.5%") consistent with ranking table
+
+2. **Dark Mode Support (Accessibility)**
+   - [ ] AC8: At-Risk table is readable in both light and dark modes
+   - [ ] AC9: Row styling, borders, and text contrast meet accessibility standards in both themes
+   - [ ] AC10: Sort indicator arrows visible in both light and dark mode
+
+3. **Default to All Sessions Filter (Core)**
+   - [ ] AC11: Analytics dashboard loads with "All Sessions" as default (no date filter applied)
+   - [ ] AC12: Summary cards (Total Sessions, Avg Attendance, Unique Students) show data from entire term by default
+   - [ ] AC13: Trend chart displays all sessions from beginning of term
+   - [ ] AC14: Student rankings and at-risk calculations use complete dataset by default
+
+4. **Date Filter UI (Usability)**
+   - [ ] AC15: Date range dropdown shows "All Sessions" as default selection
+   - [ ] AC16: Dropdown includes quick-filter options: "Last 7 Days", "Last 14 Days", "Last 30 Days"
+   - [ ] AC17: "Custom Range" option allows selecting specific date range
+   - [ ] AC18: Applying date filter updates all dashboard sections correctly
+   - [ ] AC19: Resetting filter back to "All Sessions" shows complete data again
+
+5. **Edge Cases & Completeness**
+   - [ ] AC20: All students below 70% threshold appear in At-Risk table (no hidden rows)
+   - [ ] AC21: At-risk table shows "No at-risk students" message when all students at/above 70%
+   - [ ] AC22: Works correctly with 0 sessions, 1 session, and 100+ sessions
+   - [ ] AC23: Date filter with no sessions in range shows empty state gracefully
+
+**Technical Notes:**
+- At-risk data is derived from Student Attendance Ranking (no additional queries)
+- Sorting is client-side only (no network calls)
+- Default filter change is UI-only (no database changes)
+- No migration required
+- Minimal performance impact
+
+**Files to Modify:**
+- `index.html` - Add at-risk table styling, date filter UI, state initialization
+- `src/utils.js` - Add helper functions for table sorting, date range calculation
+- Tests - E2E tests for all acceptance criteria
+
+**Implementation Strategy:**
+- Phase 1: Convert at-risk display to table format, match styling with ranking table
+- Phase 2: Implement sortable columns with visual indicators
+- Phase 3: Change default date filter from 14 days to all sessions, add filter UI
+- Phase 4: Test across browsers, devices, light/dark mode
+
+**Effort Estimate:** 4-6 hours including tests and visual validation
 
 ## Phase 6: UI Refactor
 
@@ -511,6 +935,9 @@ Use studentId as the key with write-once security rule:
 | P8-01.1 | Remote location selection via map | 2026-01-23 |
 | P8-02 | Zero-minute late threshold support | 2026-01-23 |
 | P9-01 | Firebase emulator test stability improvements | 2026-01-23 |
+| P2-11 | Session history default view - 14 days | 2026-01-23 |
+| P2-12 | Personalized greeting on instructor dashboard | 2026-01-23 |
+| P2-14 | Larger QR codes for easier scanning | 2026-01-23 |
 
 ## Evidence
 

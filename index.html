@@ -175,6 +175,17 @@
 <!-- Modal Container -->
 <div id="modalContainer"></div>
 
+<!-- P2-14: QR Fullscreen Modal for Classroom Projection -->
+<div id="qr-fullscreen-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center" data-modal="qr-fullscreen" onclick="if(event.target === this) closeQRFullscreenModal()">
+  <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-lg mx-4 text-center" onclick="event.stopPropagation()">
+    <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Scan to Check In</h2>
+    <div id="qr-fullscreen" class="bg-white p-4 rounded-lg inline-block mb-4"></div>
+    <p class="text-gray-500 dark:text-gray-400 mb-2">Current Code</p>
+    <p id="qr-fullscreen-code" class="code-display text-5xl font-bold text-blue-700 dark:text-blue-400 mb-6"></p>
+    <button onclick="closeQRFullscreenModal()" class="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium" data-action="close-qr-modal">Close</button>
+  </div>
+</div>
+
 <div id="app" class="p-4 max-w-4xl mx-auto">
   <div class="flex items-center justify-center min-h-screen">
     <div class="text-center">
@@ -864,6 +875,30 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// P2-12: Extract first name from display name for personalized greeting
+function getFirstName(displayName) {
+  if (!displayName || typeof displayName !== 'string') {
+    return null;
+  }
+  const trimmed = displayName.trim();
+  if (trimmed === '') {
+    return null;
+  }
+  return trimmed.split(' ')[0];
+}
+
+// P2-12: Render personalized greeting for instructor dashboard
+function renderInstructorGreeting() {
+  if (!state.user || !state.user.displayName) {
+    return '';
+  }
+  const firstName = getFirstName(state.user.displayName);
+  if (!firstName) {
+    return '';
+  }
+  return '<div id="instructor-greeting" class="mb-4 text-lg text-gray-700 dark:text-gray-300">Hi, ' + escapeHtml(firstName) + '!</div>';
+}
+
 // Dark mode toggle button HTML
 
 // P4-05: Smart default class selection based on day-of-week and hour matching
@@ -1301,6 +1336,7 @@ function renderTeacherView() {
     return `
       <div class="pt-8">
         <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back</button>
+        ${renderInstructorGreeting()}
         ${renderTodaysSessions()}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
           <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
@@ -1377,9 +1413,10 @@ function renderTeacherView() {
           <p class="text-emerald-700 dark:text-emerald-400 font-semibold mb-3">Scan to Check In (includes code)</p>
           <div id="qr-student-checkin" class="bg-white p-3 rounded-lg inline-block">${
             state.cachedQRCode && state.cachedQRCode.code === state.currentCode
-              ? `<img src="${state.cachedQRCode.dataUrl}" width="180" height="180" alt="QR Code">`
+              ? `<img src="${state.cachedQRCode.dataUrl}" width="250" height="250" alt="QR Code">`
               : ''
           }</div>
+          <button onclick="openQRFullscreenModal()" class="mt-3 px-4 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-lg font-medium text-sm" data-action="enlarge-qr">Enlarge QR</button>
         </div>
       </div>
 
@@ -1600,8 +1637,8 @@ function renderHistoryView() {
     );
   }
   if (!state.showAllHistory) {
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    filteredSessions = filteredSessions.filter(s => new Date(s.createdAt).getTime() > sevenDaysAgo);
+    const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
+    filteredSessions = filteredSessions.filter(s => new Date(s.createdAt).getTime() > fourteenDaysAgo);
   }
 
   return `
@@ -1623,7 +1660,7 @@ function renderHistoryView() {
             class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
         </div>
         
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">${state.showAllHistory ? 'All sessions' : 'Sessions from the last 7 days'}. Click a session to view details.</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">${state.showAllHistory ? 'All sessions' : 'Sessions from the last 14 days'}. Click a session to view details.</p>
         ${filteredSessions.length === 0
           ? '<p class="text-gray-400 dark:text-gray-500 text-center py-8">No sessions found</p>'
           : `
@@ -2462,7 +2499,7 @@ function generateQRCodes() {
   const qrUrl = `${baseUrl}?mode=student&code=${state.currentCode}`;
   const currentCode = state.currentCode;
 
-  safeQRGenerate(sc, qrUrl, { width: 180 });
+  safeQRGenerate(sc, qrUrl, { width: 250 });
 
   // After QR is generated, cache the data URL for future renders
   setTimeout(() => {
@@ -2480,6 +2517,37 @@ function generateQRCodes() {
       state.cachedQRCode = { code: currentCode, dataUrl };
     }
   }, 50); // Small delay to ensure QR is fully rendered
+}
+
+// P2-14: Open QR code in fullscreen modal for classroom projection
+function openQRFullscreenModal() {
+  const modal = document.getElementById('qr-fullscreen-modal');
+  const qrContainer = document.getElementById('qr-fullscreen');
+  const codeDisplay = document.getElementById('qr-fullscreen-code');
+  
+  if (!modal || !qrContainer) return;
+  
+  // Show the modal
+  modal.classList.remove('hidden');
+  
+  // Generate a larger QR code for the modal
+  qrContainer.innerHTML = '';
+  const baseUrl = getBaseUrl();
+  const qrUrl = `${baseUrl}?mode=student&code=${state.currentCode}`;
+  safeQRGenerate(qrContainer, qrUrl, { width: 400 });
+  
+  // Update the code display
+  if (codeDisplay) {
+    codeDisplay.textContent = state.currentCode;
+  }
+}
+
+// P2-14: Close the QR fullscreen modal
+function closeQRFullscreenModal() {
+  const modal = document.getElementById('qr-fullscreen-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
 }
 
 async function acquireStudentLocation() {
@@ -4264,12 +4332,12 @@ async function loadAnalyticsData() {
   render();
 
   try {
-    // H1 FIX: Apply default date filter (last 30 days) if no filter is set
+    // H1 FIX: Apply default date filter (last 14 days) if no filter is set
     // This prevents loading ALL historical data on initial load
     if (!state.analyticsDateStart && !state.analyticsDateEnd) {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      state.analyticsDateStart = thirtyDaysAgo.toISOString().split('T')[0];
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+      state.analyticsDateStart = fourteenDaysAgo.toISOString().split('T')[0];
     }
 
     // Load all sessions (still needed for class list)
