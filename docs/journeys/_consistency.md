@@ -11,13 +11,15 @@ Authoritative values for parameters shared across journeys.
 | Code grace period | **180s** | `index.html:81` | student-check-in, instructor-session |
 | Recently expired window | **30s** | `index.html` | student-check-in, instructor-session |
 | Code rotation interval | **120s** | `index.html` | instructor-session, student-check-in |
-| Default classroom radius | **300m** | `index.html` | instructor-session |
-| Radius range | 20-500m | `index.html` | instructor-session |
-| Default late threshold | **10 min** | `index.html` | instructor-session, student-lookup |
-| Late threshold range | 5-30 min | `index.html` | instructor-session |
+| Default classroom radius | **300m** | `index.html` | instructor-session, course-setup |
+| Radius range | 20-500m | `index.html` | instructor-session, course-setup |
+| Default late threshold | **10 min** | `index.html` | instructor-session, student-lookup, course-setup |
+| Late threshold range | **0-60 min** | `index.html` | instructor-session, course-setup |
 | Instructor PIN | 230782 | `index.html` | instructor-session |
 | History default view | 7 days | `index.html` | instructor-session |
 | At-risk attendance threshold | 70% | lecturer-dashboard | lecturer-dashboard |
+| Term weeks range | 1-20 | `index.html` | course-setup |
+| Default term weeks | 15 | `index.html` | course-setup |
 
 ## Terminology Definitions
 
@@ -35,6 +37,9 @@ Consistent labels and meanings across all journeys.
 | **Rejoined** | Late check-in during a reopened session | instructor-session |
 | **Participation** | Instructor-recorded count of student contributions | instructor-session, student-lookup |
 | **Archived** | Session hidden from default history view | instructor-session |
+| **Course** | A configured class with schedule for session generation | course-setup |
+| **Scheduled session** | Pre-created session awaiting activation | course-setup |
+| **Quick session** | Ad-hoc session created without course setup | instructor-session |
 
 ## Feature Visibility Matrix
 
@@ -54,6 +59,8 @@ What each actor can see and configure.
 | Session history | Own only | All sessions | |
 | Export CSV | No | Yes | |
 | Analytics dashboard | No | Yes (planned) | |
+| Course setup | No | Yes | |
+| Scheduled sessions | No | Yes | |
 
 ### Visibility Gaps Identified
 
@@ -71,6 +78,7 @@ Consistent back/cancel behavior.
 | Instructor session | End session confirmation | N/A (no cancel mid-session) |
 | Session history | Return to instructor dashboard | N/A |
 | Edit modal | Close without saving | Same as back |
+| Course setup wizard | Previous step | Cancel returns to dashboard |
 
 ## Error Message Consistency
 
@@ -87,6 +95,8 @@ Same errors produce same messages across journeys.
 | Wrong PIN | "Incorrect PIN. Please try again." | instructor-session |
 | Location denied | "Location access is required to start a session." | instructor-session |
 | Database error | "Error connecting to database. Please try again." | all journeys |
+| No days selected | "At least one day must be selected" | course-setup |
+| Invalid time range | "Start time must be before end time" | course-setup |
 
 ## Journey Cross-References
 
@@ -99,6 +109,7 @@ Landing Page
 │   └── student-attendance-lookup.md (?mode=lookup)
 └── Instructor Mode (?mode=teacher)
     ├── instructor-attendance-session.md (PIN required)
+    ├── course-setup.md (Setup New Course)
     └── lecturer-dashboard.md (planned)
 ```
 
@@ -109,10 +120,11 @@ Landing Page
 | Student check-in | `?mode=student&code=XXXXXX` | QR scan from instructor session |
 | Student lookup | `?mode=lookup` | Main page "View My Attendance" |
 | Instructor session | `?mode=teacher` | Main page "I'm the Instructor" |
+| Course setup | `?mode=teacher&view=courseSetup` | Dashboard "Setup New Course" |
 | Analytics dashboard | `?mode=analytics` (planned) | Instructor dashboard "Analytics" |
 
 ## Last Updated
 
-- **Date**: 2026-01-21
-- **Verified by**: Cross-journey consistency audit
-- **Changes**: Initial creation documenting all shared parameters and visibility gaps
+- **Date**: 2026-01-23
+- **Verified by**: Course setup feature implementation
+- **Changes**: Updated late threshold range to 0-60 min, added course setup terminology and parameters

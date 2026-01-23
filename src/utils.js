@@ -15,6 +15,19 @@ const STUDENT_INFO_KEYS = {
 };
 
 /**
+ * Day name to JavaScript day index mapping (Sunday = 0)
+ */
+const DAY_INDEX = {
+  'Sunday': 0,
+  'Monday': 1,
+  'Tuesday': 2,
+  'Wednesday': 3,
+  'Thursday': 4,
+  'Friday': 5,
+  'Saturday': 6
+};
+
+/**
  * Generates a random 6-character alphanumeric code.
  * Uses only uppercase letters (excluding O, I) and numbers (excluding 0, 1) for readability.
  *
@@ -287,6 +300,197 @@ function findSmartDefault(previousClasses, allSessions, now = new Date()) {
   return previousClasses[0]?.className || null;
 }
 
+// ============================================================================
+// Course Setup Utility Functions
+// ============================================================================
+
+/**
+ * Combines course code and section into a class name.
+ *
+ * @param {string} code - Course code (e.g., "CS101")
+ * @param {string} section - Section identifier (e.g., "A")
+ * @returns {string} Combined class name (e.g., "CS101-A")
+ */
+function combineCourseClassName(code, section) {
+  return `${(code || '').trim()}-${(section || '').trim()}`;
+}
+
+/**
+ * Validates course information (code and section).
+ *
+ * @param {string} code - Course code
+ * @param {string} section - Section identifier
+ * @returns {Object} Validation result with valid boolean and errors array
+ */
+function validateCourseInfo(code, section) {
+  const errors = [];
+  const trimmedCode = (code || '').trim();
+  const trimmedSection = (section || '').trim();
+
+  if (!trimmedCode) {
+    errors.push('Course code is required');
+  } else if (trimmedCode.length > 20) {
+    errors.push('Course code must be 20 characters or less');
+  }
+
+  if (!trimmedSection) {
+    errors.push('Section is required');
+  } else if (trimmedSection.length > 10) {
+    errors.push('Section must be 10 characters or less');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Validates schedule configuration.
+ *
+ * @param {Object} schedule - Schedule configuration
+ * @param {string[]} schedule.days - Array of day names (e.g., ["Monday", "Wednesday"])
+ * @param {string} schedule.startTime - Start time in HH:MM format
+ * @param {string} schedule.endTime - End time in HH:MM format
+ * @param {number} schedule.weeks - Number of weeks
+ * @param {string} schedule.startDate - Start date in YYYY-MM-DD format
+ * @returns {Object} Validation result with valid boolean and errors array
+ */
+function validateSchedule(schedule) {
+  const errors = [];
+
+  if (!schedule.days || schedule.days.length === 0) {
+    errors.push('At least one day must be selected');
+  }
+
+  if (!schedule.startTime) {
+    errors.push('Start time is required');
+  }
+
+  if (!schedule.endTime) {
+    errors.push('End time is required');
+  }
+
+  if (schedule.startTime && schedule.endTime && schedule.startTime >= schedule.endTime) {
+    errors.push('Start time must be before end time');
+  }
+
+  if (!schedule.weeks || schedule.weeks < 1 || schedule.weeks > 20) {
+    errors.push('Weeks must be between 1 and 20');
+  }
+
+  if (!schedule.startDate) {
+    errors.push('Start date is required');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Gets the next occurrence of a specific day of week on or after the start date.
+ *
+ * @param {Date} startDate - Starting date
+ * @param {string} targetDay - Day name (e.g., "Monday")
+ * @returns {Date} Date of the next occurrence
+ */
+function getNextOccurrence(startDate, targetDay) {
+  const targetIndex = DAY_INDEX[targetDay];
+  if (targetIndex === undefined) {
+    throw new Error(`Invalid day name: ${targetDay}`);
+  }
+
+  const result = new Date(startDate);
+  const currentDayIndex = result.getDay();
+
+  // Calculate days until target day
+  let daysUntilTarget = targetIndex - currentDayIndex;
+  if (daysUntilTarget < 0) {
+    daysUntilTarget += 7;
+  }
+
+  result.setDate(result.getDate() + daysUntilTarget);
+  return result;
+}
+
+/**
+ * Generates a simple unique ID for client-side session creation.
+ * Note: In production, Firebase push() keys should be used instead.
+ *
+ * @returns {string} A unique-ish ID
+ */
+function generateSimpleId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Generates scheduled sessions for a course based on its schedule.
+ *
+ * @param {Object} course - Course configuration
+ * @param {string} course.id - Course ID
+ * @param {string} course.className - Combined class name
+ * @param {Object} course.location - Location coordinates {lat, lng}
+ * @param {number} course.radius - Classroom radius in meters
+ * @param {number} course.lateThreshold - Late threshold in minutes
+ * @param {Object} schedule - Schedule configuration
+ * @param {string[]} schedule.days - Array of day names
+ * @param {string} schedule.startTime - Start time in HH:MM format
+ * @param {string} schedule.endTime - End time in HH:MM format
+ * @param {number} schedule.weeks - Number of weeks
+ * @param {string} schedule.startDate - Start date in YYYY-MM-DD format
+ * @returns {Array} Array of session objects
+ */
+function generateScheduledSessions(course, schedule) {
+  // Validate schedule first
+  const validation = validateSchedule(schedule);
+  if (!validation.valid) {
+    return [];
+  }
+
+  const sessions = [];
+  const startDate = new Date(schedule.startDate + 'T00:00:00');
+  const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
+
+  // Sort days by their occurrence in the week for chronological ordering
+  const sortedDays = [...schedule.days].sort((a, b) => DAY_INDEX[a] - DAY_INDEX[b]);
+
+  // Generate sessions for each week
+  for (let week = 0; week < schedule.weeks; week++) {
+    for (const day of sortedDays) {
+      // Find the first occurrence of this day on or after the start date
+      const firstOccurrence = getNextOccurrence(startDate, day);
+
+      // Add weeks to get the actual session date
+      const sessionDate = new Date(firstOccurrence);
+      sessionDate.setDate(sessionDate.getDate() + (week * 7));
+
+      // Set the start time
+      sessionDate.setHours(startHour, startMinute, 0, 0);
+
+      // Create session object
+      sessions.push({
+        id: generateSimpleId(),
+        courseId: course.id,
+        className: course.className,
+        location: course.location,
+        radius: course.radius,
+        lateThreshold: course.lateThreshold,
+        scheduledFor: sessionDate.getTime(),
+        status: 'scheduled',
+        active: false,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }
+
+  // Sort sessions chronologically
+  sessions.sort((a, b) => a.scheduledFor - b.scheduledFor);
+
+  return sessions;
+}
+
 // Export for Node.js/Jest
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -304,6 +508,13 @@ if (typeof module !== 'undefined' && module.exports) {
     loadStudentInfo,
     clearStudentInfo,
     findSmartDefault,
-    STUDENT_INFO_KEYS
+    STUDENT_INFO_KEYS,
+    // Course setup exports
+    combineCourseClassName,
+    validateCourseInfo,
+    validateSchedule,
+    getNextOccurrence,
+    generateScheduledSessions,
+    DAY_INDEX
   };
 }
