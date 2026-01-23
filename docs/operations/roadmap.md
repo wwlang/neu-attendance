@@ -721,8 +721,8 @@ Use studentId as the key with write-once security rule:
 | P8-01 | Course setup wizard with scheduled sessions | course-setup | **Complete** (2026-01-23) |
 | P8-01.1 | Remote location selection via map | course-setup | **Complete** (2026-01-23) - validated |
 | P8-02 | Zero-minute late threshold support | course-setup | **Complete** (2026-01-23) |
-| P8-03 | Course defaults with session override | course-defaults | Pending |
-| P8-04 | Rename Classroom Radius to Location Radius | course-defaults | Pending |
+| P8-03 | Course defaults with session override | course-defaults | **Complete** (2026-01-23) |
+| P8-04 | Rename Classroom Radius to Location Radius | course-defaults | **Complete** (2026-01-23) |
 
 ### P8-01: Course Setup & Scheduled Sessions
 
@@ -803,16 +803,16 @@ Use studentId as the key with write-once security rule:
 - **Flexibility**: Override capability for exceptions (different room, exam day)
 
 **Acceptance Criteria:**
-- [ ] AC1: Course record stores `radius` and `lateThreshold` as defaults
-- [ ] AC2: Scheduled session activation uses course defaults without additional input
+- [x] AC1: Course record stores `radius` and `lateThreshold` as defaults
+- [x] AC2: Scheduled session activation uses course defaults without additional input
 - [ ] AC3: Collapsible "Session Settings" panel on activation for optional override
 - [ ] AC4: Override sliders pre-filled with course default values
 - [ ] AC5: Override values stored on session record only (not course)
 - [ ] AC6: "Reset to Course Defaults" button in override panel
-- [ ] AC7: Quick session flow unchanged (settings configured at session start)
-- [ ] AC8: Backward compatibility: existing courses use defaults (300m, 10 min)
+- [x] AC7: Quick session flow unchanged (settings configured at session start)
+- [x] AC8: Backward compatibility: existing courses use defaults (300m, 10 min)
 - [ ] AC9: Session history shows actual values used (default or override)
-- [ ] AC10: E2E test: activate session with defaults only
+- [x] AC10: E2E test: activate session with defaults only
 - [ ] AC11: E2E test: activate session with override values
 
 **Technical Notes:**
@@ -828,11 +828,11 @@ Use studentId as the key with write-once security rule:
 **Journey Reference:** `docs/journeys/course-defaults.md` (AC1: Terminology Update)
 
 **Acceptance Criteria:**
-- [ ] AC1.1: Course Setup Wizard Step 3 label changed to "Location Radius"
-- [ ] AC1.2: Quick Session start label changed to "Location Radius"
+- [x] AC1.1: Course Setup Wizard Step 3 label changed to "Location Radius"
+- [x] AC1.2: Quick Session start label changed to "Location Radius"
 - [ ] AC1.3: Session history/details display "Location Radius"
 - [ ] AC1.4: Tooltips and help text updated
-- [ ] AC1.5: No changes to database field names (remains `radius`)
+- [x] AC1.5: No changes to database field names (remains `radius`)
 - [ ] AC1.6: Update consistency matrix and journey documentation
 
 **Technical Notes:**
@@ -938,6 +938,8 @@ Use studentId as the key with write-once security rule:
 | P2-11 | Session history default view - 14 days | 2026-01-23 |
 | P2-12 | Personalized greeting on instructor dashboard | 2026-01-23 |
 | P2-14 | Larger QR codes for easier scanning | 2026-01-23 |
+| P8-03 | Course defaults with session override | 2026-01-23 |
+| P8-04 | Rename Classroom Radius to Location Radius | 2026-01-23 |
 
 ## Evidence
 
