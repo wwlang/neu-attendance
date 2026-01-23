@@ -2,10 +2,12 @@
 /**
  * Global Setup for Playwright Tests
  *
- * Runs before all tests to verify Firebase emulator is healthy.
+ * Runs before all tests to:
+ * 1. Verify Firebase emulator is healthy
+ * 2. Reset emulator data to ensure clean state
  */
 
-const { checkEmulatorHealth, waitForEmulator } = require('./utils/firebase-helpers');
+const { checkEmulatorHealth, waitForEmulator, resetEmulatorData } = require('./utils/firebase-helpers');
 
 /**
  * @type {import('@playwright/test').GlobalSetup}
@@ -28,6 +30,16 @@ async function globalSetup() {
   }
 
   console.log('Firebase emulator is ready.');
+
+  // Reset emulator data before test suite to ensure clean state
+  console.log('Resetting emulator data for clean test run...');
+  try {
+    await resetEmulatorData();
+    console.log('Emulator data reset complete.');
+  } catch (error) {
+    console.warn('Warning: Could not reset emulator data:', error.message);
+    // Continue anyway - tests may still work
+  }
 }
 
 module.exports = globalSetup;

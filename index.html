@@ -321,6 +321,24 @@ let state = {
   selectedClassConfig: null, // { className, radius, lateThreshold }
   allSessions: [], // P4-05: All sessions for smart default matching
   smartDefaultClass: null, // P4-05: Smart default class name
+  // Course Setup (Phase 2)
+  showCourseSetup: false,
+  courseSetupStep: 1,
+  courseSetup: {
+    code: "",
+    section: "",
+    days: [],
+    startTime: "09:00",
+    endTime: "10:30",
+    weeks: 15,
+    startDate: "",
+    location: null,
+    radius: 300,
+    lateThreshold: 10
+  },
+  courses: [],
+  todaysSessions: [],
+
   // Admin Panel
   isAdmin: false,
   showAdminPanel: false,
@@ -1198,6 +1216,7 @@ async function handleAuthStateChange(user) {
       debugLog('[Auth Debug] User is instructor in teacher mode, recovering session...');
       tryRecoverSession();
       loadPreviousClasses(); // AC14: Load class dropdown options
+      loadTodaysSessions(); // Load scheduled sessions for today
     }
   } else {
     console.log('[Auth Debug] No user, clearing state');
@@ -1268,10 +1287,17 @@ function renderTeacherView() {
     return renderAdminPanel();
   }
 
+  // Show course setup wizard
+  if (state.showCourseSetup) {
+    return renderCourseSetupWizard();
+  }
+
+
   if (!state.session) {
     return `
       <div class="pt-8">
         <button onclick="setMode(null)" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium no-print">← Back</button>
+        ${renderTodaysSessions()}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
           <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
             <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Start Attendance Session</h2>
@@ -1284,7 +1310,7 @@ function renderTeacherView() {
               <button onclick="state.showAnalytics = true; loadAnalyticsData(); render();" class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium text-sm">
                 Analytics
               </button>
-              <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
+              <button onclick="openCourseSetup()" class="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 font-medium text-sm">Setup New Course</button><button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
                 View History
               </button>
             </div>
@@ -1305,7 +1331,7 @@ function renderTeacherView() {
               `}
             </div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
-            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="5" max="30" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="0" max="60" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
             <div id="locationStatus" class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300">Your location will be captured when you start</div>
             <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
           </div>
@@ -1328,7 +1354,7 @@ function renderTeacherView() {
           <button onclick="state.showAnalytics = true; loadAnalyticsData(); render();" class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 font-medium text-sm">
             Analytics
           </button>
-          <button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
+          <button onclick="openCourseSetup()" class="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 font-medium text-sm">Setup New Course</button><button onclick="state.showHistory = true; loadSessionHistory(); render();" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-medium text-sm">
             History
           </button>
           <button onclick="endSession()" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 font-medium">${state.isReopenedSession ? 'Close' : 'End Session'}</button>
@@ -2465,6 +2491,574 @@ async function acquireStudentLocation() {
     state.studentLocation = null;
   }
   render();
+}
+
+
+// ============================================================================
+// Course Setup Functions (Phase 2)
+// ============================================================================
+
+const DAY_INDEX = {
+  'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+  'Thursday': 4, 'Friday': 5, 'Saturday': 6
+};
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function combineCourseClassName(code, section) {
+  return `${(code || '').trim()}-${(section || '').trim()}`;
+}
+
+function validateCourseInfo(code, section) {
+  const errors = [];
+  const trimmedCode = (code || '').trim();
+  const trimmedSection = (section || '').trim();
+  if (!trimmedCode) errors.push('Course code is required');
+  else if (trimmedCode.length > 20) errors.push('Course code must be 20 characters or less');
+  if (!trimmedSection) errors.push('Section is required');
+  else if (trimmedSection.length > 10) errors.push('Section must be 10 characters or less');
+  return { valid: errors.length === 0, errors };
+}
+
+function validateSchedule(schedule) {
+  const errors = [];
+  if (!schedule.days || schedule.days.length === 0) errors.push('At least one day must be selected');
+  if (!schedule.startTime) errors.push('Start time is required');
+  if (!schedule.endTime) errors.push('End time is required');
+  if (schedule.startTime && schedule.endTime && schedule.startTime >= schedule.endTime)
+    errors.push('Start time must be before end time');
+  if (!schedule.weeks || schedule.weeks < 1 || schedule.weeks > 20)
+    errors.push('Weeks must be between 1 and 20');
+  if (!schedule.startDate) errors.push('Start date is required');
+  return { valid: errors.length === 0, errors };
+}
+
+function getNextOccurrence(startDate, targetDay) {
+  const targetIndex = DAY_INDEX[targetDay];
+  const result = new Date(startDate);
+  const currentDayIndex = result.getDay();
+  let daysUntilTarget = targetIndex - currentDayIndex;
+  if (daysUntilTarget < 0) daysUntilTarget += 7;
+  result.setDate(result.getDate() + daysUntilTarget);
+  return result;
+}
+
+function generateScheduledSessions(course, schedule) {
+  const validation = validateSchedule(schedule);
+  if (!validation.valid) return [];
+  const sessions = [];
+  const startDate = new Date(schedule.startDate + 'T00:00:00');
+  const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
+  const sortedDays = [...schedule.days].sort((a, b) => DAY_INDEX[a] - DAY_INDEX[b]);
+  for (let week = 0; week < schedule.weeks; week++) {
+    for (const day of sortedDays) {
+      const firstOccurrence = getNextOccurrence(startDate, day);
+      const sessionDate = new Date(firstOccurrence);
+      sessionDate.setDate(sessionDate.getDate() + (week * 7));
+      sessionDate.setHours(startHour, startMinute, 0, 0);
+      sessions.push({
+        courseId: course.id,
+        className: course.className,
+        location: course.location,
+        radius: course.radius,
+        lateThreshold: course.lateThreshold,
+        scheduledFor: sessionDate.getTime(),
+        status: 'scheduled',
+        active: false,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }
+  sessions.sort((a, b) => a.scheduledFor - b.scheduledFor);
+  return sessions;
+}
+
+function openCourseSetup() {
+  // Reset wizard state
+  state.showCourseSetup = true;
+  state.courseSetupStep = 1;
+  state.courseSetup = {
+    code: '',
+    section: '',
+    days: [],
+    startTime: '09:00',
+    endTime: '10:30',
+    weeks: 15,
+    startDate: getDefaultStartDate(),
+    location: null,
+    radius: 300,
+    lateThreshold: 10
+  };
+  render();
+}
+
+function getDefaultStartDate() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function closeCourseSetup() {
+  state.showCourseSetup = false;
+  state.courseSetupStep = 1;
+  render();
+}
+
+function nextCourseSetupStep() {
+  const step = state.courseSetupStep;
+  if (step === 1) {
+    const validation = validateCourseInfo(state.courseSetup.code, state.courseSetup.section);
+    if (!validation.valid) {
+      alert(validation.errors.join('\\n'));
+      return;
+    }
+  } else if (step === 2) {
+    const schedule = {
+      days: state.courseSetup.days,
+      startTime: state.courseSetup.startTime,
+      endTime: state.courseSetup.endTime,
+      weeks: state.courseSetup.weeks,
+      startDate: state.courseSetup.startDate
+    };
+    const validation = validateSchedule(schedule);
+    if (!validation.valid) {
+      alert(validation.errors.join('\\n'));
+      return;
+    }
+  } else if (step === 3) {
+    if (!state.courseSetup.location) {
+      alert('Please capture your location first');
+      return;
+    }
+  }
+  state.courseSetupStep = Math.min(4, step + 1);
+  render();
+}
+
+function prevCourseSetupStep() {
+  state.courseSetupStep = Math.max(1, state.courseSetupStep - 1);
+  render();
+}
+
+function updateCourseSetupField(field, value) {
+  state.courseSetup[field] = value;
+  render();
+}
+
+function toggleCourseDay(day) {
+  const days = state.courseSetup.days;
+  const index = days.indexOf(day);
+  if (index === -1) days.push(day);
+  else days.splice(index, 1);
+  render();
+}
+
+async function captureCourseLocation() {
+  const btn = document.getElementById('captureLocationBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Getting location...';
+  }
+  try {
+    const location = await getLocation();
+    state.courseSetup.location = location;
+    render();
+  } catch (err) {
+    alert('Error: ' + err.message + '\\n\\nPlease enable location access.');
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Capture Location';
+  }
+}
+
+async function saveCourseAndSessions() {
+  try {
+    const btn = document.getElementById('createCourseBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Creating course...';
+    }
+    
+    const className = combineCourseClassName(state.courseSetup.code, state.courseSetup.section);
+    
+    // Create course record
+    const courseRef = db.ref('courses').push();
+    const courseId = courseRef.key;
+    
+    const course = {
+      id: courseId,
+      code: state.courseSetup.code.trim(),
+      section: state.courseSetup.section.trim(),
+      className: className,
+      schedule: {
+        days: state.courseSetup.days,
+        startTime: state.courseSetup.startTime,
+        endTime: state.courseSetup.endTime,
+        weeks: state.courseSetup.weeks,
+        startDate: state.courseSetup.startDate
+      },
+      location: state.courseSetup.location,
+      radius: state.courseSetup.radius,
+      lateThreshold: state.courseSetup.lateThreshold,
+      createdAt: new Date().toISOString(),
+      createdBy: state.user?.uid || 'unknown',
+      instructorEmail: state.user?.email || 'unknown',
+      active: true
+    };
+    
+    await courseRef.set(course);
+    
+    // Generate and save scheduled sessions
+    const sessions = generateScheduledSessions(course, course.schedule);
+    
+    for (const session of sessions) {
+      const sessionRef = db.ref('sessions').push();
+      await sessionRef.set({
+        id: sessionRef.key,
+        ...session
+      });
+    }
+    
+    alert(`Course created successfully!\\n\\n${sessions.length} sessions have been scheduled.`);
+    closeCourseSetup();
+    await loadTodaysSessions();
+    
+  } catch (err) {
+    console.error('[saveCourseAndSessions] Error:', err);
+    alert('Error creating course: ' + err.message);
+    const btn = document.getElementById('createCourseBtn');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Create Course';
+    }
+  }
+}
+
+async function loadTodaysSessions() {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const snapshot = await db.ref('sessions')
+      .orderByChild('scheduledFor')
+      .startAt(today.getTime())
+      .endAt(tomorrow.getTime())
+      .once('value');
+    
+    const sessions = [];
+    snapshot.forEach(child => {
+      const session = child.val();
+      if (session.status === 'scheduled' || session.status === 'active') {
+        sessions.push(session);
+      }
+    });
+    
+    sessions.sort((a, b) => a.scheduledFor - b.scheduledFor);
+    state.todaysSessions = sessions;
+  } catch (err) {
+    console.error('[loadTodaysSessions] Error:', err);
+    state.todaysSessions = [];
+  }
+}
+
+async function activateScheduledSession(sessionId) {
+  try {
+    const btn = document.querySelector(`button[data-session-id="${sessionId}"]`);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Activating...';
+    }
+    
+    // Get fresh location
+    const location = await getLocation();
+    state.teacherLocation = location;
+    
+    // Get session data
+    const snapshot = await db.ref('sessions/' + sessionId).once('value');
+    const sessionData = snapshot.val();
+    
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+    
+    // Generate attendance code
+    const code = generateCode();
+    
+    // Update session to active
+    const updates = {
+      location: location, // Use fresh location
+      code: code,
+      codeGeneratedAt: Date.now(),
+      active: true,
+      status: 'active',
+      activatedAt: new Date().toISOString(),
+      activatedBy: state.user?.uid || 'unknown'
+    };
+    
+    await db.ref('sessions/' + sessionId).update(updates);
+    await db.ref('activeSession').set(sessionId);
+    
+    // Set up local state
+    state.session = { ...sessionData, ...updates, id: sessionId };
+    state.currentCode = code;
+    state.timeLeft = CODE_REFRESH_SECONDS;
+    state.lateThreshold = sessionData.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
+    state.isReopenedSession = false;
+    
+    saveSessionToStorage(sessionId);
+    setupCodeRotation();
+    setupSessionListeners(sessionId);
+    
+    render();
+  } catch (err) {
+    console.error('[activateScheduledSession] Error:', err);
+    alert('Error activating session: ' + err.message);
+    const btn = document.querySelector(`button[data-session-id="${sessionId}"]`);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Activate';
+    }
+  }
+}
+
+function getSessionCount() {
+  const schedule = state.courseSetup;
+  if (!schedule.days.length || !schedule.weeks) return 0;
+  return schedule.days.length * schedule.weeks;
+}
+
+function renderCourseSetupWizard() {
+  const step = state.courseSetupStep;
+  const setup = state.courseSetup;
+  const className = combineCourseClassName(setup.code, setup.section);
+  
+  const stepTitles = ['Course Info', 'Schedule', 'Location', 'Confirm'];
+  const stepIndicator = `
+    <div class="flex items-center justify-center mb-8">
+      ${stepTitles.map((title, i) => `
+        <div class="flex items-center">
+          <div class="flex flex-col items-center">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
+              ${i + 1 === step ? 'bg-blue-600 text-white' : 
+                i + 1 < step ? 'bg-green-500 text-white' : 
+                'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'}">
+              ${i + 1 < step ? '&#10003;' : i + 1}
+            </div>
+            <span class="text-xs mt-1 text-gray-500 dark:text-gray-400">${title}</span>
+          </div>
+          ${i < 3 ? '<div class="w-16 h-0.5 bg-gray-200 dark:bg-gray-600 mx-2"></div>' : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+  
+  let stepContent = '';
+  
+  if (step === 1) {
+    stepContent = `
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Course Information</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Course Code</label>
+          <input type="text" id="courseCode" maxlength="20" placeholder="e.g., CS101, MATH200"
+            value="${escapeHtml(setup.code)}"
+            oninput="updateCourseSetupField('code', this.value)"
+            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Section</label>
+          <input type="text" id="section" maxlength="10" placeholder="e.g., A, B, Morning"
+            value="${escapeHtml(setup.section)}"
+            oninput="updateCourseSetupField('section', this.value)"
+            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
+        </div>
+        ${setup.code || setup.section ? `
+        <div class="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+          <p class="text-sm text-gray-600 dark:text-gray-300">Class Name Preview:</p>
+          <p class="text-lg font-semibold text-blue-700 dark:text-blue-400">${escapeHtml(className)}</p>
+        </div>
+        ` : ''}
+      </div>
+    `;
+  } else if (step === 2) {
+    stepContent = `
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Schedule</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Class Days</label>
+          <div class="flex flex-wrap gap-2">
+            ${DAY_NAMES.map(day => `
+              <label class="flex items-center px-3 py-2 border rounded-lg cursor-pointer transition-colors
+                ${setup.days.includes(day) ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-400' : 
+                  'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'}">
+                <input type="checkbox" class="hidden" ${setup.days.includes(day) ? 'checked' : ''} 
+                  onchange="toggleCourseDay('${day}')">
+                <span class="text-sm">${day.slice(0, 3)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Time</label>
+            <input type="time" id="startTime" value="${setup.startTime}"
+              onchange="updateCourseSetupField('startTime', this.value)"
+              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Time</label>
+            <input type="time" id="endTime" value="${setup.endTime}"
+              onchange="updateCourseSetupField('endTime', this.value)"
+              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Number of Weeks: <span id="weeksValue">${setup.weeks}</span></label>
+          <input type="range" min="1" max="20" value="${setup.weeks}"
+            oninput="document.getElementById('weeksValue').textContent=this.value; updateCourseSetupField('weeks', parseInt(this.value))"
+            class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+          <input type="date" id="startDate" value="${setup.startDate}"
+            onchange="updateCourseSetupField('startDate', this.value)"
+            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+        </div>
+        <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <p class="text-sm text-gray-600 dark:text-gray-300">Sessions to be created: <strong>${getSessionCount()}</strong></p>
+        </div>
+      </div>
+    `;
+  } else if (step === 3) {
+    stepContent = `
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Location</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Capture your classroom location. Students will need to be within the configured radius to check in.</p>
+        <button id="captureLocationBtn" onclick="captureCourseLocation()"
+          class="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+          ${setup.location ? 'Recapture Location' : 'Capture Location'}
+        </button>
+        ${setup.location ? `
+        <div class="p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
+          <p class="text-sm text-green-700 dark:text-green-400">&#10003; Location captured</p>
+          <p class="text-xs text-gray-600 dark:text-gray-400">Lat: ${setup.location.lat.toFixed(6)}, Lng: ${setup.location.lng.toFixed(6)}</p>
+        </div>
+        ` : ''}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Classroom Radius: <span id="courseRadiusValue">${setup.radius}</span>m</label>
+          <input type="range" min="20" max="500" value="${setup.radius}"
+            oninput="document.getElementById('courseRadiusValue').textContent=this.value; updateCourseSetupField('radius', parseInt(this.value))"
+            class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p>
+        </div>
+      </div>
+    `;
+  } else if (step === 4) {
+    const sessionCount = getSessionCount();
+    stepContent = `
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Confirm Course Setup</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="courseLateValue">${setup.lateThreshold}</span> minutes</label>
+          <input type="range" min="0" max="60" value="${setup.lateThreshold}"
+            oninput="document.getElementById('courseLateValue').textContent=this.value; updateCourseSetupField('lateThreshold', parseInt(this.value))"
+            class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+          <h4 class="font-medium text-gray-800 dark:text-white">Summary</h4>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <span class="text-gray-600 dark:text-gray-400">Course Name:</span>
+            <span class="font-medium text-gray-800 dark:text-white">${escapeHtml(className)}</span>
+            <span class="text-gray-600 dark:text-gray-400">Days:</span>
+            <span class="font-medium text-gray-800 dark:text-white">${setup.days.join(', ') || 'None'}</span>
+            <span class="text-gray-600 dark:text-gray-400">Time:</span>
+            <span class="font-medium text-gray-800 dark:text-white">${setup.startTime} - ${setup.endTime}</span>
+            <span class="text-gray-600 dark:text-gray-400">Duration:</span>
+            <span class="font-medium text-gray-800 dark:text-white">${setup.weeks} weeks from ${setup.startDate}</span>
+            <span class="text-gray-600 dark:text-gray-400">Radius:</span>
+            <span class="font-medium text-gray-800 dark:text-white">${setup.radius}m</span>
+            <span class="text-gray-600 dark:text-gray-400">Late Threshold:</span>
+            <span class="font-medium text-gray-800 dark:text-white">${setup.lateThreshold} min</span>
+            <span class="text-gray-600 dark:text-gray-400">Sessions:</span>
+            <span class="font-medium text-blue-700 dark:text-blue-400">${sessionCount} sessions</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="pt-8">
+      <button onclick="closeCourseSetup()" class="mb-4 text-blue-800 dark:text-blue-400 hover:text-blue-900 dark:hover:text-indigo-300 font-medium">&#8592; Cancel</button>
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-6 text-center">Setup New Course</h2>
+        ${stepIndicator}
+        ${stepContent}
+        <div class="flex justify-between mt-8">
+          ${step > 1 ? `
+          <button onclick="prevCourseSetupStep()" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium">
+            Previous
+          </button>
+          ` : '<div></div>'}
+          ${step < 4 ? `
+          <button onclick="nextCourseSetupStep()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+            Next
+          </button>
+          ` : `
+          <button id="createCourseBtn" onclick="saveCourseAndSessions()" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium">
+            Create Course
+          </button>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTodaysSessions() {
+  if (state.todaysSessions.length === 0) {
+    return '';
+  }
+  
+  return `
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+      <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Today's Scheduled Sessions</h3>
+      <div class="space-y-3">
+        ${state.todaysSessions.map(session => {
+          const time = new Date(session.scheduledFor);
+          const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const isActive = session.status === 'active';
+          return `
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div>
+                <p class="font-medium text-gray-800 dark:text-white">${escapeHtml(session.className)}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${timeStr}</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="px-2 py-1 text-xs rounded-full font-medium
+                  ${isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 
+                    'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'}">
+                  ${isActive ? 'Active' : 'Scheduled'}
+                </span>
+                ${!isActive ? `
+                <button data-session-id="${session.id}" onclick="activateScheduledSession('${session.id}')"
+                  class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm">
+                  Activate
+                </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 
 async function startSession() {

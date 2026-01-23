@@ -4,6 +4,12 @@ const { defineConfig, devices } = require('@playwright/test');
 /**
  * NEU Attendance - Playwright E2E Test Configuration
  * @see https://playwright.dev/docs/test-configuration
+ *
+ * Test Stability Configuration (2026-01-23):
+ * - Serial execution (workers: 1) to prevent database race conditions
+ * - fullyParallel: false to ensure tests run sequentially
+ * - retries: 2 for transient failures (emulator timing, network)
+ * - Global setup resets emulator data before test suite
  */
 
 // E2E tests ALWAYS use Firebase emulator to avoid polluting production database
@@ -13,20 +19,20 @@ const baseURL = 'http://localhost:3000?emulator=true';
 module.exports = defineConfig({
   testDir: './tests/integration',
 
-  /* Global setup to verify emulator is running */
+  /* Global setup to verify emulator is running and reset data */
   globalSetup: './tests/global-setup.js',
 
-  /* Run tests in files in parallel */
-  fullyParallel: true,
+  /* Run tests sequentially to prevent database race conditions */
+  fullyParallel: false,
 
   /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: !!process.env.CI,
 
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
+  /* Retry failed tests (handles transient emulator timing issues) */
+  retries: 2,
 
-  /* Opt out of parallel tests on CI */
-  workers: process.env.CI ? 1 : undefined,
+  /* Single worker to prevent parallel database access race conditions */
+  workers: 1,
 
   /* Reporter to use */
   reporter: [
