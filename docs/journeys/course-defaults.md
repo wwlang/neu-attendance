@@ -46,8 +46,8 @@ Instructor wants to activate a scheduled session, optionally adjusting the sessi
 > See `course-setup.md` for full details
 
 During Course Setup Wizard:
-- **Step 3 (Location)**: Configure Location Radius (20-500m, default 300m)
-- **Step 4 (Confirm)**: Configure Late Threshold (0-60 min, default 10 min)
+- **Step 3 (Location)**: Configure Location Radius (100-300m, step 100m, default 300m)
+- **Step 4 (Confirm)**: Configure Late Threshold (0-60 min, step 5 min, default 10 min)
 
 These settings are stored at the course level and inherited by all generated sessions.
 
@@ -71,8 +71,8 @@ These settings are stored at the course level and inherited by all generated ses
 **Optional override path:**
 1. Click chevron/arrow next to "Activate" (or "Activate with options")
 2. Collapsible panel expands showing:
-   - Location Radius slider (pre-filled with course default)
-   - Late Threshold slider (pre-filled with course default)
+   - Location Radius slider (pre-filled with course default, 100-300m, step 100m)
+   - Late Threshold slider (pre-filled with course default, 0-60 min, step 5 min)
    - "Reset to Course Defaults" link
 3. Adjust settings if needed
 4. Click "Activate Session"
@@ -105,16 +105,27 @@ After clicking [v] to expand:
 | Session Settings (optional)              |
 | ---------------------------------------- |
 | Location Radius:    [====|=====] 300m    |
-|                     20m        500m      |
+|                     100m       300m      |
+|   Help: Students must be within this     |
+|   distance for valid check-in.           |
 |                                          |
 | Late Threshold:     [=|========] 10 min  |
 |                     0 min      60 min    |
+|   Help: Check-ins after this time will   |
+|   be marked late.                        |
 |                                          |
 |           [Reset to Course Defaults]     |
 | ---------------------------------------- |
 | [        Activate Session        ]       |
 +------------------------------------------+
 ```
+
+## Form Guidance
+
+| Input | Label | Help Text | Placement |
+|-------|-------|-----------|-----------|
+| Location Radius (Override) | Location Radius: Xm | Students must be within this distance. 300m recommended -- GPS can be inaccurate indoors. Students outside the radius will appear as failed attempts and can be manually approved in class. | Below slider |
+| Late Threshold (Override) | Late Threshold: X minutes | Check-ins after this many minutes will be marked late. Set to 0 for strict on-time only. | Below slider |
 
 ## Acceptance Criteria
 
@@ -166,8 +177,8 @@ After clicking [v] to expand:
 ```javascript
 {
   // ... existing fields ...
-  radius: number,            // 20-500m, default 300m (course default)
-  lateThreshold: number,     // 0-60 min, default 10 min (course default)
+  radius: number,            // 100-300m, step 100, default 300m (course default)
+  lateThreshold: number,     // 0-60 min, step 5, default 10 min (course default)
 }
 ```
 
@@ -239,6 +250,6 @@ After clicking [v] to expand:
 - Time to activate (override path): < 10 seconds
 
 ## Last Updated
-- **Date**: 2026-01-26
-- **Author**: Journey audit gap closure
-- **Status**: Complete (P8-03, P8-04 implemented 2026-01-23; P8-04.1 gap closed 2026-01-26)
+- **Date**: 2026-01-27
+- **Author**: Radius range update (100-300m, step 100), late threshold step 5
+- **Status**: Complete (P8-03, P8-04 implemented 2026-01-23; P8-04.1 gap closed 2026-01-26; range/step updated 2026-01-27)

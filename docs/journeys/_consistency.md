@@ -6,20 +6,21 @@
 
 Authoritative values for parameters shared across journeys.
 
-| Parameter | Value | Source | Used In |
-|-----------|-------|--------|---------|
-| Code grace period | **180s** | `index.html:81` | student-check-in, instructor-session |
-| Recently expired window | **30s** | `index.html` | student-check-in, instructor-session |
-| Code rotation interval | **120s** | `index.html` | instructor-session, student-check-in |
-| Default location radius | **300m** | `index.html` | instructor-session, course-setup, course-defaults |
-| Location radius range | 20-500m | `index.html` | instructor-session, course-setup, course-defaults |
-| Default late threshold | **10 min** | `index.html` | instructor-session, student-lookup, course-setup, course-defaults |
-| Late threshold range | **0-60 min** | `index.html` | instructor-session, course-setup, course-defaults |
-| Instructor PIN | 230782 | `index.html` | instructor-session |
-| History default view | **14 days** | `index.html` | instructor-session, session-history-default |
-| At-risk attendance threshold | 70% | lecturer-dashboard | lecturer-dashboard |
-| Term weeks range | 1-20 | `index.html` | course-setup |
-| Default term weeks | 15 | `index.html` | course-setup |
+| Parameter | Value | Step | Source | Used In |
+|-----------|-------|------|--------|---------|
+| Code grace period | **180s** | - | `index.html:81` | student-check-in, instructor-session |
+| Recently expired window | **30s** | - | `index.html` | student-check-in, instructor-session |
+| Code rotation interval | **120s** | - | `index.html` | instructor-session, student-check-in |
+| Default location radius | **300m** | - | `index.html` | instructor-session, course-setup, course-defaults |
+| Location radius range | 100-300m | 100m | `index.html` | instructor-session, course-setup, course-defaults |
+| Default late threshold | **10 min** | - | `index.html` | instructor-session, student-lookup, course-setup, course-defaults |
+| Late threshold range | **0-60 min** | 5 min | `index.html` | instructor-session, course-setup, course-defaults |
+| Instructor PIN | 230782 | - | `index.html` | instructor-session |
+| History default view | **14 days** | - | `index.html` | instructor-session, session-history-default |
+| At-risk attendance threshold | 70% | - | lecturer-dashboard | lecturer-dashboard |
+| Term weeks range | 1-20 | 1 | `index.html` | course-setup |
+| Default term weeks | 15 | - | `index.html` | course-setup |
+| Radius help text | Present | - | `index.html` | instructor-session, course-setup, course-defaults |
 
 ## Terminology Definitions
 
@@ -50,6 +51,16 @@ Consistent labels and meanings across all journeys.
 | Old Term | New Term | Reason | Task |
 |----------|----------|--------|------|
 | Classroom Radius | Location Radius | More accurate for any location (lab, field site) | P8-04 (**Complete** 2026-01-23) |
+
+## Form Guidance Pattern
+
+All slider controls with non-obvious purpose include contextual help text below the control.
+
+| Input | Help Text Pattern | Example |
+|-------|-------------------|---------|
+| Location Radius | Explains what the distance means + recommendation + what happens outside range | "Students must be within this distance. 300m recommended -- GPS can be inaccurate indoors. Students outside the radius will appear as failed attempts and can be manually approved in class." |
+| Late Threshold | Explains when late marking triggers + zero-value behavior | "Check-ins after this many minutes will be marked late. Set to 0 for strict on-time only." |
+| Course Radius (Wizard) | Same as Location Radius, shown in Course Setup Step 3 | Same text as Location Radius |
 
 ## Feature Visibility Matrix
 
@@ -116,14 +127,14 @@ How journeys connect to each other.
 
 ```
 Landing Page
-├── Student Mode (?mode=student)
-│   ├── student-check-in.md (with code in URL)
-│   └── student-attendance-lookup.md (?mode=lookup)
-└── Instructor Mode (?mode=teacher)
-    ├── instructor-attendance-session.md (PIN required)
-    ├── course-setup.md (Setup New Course)
-    ├── course-defaults.md (Session activation with defaults/override)
-    └── lecturer-dashboard.md (planned)
++-- Student Mode (?mode=student)
+|   +-- student-check-in.md (with code in URL)
+|   +-- student-attendance-lookup.md (?mode=lookup)
++-- Instructor Mode (?mode=teacher)
+    +-- instructor-attendance-session.md (PIN required)
+    +-- course-setup.md (Setup New Course)
+    +-- course-defaults.md (Session activation with defaults/override)
+    +-- lecturer-dashboard.md (planned)
 ```
 
 ### Entry Points
@@ -143,39 +154,42 @@ Where settings are configured and how they flow through the system.
 
 ```
 Course Setup (one-time)
-├── Location Radius: 20-500m (default 300m)
-└── Late Threshold: 0-60 min (default 10 min)
-    │
-    ▼
++-- Location Radius: 100-300m, step 100m (default 300m)
++-- Late Threshold: 0-60 min, step 5 min (default 10 min)
+    |
+    v
 Scheduled Session Generation
-├── Sessions inherit course defaults
-└── No settings stored on session record yet
-    │
-    ▼
++-- Sessions inherit course defaults
++-- No settings stored on session record yet
+    |
+    v
 Session Activation
-├── Default path: Use course defaults (no input required)
-└── Override path: Optionally adjust settings
-    ├── Override sliders pre-filled with course values
-    ├── Changes apply to this session only
-    └── Override values stored on session record
-    │
-    ▼
++-- Default path: Use course defaults (no input required)
++-- Override path: Optionally adjust settings
+    +-- Override sliders pre-filled with course values
+    +-- Changes apply to this session only
+    +-- Override values stored on session record
+    |
+    v
 Active Session
-└── Uses: session.radiusOverride ?? course.radius ?? 300
++-- Uses: session.radiusOverride ?? course.radius ?? 300
 
 Quick Session (no course)
-└── All settings configured at session start
++-- All settings configured at session start
++-- Location Radius: 100-300m, step 100m (default 300m)
++-- Late Threshold: 0-60 min, step 5 min (default 10 min)
 ```
 
 ## Last Updated
 
-- **Date**: 2026-01-26
-- **Verified by**: Journey audit review
+- **Date**: 2026-01-27
+- **Verified by**: Radius range and step value update
 - **Changes**:
-  - Updated History default view: 7 days → **14 days** (P2-11 complete)
-  - Marked Classroom Radius → Location Radius rename as **Complete** (P8-04)
-  - Added Location Radius / Late Threshold terminology
-  - Added Course Default / Session Override terms
-  - Added terminology change tracking (Classroom Radius -> Location Radius)
-  - Added Settings Configuration Flow diagram
-  - Added course-defaults journey cross-reference
+  - Updated Location radius range: 20-500m -> **100-300m (step 100m)**
+  - Added Late threshold step: **5 min**
+  - Added Step column to Parameter Matrix
+  - Added Radius help text row to Parameter Matrix
+  - Added Form Guidance Pattern section documenting explainer text pattern
+  - Updated Settings Configuration Flow with step values
+  - Previous: Updated History default view: 7 days -> **14 days** (P2-11 complete)
+  - Previous: Marked Classroom Radius -> Location Radius rename as **Complete** (P8-04)

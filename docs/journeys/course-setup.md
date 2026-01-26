@@ -51,12 +51,13 @@ Location can be set using one of two methods:
 - System shows selected coordinates with radius circle preview
 
 **Common for both methods:**
-- Configure classroom radius (20-500m, default 300m)
+- Configure location radius (100-300m, step 100m, default 300m)
+- Help text explains: "Students must be within this distance. 300m recommended -- GPS can be inaccurate indoors."
 - Radius updates in real-time on map preview
 - Click "Next" to proceed
 
 ### 5. Course Setup Wizard - Step 4: Confirm
-- Configure late threshold (0-60 minutes, default 10 minutes)
+- Configure late threshold (0-60 minutes, step 5, default 10 minutes)
 - Review summary of all settings:
   - Course name (code + section)
   - Schedule (days, times, weeks, start date)
@@ -92,11 +93,11 @@ Location can be set using one of two methods:
 
 ## Session Settings Reference
 
-| Setting | Range | Default | Description |
-|---------|-------|---------|-------------|
-| Late Threshold | 0-60 min | 10 min | Time after session start before check-ins marked late |
-| Classroom Radius | 20-500m | 300m | Maximum distance from instructor for valid check-in |
-| Term Weeks | 1-20 | 15 | Number of weeks to generate sessions for |
+| Setting | Range | Step | Default | Description |
+|---------|-------|------|---------|-------------|
+| Late Threshold | 0-60 min | 5 min | 10 min | Time after session start before check-ins marked late |
+| Location Radius | 100-300m | 100m | 300m | Maximum distance from instructor for valid check-in |
+| Term Weeks | 1-20 | 1 | 15 | Number of weeks to generate sessions for |
 
 ## Acceptance Criteria
 
@@ -113,8 +114,9 @@ Location can be set using one of two methods:
 - [x] Step 3: Interactive map with click-to-place marker (in Map tab)
 - [x] Step 3: Address search with geocoding (Nominatim)
 - [x] Step 3: Radius circle preview on map
-- [x] Step 3: Radius slider (20-500m, default 300m)
-- [x] Step 4: Late threshold slider (0-60 min, default 10 min)
+- [x] Step 3: Radius slider (100-300m, step 100m, default 300m)
+- [x] Step 3: Help text explaining radius purpose and recommendation
+- [x] Step 4: Late threshold slider (0-60 min, step 5, default 10 min)
 - [x] Step 4: Summary review before creation
 
 ### AC2: Session Generation
@@ -146,6 +148,14 @@ Location can be set using one of two methods:
 - [x] Zero threshold means any check-in after session start is late
 - [x] Database rules updated to allow lateThreshold >= 0
 
+## Form Guidance
+
+| Input | Label | Help Text | Placement |
+|-------|-------|-----------|-----------|
+| Location Radius (Step 3) | Location Radius: Xm | Students must be within this distance. 300m recommended -- GPS can be inaccurate indoors. Students outside the radius will appear as failed attempts and can be manually approved in class. | Below slider |
+| Late Threshold (Step 4) | Late Threshold: X minutes | Check-ins after this many minutes will be marked late. Set to 0 for strict on-time only. | Below slider |
+| Course Radius (Step 3) | Location Radius: Xm | Same as above, displayed during course setup wizard | Below slider |
+
 ## Data Models
 
 ### Course Collection (`courses/`)
@@ -166,8 +176,8 @@ Location can be set using one of two methods:
     lat: number,
     lng: number
   },
-  radius: number,            // 300
-  lateThreshold: number,     // 0-60 min
+  radius: number,            // 100-300 (step 100)
+  lateThreshold: number,     // 0-60 min (step 5)
   createdAt: string,         // ISO timestamp
   createdBy: string,         // User UID
   instructorEmail: string,
@@ -228,5 +238,5 @@ Location can be set using one of two methods:
 - Quick session functionality preserved: 100%
 
 ## Last Updated
-- **Date**: 2026-01-23
-- **Author**: Course Setup Feature Implementation
+- **Date**: 2026-01-27
+- **Author**: Radius range and step value update (100-300m, step 100)

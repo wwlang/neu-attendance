@@ -348,12 +348,12 @@ test.describe('Course Setup Feature', () => {
       const initialRadius = await page.locator('#courseRadiusValue').textContent();
       expect(initialRadius).toBe('300'); // default value
 
-      // Find the radius slider within the course setup wizard
-      const radiusSlider = page.locator('.space-y-4 input[type="range"][min="20"][max="500"]');
-      await radiusSlider.fill('400');
+      // Find the radius slider within the course setup wizard (100-300m, step 100)
+      const radiusSlider = page.locator('.space-y-4 input[type="range"][min="100"][max="300"]');
+      await radiusSlider.fill('200');
 
       // Verify display updates
-      await expect(page.locator('#courseRadiusValue')).toHaveText('400');
+      await expect(page.locator('#courseRadiusValue')).toHaveText('200');
     });
 
     test('should preserve location when switching tabs back to GPS', async ({ page }) => {

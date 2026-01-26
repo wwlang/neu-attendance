@@ -287,9 +287,10 @@ test.describe.serial('P4-05: Smart Class Default Selection', () => {
 
     await cleanupTestSessions(page);
 
-    // Insert session with specific radius and late threshold
+    // Insert session with non-default radius and late threshold
+    // Radius uses step=100 so valid values are 100, 200, 300 (300 is default)
     await insertSessionWithTimestamp(page, `Config Test ${uniqueId}`, lastWeek.toISOString(), {
-      radius: 150, // Non-default radius
+      radius: 200, // Non-default radius (valid with step=100)
       lateThreshold: 20 // Non-default late threshold
     });
 
@@ -304,7 +305,7 @@ test.describe.serial('P4-05: Smart Class Default Selection', () => {
     await page.waitForTimeout(500);
 
     // The radius and late threshold should match the smart default class
-    await expect(radiusValue).toHaveText('150');
+    await expect(radiusValue).toHaveText('200');
     await expect(lateValue).toHaveText('20');
   });
 

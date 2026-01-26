@@ -16,6 +16,9 @@ const { resetEmulatorData } = require('../utils/firebase-helpers');
  * - Rename "Classroom Radius" to "Location Radius" throughout UI
  * - Course Setup stores radius and lateThreshold as defaults
  * - Session activation uses course defaults with optional override
+ *
+ * Radius range: 100-300m, step 100
+ * Late threshold range: 0-60 min, step 5
  */
 
 test.describe('P8-04: Location Radius Terminology', () => {
@@ -76,9 +79,10 @@ test.describe('P8-04: Location Radius Terminology', () => {
     // End session and go to history
     await endSessionAndGoToHistory(page);
 
-    // Click on the session to view details
-    await expect(page.locator('text=Radius Label Test')).toBeVisible({ timeout: 10000 });
-    await page.locator('text=Radius Label Test').click();
+    // Click on the session to view details (use heading to avoid matching dropdown option)
+    const sessionHeading = page.getByRole('heading', { name: 'Radius Label Test' });
+    await expect(sessionHeading).toBeVisible({ timeout: 10000 });
+    await sessionHeading.click();
 
     // Wait for session detail view
     await expect(page.locator('text=Back to History')).toBeVisible({ timeout: 5000 });
@@ -147,20 +151,20 @@ test.describe('P8-03: Course Defaults with Session Override', () => {
     await page.locator('label:has-text("Mon")').click();
     await page.click('button:has-text("Next")');
 
-    // Step 3: Location - set radius to 400m
+    // Step 3: Location - set radius to 200m
     await page.click('button:has-text("Capture Location")');
     await expect(page.locator('text=Location captured')).toBeVisible({ timeout: 5000 });
 
-    // Change radius to 400m
-    const radiusSlider = page.locator('.space-y-4 input[type="range"][min="20"][max="500"]');
-    await radiusSlider.fill('400');
-    await expect(page.locator('#courseRadiusValue')).toHaveText('400');
+    // Change radius to 200m (valid step: 100, 200, 300)
+    const radiusSlider = page.locator('.space-y-4 input[type="range"][min="100"][max="300"]');
+    await radiusSlider.fill('200');
+    await expect(page.locator('#courseRadiusValue')).toHaveText('200');
 
     await page.click('button:has-text("Next")');
 
     // Step 4: Confirm - verify radius shows in summary (in the grid span, not the slider)
     await expect(page.getByRole('heading', { name: 'Confirm Course Setup' })).toBeVisible();
-    await expect(page.locator('.grid span:has-text("400m")')).toBeVisible();
+    await expect(page.locator('.grid span:has-text("200m")')).toBeVisible();
   });
 
   test('AC2: Course Setup Step 4 stores lateThreshold as course default', async ({ page }) => {
@@ -196,9 +200,9 @@ test.describe('P8-03: Course Defaults with Session Override', () => {
     await expect(radiusSlider).toBeVisible();
     await expect(lateSlider).toBeVisible();
 
-    // Verify they have expected attributes
-    await expect(radiusSlider).toHaveAttribute('min', '20');
-    await expect(radiusSlider).toHaveAttribute('max', '500');
+    // Verify they have expected attributes (radius: 100-300m step 100)
+    await expect(radiusSlider).toHaveAttribute('min', '100');
+    await expect(radiusSlider).toHaveAttribute('max', '300');
     await expect(lateSlider).toHaveAttribute('min', '0');
     await expect(lateSlider).toHaveAttribute('max', '60');
   });
@@ -230,9 +234,13 @@ test.describe('P8-03: Session Activation Override Panel', () => {
   /**
    * Helper function to create a course with a session scheduled for today
    * Uses unique identifiers to avoid conflicts with data from other tests
+   *
+   * Radius must be 100, 200, or 300 (step 100)
+   * Late threshold must be a multiple of 5 (step 5)
+   *
    * @returns {Promise<string>} The unique className (courseCode-section) created
    */
-  async function createCourseWithTodaySession(page, courseCode, section, radius = 350, lateThreshold = 12) {
+  async function createCourseWithTodaySession(page, courseCode, section, radius = 200, lateThreshold = 10) {
     // Add unique suffix to class name to avoid conflicts
     const uniqueSection = `${section}${testId % 100000}${++testCounter}`;
     const className = `${courseCode}-${uniqueSection}`;
@@ -291,8 +299,8 @@ test.describe('P8-03: Session Activation Override Panel', () => {
     await page.click('button:has-text("Capture Location")');
     await expect(page.locator('text=Location captured')).toBeVisible({ timeout: 5000 });
 
-    // Set custom radius and verify it was applied
-    const radiusSlider = page.locator('.space-y-4 input[type="range"][min="20"][max="500"]');
+    // Set custom radius and verify it was applied (range: 100-300, step 100)
+    const radiusSlider = page.locator('.space-y-4 input[type="range"][min="100"][max="300"]');
     await expect(radiusSlider).toBeVisible({ timeout: 3000 });
     await radiusSlider.fill(String(radius));
 
@@ -304,13 +312,13 @@ test.describe('P8-03: Session Activation Override Panel', () => {
     // Wait for Step 4 to be visible
     await expect(page.getByRole('heading', { name: 'Confirm Course Setup' })).toBeVisible({ timeout: 5000 });
 
-    // Step 4: Confirm - set late threshold and verify
+    // Step 4: Confirm - set late threshold and verify (step 5)
     const lateSlider = page.locator('input[type="range"][min="0"][max="60"]');
     await expect(lateSlider).toBeVisible({ timeout: 3000 });
     await lateSlider.fill(String(lateThreshold));
 
-    // Verify late threshold label updated
-    await expect(page.locator(`text=Late Threshold: ${lateThreshold} minutes`)).toBeVisible({ timeout: 3000 });
+    // Verify late threshold value updated via hidden span
+    await expect(page.locator('#courseLateValue')).toHaveText(String(lateThreshold), { timeout: 3000 });
 
     // Handle the success alert dialog
     page.once('dialog', dialog => dialog.accept());
@@ -342,8 +350,8 @@ test.describe('P8-03: Session Activation Override Panel', () => {
   test('AC3: Session activation panel shows course defaults pre-filled', async ({ page }) => {
     await authenticateAsInstructor(page);
 
-    // Create a course with today's session
-    const className = await createCourseWithTodaySession(page, 'DFLT101', 'A', 350, 12);
+    // Create a course with today's session (radius 200m, late threshold 10 min)
+    const className = await createCourseWithTodaySession(page, 'DFLT101', 'A', 200, 10);
 
     // Find the scheduled session in Today's Sessions by class name
     await expect(page.locator('h3:has-text("Today\'s")')).toBeVisible();
@@ -355,16 +363,16 @@ test.describe('P8-03: Session Activation Override Panel', () => {
     await expect(expandBtn).toBeVisible();
     await expandBtn.click();
 
-    // Verify sliders are pre-filled with course defaults (350m, 12 min)
+    // Verify sliders are pre-filled with course defaults (200m, 10 min)
     const radiusSlider = sessionCard.locator('input#sessionRadius');
     const lateSlider = sessionCard.locator('input#sessionLateThreshold');
 
-    await expect(radiusSlider).toHaveValue('350');
-    await expect(lateSlider).toHaveValue('12');
+    await expect(radiusSlider).toHaveValue('200');
+    await expect(lateSlider).toHaveValue('10');
 
     // Verify value displays
-    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('350');
-    await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('12');
+    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('200');
+    await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('10');
   });
 
   test('AC4: Override settings section is collapsible (hidden by default)', async ({ page }) => {
@@ -396,8 +404,8 @@ test.describe('P8-03: Session Activation Override Panel', () => {
   test('AC5: Expanding override shows radius and lateThreshold sliders', async ({ page }) => {
     await authenticateAsInstructor(page);
 
-    // Create a course with today's session
-    const className = await createCourseWithTodaySession(page, 'SLDR103', 'C', 400, 15);
+    // Create a course with today's session (radius 200m, late 15 min)
+    const className = await createCourseWithTodaySession(page, 'SLDR103', 'C', 200, 15);
 
     // Find the session card by class name
     const sessionCard = page.locator('[data-testid="session-card"]', { has: page.locator(`text=${className}`) });
@@ -416,8 +424,8 @@ test.describe('P8-03: Session Activation Override Panel', () => {
   test('AC6: Activated session uses course defaults if no override', async ({ page }) => {
     await authenticateAsInstructor(page);
 
-    // Create a course with specific defaults
-    const className = await createCourseWithTodaySession(page, 'ACTV104', 'D', 275, 8);
+    // Create a course with specific defaults (radius 200m, late 10 min)
+    const className = await createCourseWithTodaySession(page, 'ACTV104', 'D', 200, 10);
 
     // Find the session card by class name
     const sessionCard = page.locator('[data-testid="session-card"]', { has: page.locator(`text=${className}`) });
@@ -438,7 +446,7 @@ test.describe('P8-03: Session Activation Override Panel', () => {
   test('AC7: Activated session uses override values if specified', async ({ page }) => {
     await authenticateAsInstructor(page);
 
-    // Create a course with specific defaults
+    // Create a course with specific defaults (radius 300m, late 10 min)
     const className = await createCourseWithTodaySession(page, 'OVRD105', 'E', 300, 10);
 
     // Find the session card by class name
@@ -446,17 +454,17 @@ test.describe('P8-03: Session Activation Override Panel', () => {
     const expandBtn = sessionCard.locator('[data-testid="expand-session-settings"]');
     await expandBtn.click();
 
-    // Change override values
+    // Change override values (radius to 100m, late to 20 min)
     const radiusSlider = sessionCard.locator('input#sessionRadius');
     const lateSlider = sessionCard.locator('input#sessionLateThreshold');
 
-    await radiusSlider.fill('450');
+    await radiusSlider.fill('100');
     await radiusSlider.dispatchEvent('input');
     await lateSlider.fill('20');
     await lateSlider.dispatchEvent('input');
 
     // Verify values updated
-    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('450');
+    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('100');
     await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('20');
 
     // Activate with overrides
@@ -502,9 +510,9 @@ test.describe('P8-03: Session Activation Override Panel', () => {
     const defaultsBadge = sessionCard.locator('[data-testid="using-defaults-badge"]');
     await expect(defaultsBadge).toContainText('Course defaults');
 
-    // Change a value
+    // Change a value (radius from 300 to 100)
     const radiusSlider = sessionCard.locator('input#sessionRadius');
-    await radiusSlider.fill('450');
+    await radiusSlider.fill('100');
 
     // Badge should change to "Custom settings"
     await expect(defaultsBadge).toContainText('Custom settings');
@@ -513,8 +521,8 @@ test.describe('P8-03: Session Activation Override Panel', () => {
   test('Reset to Course Defaults button restores original values', async ({ page }) => {
     await authenticateAsInstructor(page);
 
-    // Create a course with specific defaults
-    const className = await createCourseWithTodaySession(page, 'RSET108', 'H', 325, 7);
+    // Create a course with specific defaults (radius 200m, late 5 min)
+    const className = await createCourseWithTodaySession(page, 'RSET108', 'H', 200, 5);
 
     // Find the specific session card by class name
     const sessionCard = page.locator('[data-testid="session-card"]', { has: page.locator(`text=${className}`) });
@@ -522,19 +530,19 @@ test.describe('P8-03: Session Activation Override Panel', () => {
     await expandBtn.click();
 
     // Verify initial values
-    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('325');
-    await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('7');
+    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('200');
+    await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('5');
 
     // Change values
     const radiusSlider = sessionCard.locator('input#sessionRadius');
     const lateSlider = sessionCard.locator('input#sessionLateThreshold');
-    await radiusSlider.fill('500');
+    await radiusSlider.fill('300');
     await radiusSlider.dispatchEvent('input');
     await lateSlider.fill('30');
     await lateSlider.dispatchEvent('input');
 
     // Verify values changed
-    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('500');
+    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('300');
     await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('30');
 
     // Click Reset to Course Defaults
@@ -543,7 +551,7 @@ test.describe('P8-03: Session Activation Override Panel', () => {
     await resetBtn.click();
 
     // Verify values restored to original
-    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('325');
-    await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('7');
+    await expect(sessionCard.locator('#sessionRadiusValue')).toHaveText('200');
+    await expect(sessionCard.locator('#sessionLateThresholdValue')).toHaveText('5');
   });
 });

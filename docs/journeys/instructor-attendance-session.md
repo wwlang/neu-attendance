@@ -26,8 +26,9 @@ Instructor needs to take attendance for a class session
 - **Select previous class from dropdown** or type a new class name
 - When selecting a previous class, **config auto-loads** from last session (radius, late threshold)
 - Can override auto-loaded settings if needed
-- Set classroom radius (20-500m, **default 300m**)
-- Set late threshold (0-60 minutes, default 10 minutes)
+- Set location radius (100-300m, step 100m, **default 300m**)
+- Set late threshold (0-60 minutes, step 5 min, default 10 minutes)
+- Help text below radius slider explains purpose and recommended value
 
 ### 3. Start Session
 - Click "Start Session"
@@ -111,13 +112,20 @@ Instructor needs to take attendance for a class session
 
 ## Session Settings Reference
 
-| Setting | Range | Default | Description |
-|---------|-------|---------|-------------|
-| Location Radius | 20-500m | **300m** | Maximum distance from instructor for valid check-in |
-| Late Threshold | **0-60 min** | 10 min | Time after session start before check-ins marked late |
-| Code Rotation | Fixed | 120s | New attendance code generated every 2 minutes |
-| Code Grace Period | Fixed | **180s** | Previous code remains valid for 3 minutes after rotation |
-| Recently Expired Window | Fixed | **30s** | Codes that just expired are accepted within 30 seconds |
+| Setting | Range | Step | Default | Description |
+|---------|-------|------|---------|-------------|
+| Location Radius | 100-300m | 100m | **300m** | Maximum distance from instructor for valid check-in |
+| Late Threshold | **0-60 min** | 5 min | 10 min | Time after session start before check-ins marked late |
+| Code Rotation | Fixed | - | 120s | New attendance code generated every 2 minutes |
+| Code Grace Period | Fixed | - | **180s** | Previous code remains valid for 3 minutes after rotation |
+| Recently Expired Window | Fixed | - | **30s** | Codes that just expired are accepted within 30 seconds |
+
+## Form Guidance
+
+| Input | Label | Help Text | Placement |
+|-------|-------|-----------|-----------|
+| Location Radius | Location Radius: Xm | Students must be within this distance. 300m recommended -- GPS can be inaccurate indoors. Students outside the radius will appear as failed attempts and can be manually approved in class. | Below slider |
+| Late Threshold | Late Threshold: X minutes | Check-ins after this many minutes will be marked late. Set to 0 for strict on-time only. | Below slider |
 
 ## Location Handling
 
@@ -133,8 +141,8 @@ Instructor needs to take attendance for a class session
 
 ### AC1: Session Creation
 - [x] Can enter descriptive class name (max 100 characters)
-- [x] Can adjust radius from 20m to **500m** (default **300m**)
-- [x] Can adjust late threshold from **0 to 60** minutes
+- [x] Can adjust radius from 100m to **300m** (step 100m, default **300m**)
+- [x] Can adjust late threshold from **0 to 60** minutes (step 5 min)
 - [x] System captures GPS coordinates on session start
 - [x] Session is marked as active in Firebase
 
@@ -313,7 +321,7 @@ Instructor needs to take attendance for a class session
 - [ ] Dropdown shows unique class names from previous sessions (most recent first)
 - [ ] "New Class" option at top to enter a custom class name
 - [ ] Selecting a previous class auto-loads last session's config:
-  - Classroom radius
+  - Location radius
   - Late threshold
 - [ ] Auto-loaded values can be overridden before starting
 - [ ] Dropdown search/filter for long class lists
@@ -338,12 +346,12 @@ Instructor needs to take attendance for a class session
 
 | Flow | Interactions | Target | Status |
 |------|-------------:|-------:|--------|
-| Start session (default settings) | 4 | ≤5 | Pass |
-| Start session (custom settings) | 6 | ≤8 | Pass |
-| Reopen session | 3 | ≤3 | Pass |
-| Export attendance | 2 | ≤3 | Pass |
-| Approve failed attempt | 2 | ≤3 | Pass |
-| Edit session name | 3 | ≤5 | Pass |
+| Start session (default settings) | 4 | <=5 | Pass |
+| Start session (custom settings) | 6 | <=8 | Pass |
+| Reopen session | 3 | <=3 | Pass |
+| Export attendance | 2 | <=3 | Pass |
+| Approve failed attempt | 2 | <=3 | Pass |
+| Edit session name | 3 | <=5 | Pass |
 
 _Start session: Select instructor -> Enter PIN -> Enter class name -> Click Start (+ optional settings)_
 
