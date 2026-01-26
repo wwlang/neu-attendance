@@ -372,6 +372,10 @@ let state = {
   expandedSessionId: null,  // Which session card has settings expanded
   sessionOverrides: {},     // { sessionId: { radius: number, lateThreshold: number } }
 
+  // Slider drag guard - prevents render() from destroying DOM during slider drag
+  _sliderDragging: false,
+  _pendingRender: false,
+
   // Admin Panel
   isAdmin: false,
   showAdminPanel: false,
@@ -972,7 +976,24 @@ function renderDarkModeToggle() {
     </button>`;
 }
 
+// Slider drag tracking: prevents render() from destroying DOM during drag
+function sliderDragStart() {
+  state._sliderDragging = true;
+}
+function sliderDragEnd() {
+  state._sliderDragging = false;
+  if (state._pendingRender) {
+    state._pendingRender = false;
+    render();
+  }
+}
+
 function render() {
+  // Guard: defer render if user is dragging a slider to prevent DOM destruction
+  if (state._sliderDragging) {
+    state._pendingRender = true;
+    return;
+  }
   const app = document.getElementById('app');
   let content = renderDarkModeToggle();
 
@@ -1272,7 +1293,7 @@ async function handleAuthStateChange(user) {
     if (state.mode === 'teacher' && state.isInstructor) {
       debugLog('[Auth Debug] User is instructor in teacher mode, recovering session...');
       tryRecoverSession();
-      loadPreviousClasses(); // AC14: Load class dropdown options
+      await loadPreviousClasses(); // AC14: Load class dropdown options
       await loadTodaysSessions(); // Load scheduled sessions for today
     }
   } else {
@@ -1388,11 +1409,11 @@ function renderTeacherView() {
               <input type="text" id="className" maxlength="100" placeholder="e.g., Business Communication - Section A" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 dark:bg-gray-700 dark:text-white">
               `}
             </div>
-            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" onmousedown="sliderDragStart()" onmouseup="sliderDragEnd()" ontouchstart="sliderDragStart()" ontouchend="sliderDragEnd()" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold</label>
               <div class="flex items-center gap-3">
-                <input type="range" id="lateThreshold" min="0" max="60" value="${state.lateThreshold}" oninput="const v=parseInt(this.value); document.getElementById('lateValue').textContent=v; document.getElementById('lateThresholdInput').value=v; state.lateThreshold=v;" class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                <input type="range" id="lateThreshold" min="0" max="60" step="5" value="${state.lateThreshold}" onmousedown="sliderDragStart()" onmouseup="sliderDragEnd()" ontouchstart="sliderDragStart()" ontouchend="sliderDragEnd()" oninput="const v=parseInt(this.value); document.getElementById('lateValue').textContent=v; document.getElementById('lateThresholdInput').value=v; state.lateThreshold=v;" class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
                 <div class="flex items-center gap-1">
                   <input type="number" id="lateThresholdInput" min="0" max="60" value="${state.lateThreshold}" oninput="const v=Math.max(0,Math.min(60,parseInt(this.value)||0)); document.getElementById('lateThreshold').value=v; document.getElementById('lateValue').textContent=v; state.lateThreshold=v;" class="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-center dark:bg-gray-700 dark:text-white text-sm">
                   <span class="text-sm text-gray-500 dark:text-gray-400">min</span>
@@ -3504,7 +3525,7 @@ function renderCourseSetupWizard() {
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Number of Weeks: <span id="weeksValue">${setup.weeks}</span></label>
           <input type="range" id="weeks" min="1" max="20" value="${setup.weeks}"
-            oninput="document.getElementById('weeksValue').textContent=this.value; updateCourseSetupField('weeks', parseInt(this.value))"
+            onmousedown="sliderDragStart()" onmouseup="sliderDragEnd()" ontouchstart="sliderDragStart()" ontouchend="sliderDragEnd()" oninput="document.getElementById('weeksValue').textContent=this.value; updateCourseSetupField('weeks', parseInt(this.value))"
             class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
         </div>
         <div>
@@ -3584,7 +3605,7 @@ function renderCourseSetupWizard() {
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location Radius: <span id="courseRadiusValue">${setup.radius}</span>m</label>
           <input type="range" min="20" max="500" value="${setup.radius}"
-            oninput="document.getElementById('courseRadiusValue').textContent=this.value; updateCourseSetupField('radius', parseInt(this.value))"
+            onmousedown="sliderDragStart()" onmouseup="sliderDragEnd()" ontouchstart="sliderDragStart()" ontouchend="sliderDragEnd()" oninput="document.getElementById('courseRadiusValue').textContent=this.value; updateCourseSetupField('radius', parseInt(this.value))"
             class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p>
         </div>
@@ -3598,8 +3619,8 @@ function renderCourseSetupWizard() {
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold</label>
           <div class="flex items-center gap-3">
-            <input type="range" id="courseLateThreshold" min="0" max="60" value="${setup.lateThreshold}"
-              oninput="const v=parseInt(this.value); document.getElementById('courseLateValue').textContent=v; document.getElementById('courseLateThresholdInput').value=v; updateCourseSetupField('lateThreshold', v)"
+            <input type="range" id="courseLateThreshold" min="0" max="60" step="5" value="${setup.lateThreshold}"
+              onmousedown="sliderDragStart()" onmouseup="sliderDragEnd()" ontouchstart="sliderDragStart()" ontouchend="sliderDragEnd()" oninput="const v=parseInt(this.value); document.getElementById('courseLateValue').textContent=v; document.getElementById('courseLateThresholdInput').value=v; updateCourseSetupField('lateThreshold', v)"
               class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
             <div class="flex items-center gap-1">
               <input type="number" id="courseLateThresholdInput" min="0" max="60" value="${setup.lateThreshold}"
@@ -3818,7 +3839,7 @@ function renderTodaysSessions() {
                         Location Radius: <span id="sessionRadiusValue">${overrides.radius}</span>m
                       </label>
                       <input type="range" id="sessionRadius" min="20" max="500" value="${overrides.radius}"
-                        oninput="updateSessionOverride('${session.id}', 'radius', this.value)"
+                        onmousedown="sliderDragStart()" onmouseup="sliderDragEnd()" ontouchstart="sliderDragStart()" ontouchend="sliderDragEnd()" oninput="updateSessionOverride('${session.id}', 'radius', this.value)"
                         class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
                       <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
                         <span>20m</span>
@@ -3828,8 +3849,8 @@ function renderTodaysSessions() {
                     <div>
                       <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Late Threshold</label>
                       <div class="flex items-center gap-3">
-                        <input type="range" id="sessionLateThreshold" min="0" max="60" value="${overrides.lateThreshold}"
-                          oninput="updateSessionOverride('${session.id}', 'lateThreshold', this.value); document.getElementById('sessionLateThresholdInput').value=this.value;"
+                        <input type="range" id="sessionLateThreshold" min="0" max="60" step="5" value="${overrides.lateThreshold}"
+                          onmousedown="sliderDragStart()" onmouseup="sliderDragEnd()" ontouchstart="sliderDragStart()" ontouchend="sliderDragEnd()" oninput="updateSessionOverride('${session.id}', 'lateThreshold', this.value); document.getElementById('sessionLateThresholdInput').value=this.value;"
                           class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
                         <div class="flex items-center gap-1">
                           <input type="number" id="sessionLateThresholdInput" min="0" max="60" value="${overrides.lateThreshold}"
