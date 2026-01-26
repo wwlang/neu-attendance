@@ -204,4 +204,46 @@ test.describe('P2-14: Larger QR Codes for Easier Scanning', () => {
       expect(b).toBeGreaterThanOrEqual(240);
     }
   });
+
+  // P2-14 AC5.1: Fullscreen QR has sufficient padding from viewport edges
+  test('AC5.1: Fullscreen QR modal has sufficient padding from viewport edges', async ({ page }) => {
+    await startInstructorSession(page, 'QR Padding Test');
+
+    // Wait for session to start
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 10000 });
+
+    // Click the enlarge button
+    const enlargeButton = page.locator('button:has-text("Enlarge QR"), button[data-action="enlarge-qr"], button:has-text("Fullscreen")').first();
+    await enlargeButton.click();
+
+    // Modal should appear
+    const modal = page.locator('#qr-fullscreen-modal');
+    await expect(modal).toBeVisible({ timeout: 5000 });
+
+    // Get the inner content container's bounding box and viewport dimensions
+    const contentContainer = page.locator('#qr-fullscreen-modal > div');
+    await expect(contentContainer).toBeVisible({ timeout: 3000 });
+
+    const viewportSize = page.viewportSize();
+    const contentBox = await contentContainer.boundingBox();
+
+    // Content should have at least 5% padding from edges (per journey spec)
+    // 5% of viewport width/height
+    const minHorizontalPadding = (viewportSize?.width || 1280) * 0.05;
+    const minVerticalPadding = (viewportSize?.height || 720) * 0.05;
+
+    expect(contentBox).not.toBeNull();
+    if (contentBox && viewportSize) {
+      // Left padding
+      expect(contentBox.x).toBeGreaterThanOrEqual(minHorizontalPadding - 1);
+      // Right padding (content right edge from viewport right edge)
+      const rightPadding = viewportSize.width - (contentBox.x + contentBox.width);
+      expect(rightPadding).toBeGreaterThanOrEqual(minHorizontalPadding - 1);
+      // Top padding
+      expect(contentBox.y).toBeGreaterThanOrEqual(minVerticalPadding - 1);
+      // Bottom padding
+      const bottomPadding = viewportSize.height - (contentBox.y + contentBox.height);
+      expect(bottomPadding).toBeGreaterThanOrEqual(minVerticalPadding - 1);
+    }
+  });
 });

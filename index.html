@@ -184,9 +184,9 @@
 <!-- Modal Container -->
 <div id="modalContainer"></div>
 
-<!-- P2-14: QR Fullscreen Modal for Classroom Projection -->
+<!-- P2-14: QR Fullscreen Modal for Projection -->
 <div id="qr-fullscreen-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center" data-modal="qr-fullscreen" onclick="if(event.target === this) closeQRFullscreenModal()">
-  <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-lg mx-4 text-center" onclick="event.stopPropagation()">
+  <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-lg text-center" style="margin: 5vh 5vw; max-width: calc(100vw - 10vw);" onclick="event.stopPropagation()">
     <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Scan to Check In</h2>
     <div id="qr-fullscreen" class="bg-white p-4 rounded-lg inline-block mb-4"></div>
     <p class="text-gray-500 dark:text-gray-400 mb-2">Current Code</p>
@@ -319,6 +319,7 @@ let state = {
   selectedSessionAttendance: [],
   showAllHistory: false,
   historyFilter: '',
+  historyClassFilter: '',  // AC6: Class dropdown filter
   // AC9: Edit Attendance Records
   showAddStudentModal: false,
   showEditStudentModal: false,
@@ -1388,7 +1389,18 @@ function renderTeacherView() {
               `}
             </div>
             <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location Radius: <span id="radiusValue">300</span>m</label><input type="range" id="radius" min="20" max="500" value="300" oninput="document.getElementById('radiusValue').textContent=this.value" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Students must be within this distance</p></div>
-            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="lateValue">${state.lateThreshold}</span> minutes</label><input type="range" id="lateThreshold" min="0" max="60" value="${state.lateThreshold}" oninput="document.getElementById('lateValue').textContent=this.value; state.lateThreshold=parseInt(this.value);" class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p></div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold</label>
+              <div class="flex items-center gap-3">
+                <input type="range" id="lateThreshold" min="0" max="60" value="${state.lateThreshold}" oninput="const v=parseInt(this.value); document.getElementById('lateValue').textContent=v; document.getElementById('lateThresholdInput').value=v; state.lateThreshold=v;" class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                <div class="flex items-center gap-1">
+                  <input type="number" id="lateThresholdInput" min="0" max="60" value="${state.lateThreshold}" oninput="const v=Math.max(0,Math.min(60,parseInt(this.value)||0)); document.getElementById('lateThreshold').value=v; document.getElementById('lateValue').textContent=v; state.lateThreshold=v;" class="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-center dark:bg-gray-700 dark:text-white text-sm">
+                  <span class="text-sm text-gray-500 dark:text-gray-400">min</span>
+                </div>
+              </div>
+              <span id="lateValue" class="hidden">${state.lateThreshold}</span>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p>
+            </div>
             <div id="locationStatus" class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300">Your location will be captured when you start</div>
             <button onclick="startSession()" id="startBtn" class="w-full py-4 px-6 bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-semibold text-lg transition-colors">Start Session</button>
           </div>
@@ -1644,7 +1656,7 @@ function renderHistoryView() {
     return renderSessionDetailView();
   }
 
-  // Filter sessions based on search and showAllHistory toggle
+  // Filter sessions based on search, date range, and class filter (AC6: date range applies before class selection)
   let filteredSessions = state.sessionHistory;
   if (state.historyFilter) {
     const filter = state.historyFilter.toLowerCase();
@@ -1653,9 +1665,16 @@ function renderHistoryView() {
       new Date(s.createdAt).toLocaleDateString().includes(filter)
     );
   }
+  // AC6: Apply date range filter FIRST, then extract class list from date-filtered sessions
   if (!state.showAllHistory) {
     const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
     filteredSessions = filteredSessions.filter(s => new Date(s.createdAt).getTime() > fourteenDaysAgo);
+  }
+  // AC6: Extract unique class names from date-filtered sessions (before class filter)
+  const availableClasses = [...new Set(filteredSessions.map(s => s.className))].sort();
+  // AC6: Apply class filter after date range
+  if (state.historyClassFilter) {
+    filteredSessions = filteredSessions.filter(s => s.className === state.historyClassFilter);
   }
 
   return `
@@ -1671,10 +1690,16 @@ function renderHistoryView() {
         </div>
         
         <!-- Search/Filter (AC8) -->
-        <div class="mb-4">
+        <div class="mb-4 flex gap-3">
           <input type="text" placeholder="Search by class name or date..." value="${escapeHtml(state.historyFilter)}" 
             oninput="state.historyFilter = this.value; render();"
-            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
+            class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
+          <!-- AC6: Class filter dropdown (populated from date-filtered sessions) -->
+          <select id="historyClassFilter" onchange="state.historyClassFilter = this.value; render();"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
+            <option value=""${!state.historyClassFilter ? ' selected' : ''}>All Classes</option>
+            ${availableClasses.map(c => '<option value="' + escapeHtml(c) + '"' + (state.historyClassFilter === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('')}
+          </select>
         </div>
         
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">${state.showAllHistory ? 'All sessions' : 'Sessions from the last 14 days'}. Click a session to view details.</p>
@@ -2070,10 +2095,12 @@ async function loadPreviousClasses() {
         const radiusValueEl = document.getElementById('radiusValue');
         const lateEl = document.getElementById('lateThreshold');
         const lateValueEl = document.getElementById('lateValue');
+        const lateInputEl = document.getElementById('lateThresholdInput');
         if (radiusEl) radiusEl.value = config.radius;
         if (radiusValueEl) radiusValueEl.textContent = config.radius;
         if (lateEl) lateEl.value = config.lateThreshold;
         if (lateValueEl) lateValueEl.textContent = config.lateThreshold;
+        if (lateInputEl) lateInputEl.value = config.lateThreshold;
       }, 0);
     }
   } catch (err) {
@@ -2101,6 +2128,8 @@ function selectPreviousClass(className) {
     document.getElementById('radiusValue').textContent = '300';
     document.getElementById('lateThreshold').value = DEFAULT_LATE_THRESHOLD_MINUTES;
     document.getElementById('lateValue').textContent = DEFAULT_LATE_THRESHOLD_MINUTES;
+    const lateInputNew = document.getElementById('lateThresholdInput');
+    if (lateInputNew) lateInputNew.value = DEFAULT_LATE_THRESHOLD_MINUTES;
     state.lateThreshold = DEFAULT_LATE_THRESHOLD_MINUTES;
   } else {
     // Hide new class input
@@ -2114,6 +2143,8 @@ function selectPreviousClass(className) {
       document.getElementById('radiusValue').textContent = config.radius;
       document.getElementById('lateThreshold').value = config.lateThreshold;
       document.getElementById('lateValue').textContent = config.lateThreshold;
+      const lateInputExisting = document.getElementById('lateThresholdInput');
+      if (lateInputExisting) lateInputExisting.value = config.lateThreshold;
       state.lateThreshold = config.lateThreshold;
     }
   }
@@ -2541,7 +2572,7 @@ function generateQRCodes() {
   }, 50); // Small delay to ensure QR is fully rendered
 }
 
-// P2-14: Open QR code in fullscreen modal for classroom projection
+// P2-14: Open QR code in fullscreen modal for projection
 function openQRFullscreenModal() {
   const modal = document.getElementById('qr-fullscreen-modal');
   const qrContainer = document.getElementById('qr-fullscreen');
@@ -3253,6 +3284,7 @@ async function saveCourseAndSessions() {
     
     alert(`Course created successfully!\\n\\n${sessions.length} sessions have been scheduled.`);
     closeCourseSetup();
+    await loadPreviousClasses();
     await loadTodaysSessions();
     render(); // Re-render to show the new sessions
 
@@ -3499,7 +3531,7 @@ function renderCourseSetupWizard() {
     stepContent = `
       <div class="space-y-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Location</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400">Set your classroom location. Students will need to be within the configured radius to check in.</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Set your teaching location. Students will need to be within the configured radius to check in.</p>
 
         <!-- Location Method Tabs -->
         <div class="flex gap-2">
@@ -3534,7 +3566,7 @@ function renderCourseSetupWizard() {
             <div id="addressSearchResults" class="hidden absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto"></div>
           </div>
           <div id="courseSetupMap" class="h-64 rounded-lg border border-gray-300 dark:border-gray-600 mt-3"></div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Click on the map to place a marker at your classroom location</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Click on the map to place a marker at your teaching location</p>
         </div>
 
         <!-- Location Status (shared between modes) -->
@@ -3564,10 +3596,19 @@ function renderCourseSetupWizard() {
       <div class="space-y-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Confirm Course Setup</h3>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold: <span id="courseLateValue">${setup.lateThreshold}</span> minutes</label>
-          <input type="range" min="0" max="60" value="${setup.lateThreshold}"
-            oninput="document.getElementById('courseLateValue').textContent=this.value; updateCourseSetupField('lateThreshold', parseInt(this.value))"
-            class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Late Threshold</label>
+          <div class="flex items-center gap-3">
+            <input type="range" id="courseLateThreshold" min="0" max="60" value="${setup.lateThreshold}"
+              oninput="const v=parseInt(this.value); document.getElementById('courseLateValue').textContent=v; document.getElementById('courseLateThresholdInput').value=v; updateCourseSetupField('lateThreshold', v)"
+              class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+            <div class="flex items-center gap-1">
+              <input type="number" id="courseLateThresholdInput" min="0" max="60" value="${setup.lateThreshold}"
+                oninput="const v=Math.max(0,Math.min(60,parseInt(this.value)||0)); document.getElementById('courseLateThreshold').value=v; document.getElementById('courseLateValue').textContent=v; updateCourseSetupField('lateThreshold', v)"
+                class="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-center dark:bg-gray-700 dark:text-white text-sm">
+              <span class="text-sm text-gray-500 dark:text-gray-400">min</span>
+            </div>
+          </div>
+          <span id="courseLateValue" class="hidden">${setup.lateThreshold}</span>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check-ins after this time will be marked as late</p>
         </div>
         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
@@ -3687,16 +3728,18 @@ function resetSessionToDefaults(sessionId) {
     lateThreshold: session.lateThreshold || 10
   };
   
-  // Update slider values
+  // Update slider and input values
   const radiusSlider = document.getElementById('sessionRadius');
   const lateSlider = document.getElementById('sessionLateThreshold');
   const radiusValue = document.getElementById('sessionRadiusValue');
   const lateValue = document.getElementById('sessionLateThresholdValue');
-  
+  const lateInput = document.getElementById('sessionLateThresholdInput');
+
   if (radiusSlider) radiusSlider.value = state.sessionOverrides[sessionId].radius;
   if (lateSlider) lateSlider.value = state.sessionOverrides[sessionId].lateThreshold;
   if (radiusValue) radiusValue.textContent = state.sessionOverrides[sessionId].radius;
   if (lateValue) lateValue.textContent = state.sessionOverrides[sessionId].lateThreshold;
+  if (lateInput) lateInput.value = state.sessionOverrides[sessionId].lateThreshold;
   
   updateSessionBadge(sessionId);
 }
@@ -3783,16 +3826,19 @@ function renderTodaysSessions() {
                       </div>
                     </div>
                     <div>
-                      <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                        Late Threshold: <span id="sessionLateThresholdValue">${overrides.lateThreshold}</span> min
-                      </label>
-                      <input type="range" id="sessionLateThreshold" min="0" max="60" value="${overrides.lateThreshold}"
-                        oninput="updateSessionOverride('${session.id}', 'lateThreshold', this.value)"
-                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
-                      <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        <span>0 min</span>
-                        <span>60 min</span>
+                      <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Late Threshold</label>
+                      <div class="flex items-center gap-3">
+                        <input type="range" id="sessionLateThreshold" min="0" max="60" value="${overrides.lateThreshold}"
+                          oninput="updateSessionOverride('${session.id}', 'lateThreshold', this.value); document.getElementById('sessionLateThresholdInput').value=this.value;"
+                          class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex items-center gap-1">
+                          <input type="number" id="sessionLateThresholdInput" min="0" max="60" value="${overrides.lateThreshold}"
+                            oninput="const v=Math.max(0,Math.min(60,parseInt(this.value)||0)); document.getElementById('sessionLateThreshold').value=v; updateSessionOverride('${session.id}', 'lateThreshold', v);"
+                            class="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-center dark:bg-gray-700 dark:text-white text-sm">
+                          <span class="text-sm text-gray-500 dark:text-gray-400">min</span>
+                        </div>
                       </div>
+                      <span id="sessionLateThresholdValue" class="hidden">${overrides.lateThreshold}</span>
                     </div>
                   </div>
                   <button onclick="resetSessionToDefaults('${session.id}')"

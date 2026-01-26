@@ -5,14 +5,14 @@
 ```yaml
 status: complete
 implementation_priority: P2
-implementation_percent: 95
+implementation_percent: 100
 last_reviewed: 2026-01-26
 ```
 
 > **IMPLEMENTED (2026-01-23):** Core greeting functionality complete. Greeting displays after Google auth with first name extraction.
 > Verified by: `instructor-greeting.spec.js`
 > **Gap closure (2026-01-26):** AC1.2 (hide in PIN mode) and AC7 (re-login update) verified with E2E tests.
-> Remaining gap: AC8 (localization).
+> AC8 (localization) removed — app is English-only.
 
 ## Overview
 
@@ -113,11 +113,8 @@ As an instructor, I want to see a personalized greeting with my first name so th
 - [x] AC7.3: Emulator PIN mode does not break (shows fallback)
 - [x] AC7.4: No console errors in any authentication flow
 
-### AC8: Localization Ready
-- [ ] AC8.1: "Hi," is extracted to localization string (not hardcoded)
-- [ ] AC8.2: "Instructor" fallback extracted to localization string
-- [ ] AC8.3: Supports string formatting with name parameter
-- [ ] AC8.4: Ready for Vietnamese translation ("Xin chào")
+### ~~AC8: Localization Ready~~ (Removed)
+> **Removed (2026-01-26):** App is English-only. Localization not required.
 
 ## Technical Implementation
 

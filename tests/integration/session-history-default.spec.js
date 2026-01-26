@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { gotoWithEmulator, authenticateAsInstructor, goToHistoryView, startInstructorSession, endSessionAndGoToHistory } = require('../utils/test-helpers');
+const { resetEmulatorData } = require('../utils/firebase-helpers');
 
 /**
  * P2-11: Session History Default View - 14 Days
@@ -175,5 +176,84 @@ test.describe('P2-11.2: CSV Export Respects Date Filter', () => {
       expect(filename).toContain('CSV_Filter_Test_Class');
       expect(filename).toContain('.csv');
     }
+  });
+});
+
+/**
+ * P2-11 AC6: Date Range Applies Before Class Selection
+ *
+ * Tests that the class dropdown in session history is populated
+ * based on sessions within the selected date range, not all sessions.
+ */
+test.describe('P2-11 AC6: Date Range Before Class Selection', () => {
+  test.beforeEach(async ({ page }) => {
+    await resetEmulatorData();
+    await page.context().grantPermissions(['geolocation']);
+    await page.context().setGeolocation({ latitude: 21.0285, longitude: 105.8542 });
+  });
+
+  test('AC6: Class dropdown only shows classes with sessions in current date range', async ({ page }) => {
+    // Create two sessions with different class names
+    await startInstructorSession(page, 'Math 101');
+
+    // End session and create another
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('button:has-text("End Session")');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 15000 });
+
+    await startInstructorSession(page, 'Physics 201');
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('button:has-text("End Session")');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 15000 });
+
+    // Go to history view
+    await goToHistoryView(page);
+
+    // Verify a class filter dropdown exists
+    const classDropdown = page.locator('select#historyClassFilter');
+    await expect(classDropdown).toBeVisible({ timeout: 5000 });
+
+    // Dropdown should have "All Classes" plus our two class names
+    const options = classDropdown.locator('option');
+    const optionTexts = await options.allTextContents();
+    expect(optionTexts).toContain('All Classes');
+    expect(optionTexts.some(t => t.includes('Math 101'))).toBe(true);
+    expect(optionTexts.some(t => t.includes('Physics 201'))).toBe(true);
+  });
+
+  test('AC6: Selecting a class filters history to only that class', async ({ page }) => {
+    // Create two sessions with different class names
+    await startInstructorSession(page, 'English 301');
+
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('button:has-text("End Session")');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 15000 });
+
+    await startInstructorSession(page, 'History 401');
+    page.once('dialog', dialog => dialog.accept());
+    await page.click('button:has-text("End Session")');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 15000 });
+
+    // Go to history view
+    await goToHistoryView(page);
+
+    // Both classes should be visible initially
+    await expect(page.locator('h3:has-text("English 301")')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('h3:has-text("History 401")')).toBeVisible({ timeout: 5000 });
+
+    // Select "English 301" from class dropdown
+    const classDropdown = page.locator('select#historyClassFilter');
+    await classDropdown.selectOption({ label: 'English 301' });
+
+    // Only English 301 should be visible
+    await expect(page.locator('h3:has-text("English 301")')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('h3:has-text("History 401")')).not.toBeVisible();
+
+    // Switch back to All Classes
+    await classDropdown.selectOption({ label: 'All Classes' });
+
+    // Both should be visible again
+    await expect(page.locator('h3:has-text("English 301")')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('h3:has-text("History 401")')).toBeVisible({ timeout: 5000 });
   });
 });

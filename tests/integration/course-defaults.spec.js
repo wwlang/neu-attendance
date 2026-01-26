@@ -89,6 +89,41 @@ test.describe('P8-04: Location Radius Terminology', () => {
     // Ensure old terminology is NOT present
     await expect(page.locator('text=Classroom Radius:')).not.toBeVisible();
   });
+
+  // P8-04 AC1.4: Tooltips and help text updated
+  test('AC1.4: No "Classroom Radius" text appears anywhere in the application', async ({ page }) => {
+    await authenticateAsInstructor(page);
+
+    // Check the quick session start form - should not contain "Classroom Radius"
+    const pageContent = await page.textContent('body');
+    expect(pageContent).not.toContain('Classroom Radius');
+
+    // Navigate to Course Setup Wizard
+    await page.click('button:has-text("Setup New Course")');
+    await expect(page.getByRole('heading', { name: 'Course Info' })).toBeVisible({ timeout: 5000 });
+
+    // Step 1
+    await page.locator('input#courseCode').fill('CS999');
+    await page.locator('input#section').fill('Z');
+    await page.click('button:has-text("Next")');
+
+    // Step 2
+    await page.locator('label:has-text("Mon")').click();
+    await page.click('button:has-text("Next")');
+
+    // Step 3 - Location page (where tooltips/help text live)
+    await expect(page.getByRole('heading', { name: 'Location' })).toBeVisible({ timeout: 5000 });
+    const step3Content = await page.textContent('body');
+    expect(step3Content).not.toContain('Classroom Radius');
+    expect(step3Content).not.toContain('classroom radius');
+
+    // Verify help text mentions "location" not "classroom"
+    // Check that map help text uses "location" terminology
+    const helpTexts = await page.locator('.text-xs.text-gray-500, .text-sm.text-gray-600, .text-sm.text-gray-400').allTextContents();
+    for (const text of helpTexts) {
+      expect(text.toLowerCase()).not.toContain('classroom radius');
+    }
+  });
 });
 
 test.describe('P8-03: Course Defaults with Session Override', () => {

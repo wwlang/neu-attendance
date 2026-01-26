@@ -115,7 +115,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - [x] AC5: Greeting visible and responsive on all screen sizes (320px+)
 - [x] AC6: Text readable in light and dark mode with sufficient contrast
 - [x] AC7: Greeting updates when user logs out and logs back in
-- [ ] AC8: "Hi," and fallback text extracted to localization strings
+- ~~AC8: Localization~~ (Removed — app is English-only)
 
 **Technical Implementation:**
 - Extract first name using: `displayName.trim().split(' ')[0]`
