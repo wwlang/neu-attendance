@@ -5,13 +5,14 @@
 ```yaml
 status: complete
 implementation_priority: P2
-implementation_percent: 80
+implementation_percent: 95
 last_reviewed: 2026-01-26
 ```
 
 > **IMPLEMENTED (2026-01-23):** Core greeting functionality complete. Greeting displays after Google auth with first name extraction.
 > Verified by: `instructor-greeting.spec.js`
-> Remaining gaps: AC1.2 (hide in PIN mode), AC7 (re-login update), AC8 (localization).
+> **Gap closure (2026-01-26):** AC1.2 (hide in PIN mode) and AC7 (re-login update) verified with E2E tests.
+> Remaining gap: AC8 (localization).
 
 ## Overview
 
@@ -69,7 +70,7 @@ As an instructor, I want to see a personalized greeting with my first name so th
 
 ### AC1: Greeting Display
 - [x] AC1.1: Greeting visible when instructor authenticated with Google
-- [ ] AC1.2: Greeting hides when in emulator PIN mode (no display name)
+- [x] AC1.2: Greeting hides when in emulator PIN mode (no display name)
 - [x] AC1.3: Greeting positioned in header area above main content
 - [x] AC1.4: Uses friendly informal tone ("Hi," not "Hello,")
 - [x] AC1.5: First name properly capitalized (John, not john)
@@ -107,8 +108,8 @@ As an instructor, I want to see a personalized greeting with my first name so th
 - [x] AC6.4: Consistent with other header text styling in both themes
 
 ### AC7: Integration with Authentication
-- [ ] AC7.1: Greeting updates when user logs out and logs back in
-- [ ] AC7.2: Greeting correct for different Google accounts tested
+- [x] AC7.1: Greeting updates when user logs out and logs back in
+- [x] AC7.2: Greeting correct for different Google accounts tested
 - [x] AC7.3: Emulator PIN mode does not break (shows fallback)
 - [x] AC7.4: No console errors in any authentication flow
 

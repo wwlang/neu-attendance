@@ -142,4 +142,66 @@ test.describe('P2-14: Larger QR Codes for Easier Scanning', () => {
     expect(size.width).toBeGreaterThan(100);
     expect(size.height).toBeGreaterThan(100);
   });
+
+  // P2-14.1: Dark mode QR code test
+  test('AC4.2: QR code container has white/light background in dark mode for scan reliability', async ({ page }) => {
+    // Enable dark mode via localStorage before navigating
+    await gotoWithEmulator(page, '/');
+    await page.evaluate(() => localStorage.setItem('neu_attendance_dark_mode', 'true'));
+
+    // Start instructor session in dark mode
+    await startInstructorSession(page, 'QR Dark Mode Test');
+
+    // Wait for QR code to be generated
+    const qrContainer = page.locator('#qr-student-checkin');
+    await expect(qrContainer).toBeVisible({ timeout: 10000 });
+
+    // Verify body has dark mode class
+    const hasDarkMode = await page.evaluate(() => {
+      return document.documentElement.classList.contains('dark');
+    });
+    expect(hasDarkMode).toBe(true);
+
+    // QR code container should have a white/light background for scan reliability
+    const bgColor = await qrContainer.evaluate(el => {
+      const style = window.getComputedStyle(el);
+      return style.backgroundColor;
+    });
+
+    // Background should be white or very light (rgb values close to 255)
+    // Parse the rgb values
+    const rgbMatch = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (rgbMatch) {
+      const r = parseInt(rgbMatch[1]);
+      const g = parseInt(rgbMatch[2]);
+      const b = parseInt(rgbMatch[3]);
+      // All channels should be >= 240 (white or near-white)
+      expect(r).toBeGreaterThanOrEqual(240);
+      expect(g).toBeGreaterThanOrEqual(240);
+      expect(b).toBeGreaterThanOrEqual(240);
+    }
+
+    // Also verify the fullscreen modal maintains white background for QR
+    const enlargeButton = page.locator('button:has-text("Enlarge QR"), button[data-action="enlarge-qr"], button:has-text("Fullscreen")').first();
+    await enlargeButton.click();
+
+    const fullscreenQrContainer = page.locator('#qr-fullscreen');
+    await expect(fullscreenQrContainer).toBeVisible({ timeout: 5000 });
+
+    const fullscreenBgColor = await fullscreenQrContainer.evaluate(el => {
+      const style = window.getComputedStyle(el);
+      return style.backgroundColor;
+    });
+
+    // Fullscreen QR container should also have white background
+    const fullscreenRgbMatch = fullscreenBgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (fullscreenRgbMatch) {
+      const r = parseInt(fullscreenRgbMatch[1]);
+      const g = parseInt(fullscreenRgbMatch[2]);
+      const b = parseInt(fullscreenRgbMatch[3]);
+      expect(r).toBeGreaterThanOrEqual(240);
+      expect(g).toBeGreaterThanOrEqual(240);
+      expect(b).toBeGreaterThanOrEqual(240);
+    }
+  });
 });

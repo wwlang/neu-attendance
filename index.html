@@ -4284,6 +4284,7 @@ function renderSessionDetailView() {
             <h2 class="text-2xl font-bold text-gray-800 dark:text-white">${escapeHtml(session.className)}</h2>
             <p class="text-gray-500 dark:text-gray-400">${new Date(session.createdAt).toLocaleDateString()} ${new Date(session.createdAt).toLocaleTimeString()}</p>
             ${session.endedAt ? '<p class="text-sm text-gray-400 dark:text-gray-500">Ended: ' + new Date(session.endedAt).toLocaleTimeString() + '</p>' : '<p class="text-sm text-green-500">Currently Active</p>'}
+            <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Location Radius: ${session.radius || 300}m | Late Threshold: ${session.lateThreshold || session.lateThresholdMinutes || 10} min</p>
           </div>
           <div class="flex gap-2">
             ${canReopen ? '<button onclick="reopenSessionFromDetail(\'' + session.id + '\')" class="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 font-medium text-sm">Reopen for Late</button>' : ''}

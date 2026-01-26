@@ -5,13 +5,14 @@
 ```yaml
 status: complete
 implementation_priority: P2
-implementation_percent: 90
+implementation_percent: 95
 last_reviewed: 2026-01-26
 ```
 
 > **IMPLEMENTED (2026-01-23):** QR code size doubled, fullscreen mode with overlay, responsive scaling.
 > Verified by: `larger-qr-codes.spec.js`
-> Remaining gaps: AC4 dark mode QR test, AC5 projection padding verification.
+> **Gap closure (2026-01-26):** AC4.2 (dark mode QR readability) verified with E2E test.
+> Remaining gap: AC5.1 (projection padding verification).
 
 ## Overview
 
@@ -76,7 +77,7 @@ As an instructor, I want larger QR codes so that students can scan them more eas
 
 ### AC4: Theme Support
 - [x] AC4.1: QR code readable in light mode
-- [ ] AC4.2: QR code readable in dark mode
+- [x] AC4.2: QR code readable in dark mode
 - [x] AC4.3: Fullscreen button visible in both themes
 - [x] AC4.4: Fullscreen mode uses light background regardless of theme
 

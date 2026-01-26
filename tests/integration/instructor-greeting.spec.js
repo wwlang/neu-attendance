@@ -98,4 +98,69 @@ test.describe('P2-12: Personalized Greeting on Instructor Dashboard', () => {
     // Greeting should still be visible on mobile
     await expect(page.locator('text=Hi, Test!')).toBeVisible();
   });
+
+  // P2-12.1: Hide greeting when user has no displayName
+  test('P2-12.1: Greeting hidden when auth user has no displayName', async ({ page }) => {
+    // Navigate as instructor
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
+
+    // Verify greeting IS visible when displayName is set
+    await expect(page.locator('#instructor-greeting')).toBeVisible({ timeout: 5000 });
+
+    // Now clear the displayName from state to simulate missing displayName
+    await page.evaluate(() => {
+      // @ts-ignore - state is defined in page context
+      state.user.displayName = null;
+      render();
+    });
+
+    // Greeting element should NOT be visible (no displayName)
+    await expect(page.locator('#instructor-greeting')).not.toBeVisible({ timeout: 3000 });
+  });
+
+  // P2-12.2: Greeting refreshes correctly on auth state changes
+  test('P2-12.2: Greeting refreshes when navigating away and back to instructor view', async ({ page }) => {
+    // Login with testAuth=instructor (displayName: 'Test Instructor')
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
+
+    // Verify initial greeting
+    await expect(page.locator('text=Hi, Test!')).toBeVisible({ timeout: 5000 });
+
+    // Simulate displayName change (as if re-auth with different account)
+    await page.evaluate(() => {
+      // @ts-ignore - state is defined in page context
+      state.user.displayName = 'Alice Smith';
+      render();
+    });
+
+    // Greeting should update to new first name
+    await expect(page.locator('text=Hi, Alice!')).toBeVisible({ timeout: 3000 });
+
+    // Old greeting should be gone
+    await expect(page.locator('text=Hi, Test!')).not.toBeVisible();
+  });
+
+  // P2-12.2: Greeting clears on signOut
+  test('P2-12.2b: Greeting clears when state is reset (sign out)', async ({ page }) => {
+    // Login with testAuth=instructor
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
+
+    // Verify greeting is visible
+    await expect(page.locator('#instructor-greeting')).toBeVisible({ timeout: 5000 });
+
+    // Simulate sign out by clearing user state
+    await page.evaluate(() => {
+      // @ts-ignore - state is defined in page context
+      state.user = null;
+      state.isInstructor = false;
+      state.mode = null;
+      render();
+    });
+
+    // Greeting should no longer be visible
+    await expect(page.locator('#instructor-greeting')).not.toBeVisible({ timeout: 3000 });
+  });
 });

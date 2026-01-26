@@ -125,6 +125,7 @@ After clicking [v] to expand:
 - [x] AC1.4: No breaking changes to existing data (field name remains `radius`)
 
 > **IMPLEMENTED (2026-01-23):** All UI labels updated. Verified by `course-defaults.spec.js`.
+> **Gap closure (2026-01-26):** Session detail view now shows "Location Radius: Xm" via P8-04.1.
 
 ### AC2: Course Defaults Storage
 - [x] AC2.1: Course record stores `radius` and `lateThreshold`
@@ -239,5 +240,5 @@ After clicking [v] to expand:
 
 ## Last Updated
 - **Date**: 2026-01-26
-- **Author**: Journey audit update
-- **Status**: Complete (P8-03, P8-04 implemented 2026-01-23)
+- **Author**: Journey audit gap closure
+- **Status**: Complete (P8-03, P8-04 implemented 2026-01-23; P8-04.1 gap closed 2026-01-26)

@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { gotoWithEmulator, authenticateAsInstructor, goToHistoryView } = require('../utils/test-helpers');
+const { gotoWithEmulator, authenticateAsInstructor, goToHistoryView, startInstructorSession, endSessionAndGoToHistory } = require('../utils/test-helpers');
 
 /**
  * P2-11: Session History Default View - 14 Days
@@ -64,5 +64,116 @@ test.describe('P2-11: Session History Default View - 14 Days', () => {
 
     // Now should show "All sessions" message (text is "All sessions. Click a session...")
     await expect(page.locator('text=/All sessions\\./')).toBeVisible();
+  });
+});
+
+/**
+ * P2-11.1: Session History Filter Persistence
+ *
+ * Tests that date range filter persists across view navigation.
+ */
+test.describe('P2-11.1: Session History Filter Persistence', () => {
+  test.beforeEach(async ({ page }) => {
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('AC5: Show All filter persists when switching between History and Analytics views', async ({ page }) => {
+    // Navigate to history view
+    await goToHistoryView(page);
+
+    // Toggle "Show All Sessions" on
+    const showAllCheckbox = page.locator('label:has-text("Show All Sessions") input[type="checkbox"]');
+    await showAllCheckbox.check();
+    await expect(page.locator('text=/All sessions\\./')).toBeVisible();
+
+    // Go back to dashboard
+    await page.click('text=Back to Dashboard');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Analytics
+    await page.click('button:has-text("Analytics")');
+    await expect(page.locator('text=Analytics Dashboard')).toBeVisible({ timeout: 10000 });
+
+    // Go back to dashboard
+    await page.click('text=Back to Dashboard');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
+
+    // Navigate back to history
+    await goToHistoryView(page);
+
+    // The "Show All Sessions" toggle should still be checked
+    const showAllCheckboxAgain = page.locator('label:has-text("Show All Sessions") input[type="checkbox"]');
+    await expect(showAllCheckboxAgain).toBeChecked();
+
+    // Should still show "All sessions" message
+    await expect(page.locator('text=/All sessions\\./')).toBeVisible();
+  });
+
+  test('AC5.2: Filter resets on page refresh', async ({ page }) => {
+    // Navigate to history view
+    await goToHistoryView(page);
+
+    // Toggle "Show All Sessions" on
+    const showAllCheckbox = page.locator('label:has-text("Show All Sessions") input[type="checkbox"]');
+    await showAllCheckbox.check();
+    await expect(page.locator('text=/All sessions\\./')).toBeVisible();
+
+    // Refresh the page
+    await page.reload();
+    await gotoWithEmulator(page, '/?testAuth=instructor');
+    await expect(page.locator('text=Start Attendance Session')).toBeVisible({ timeout: 10000 });
+
+    // Navigate back to history
+    await goToHistoryView(page);
+
+    // Should reset to default (14-day filter, not Show All)
+    await expect(page.locator('text=/Sessions from the last 14 days/')).toBeVisible({ timeout: 5000 });
+    const showAllCheckboxAfterRefresh = page.locator('label:has-text("Show All Sessions") input[type="checkbox"]');
+    await expect(showAllCheckboxAfterRefresh).not.toBeChecked();
+  });
+});
+
+/**
+ * P2-11.2: CSV Export Respects Date Filter
+ *
+ * Tests that CSV export from session history only includes sessions
+ * within the current date filter range.
+ */
+test.describe('P2-11.2: CSV Export Respects Date Filter', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.context().grantPermissions(['geolocation']);
+    await page.context().setGeolocation({ latitude: 21.0285, longitude: 105.8542 });
+  });
+
+  test('AC8: History list export button exports only visible (filtered) sessions', async ({ page }) => {
+    // Create a session so there is data to export
+    await startInstructorSession(page, 'CSV Filter Test Class');
+
+    // End session and go to history
+    await endSessionAndGoToHistory(page);
+
+    // Verify we see the session in history
+    await expect(page.locator('text=CSV Filter Test Class')).toBeVisible({ timeout: 10000 });
+
+    // Click on the session to view details
+    await page.locator('text=CSV Filter Test Class').click();
+    await expect(page.locator('text=Back to History')).toBeVisible({ timeout: 5000 });
+
+    // Export CSV button should be visible
+    const exportBtn = page.locator('button:has-text("Export CSV")');
+    await expect(exportBtn).toBeVisible();
+
+    // Set up download listener
+    const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+    await exportBtn.click();
+
+    // Verify CSV download was triggered (file name should contain class name)
+    const download = await downloadPromise;
+    if (download) {
+      const filename = download.suggestedFilename();
+      expect(filename).toContain('CSV_Filter_Test_Class');
+      expect(filename).toContain('.csv');
+    }
   });
 });

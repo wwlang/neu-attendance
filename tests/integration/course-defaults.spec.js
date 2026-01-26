@@ -4,6 +4,8 @@ const {
   waitForPageLoad,
   authenticateAsInstructor,
   gotoWithEmulator,
+  startInstructorSession,
+  endSessionAndGoToHistory,
 } = require('../utils/test-helpers');
 const { resetEmulatorData } = require('../utils/firebase-helpers');
 
@@ -64,6 +66,28 @@ test.describe('P8-04: Location Radius Terminology', () => {
     // Check help text for quick session
     const helpText = page.locator('text=Students must be within this distance');
     await expect(helpText).toBeVisible();
+  });
+
+  // P8-04.1: Session history/details display "Location Radius"
+  test('AC1.3b: Session detail view shows "Location Radius" not "Classroom Radius"', async ({ page }) => {
+    // Create a session, end it, and view details
+    await startInstructorSession(page, 'Radius Label Test');
+
+    // End session and go to history
+    await endSessionAndGoToHistory(page);
+
+    // Click on the session to view details
+    await expect(page.locator('text=Radius Label Test')).toBeVisible({ timeout: 10000 });
+    await page.locator('text=Radius Label Test').click();
+
+    // Wait for session detail view
+    await expect(page.locator('text=Back to History')).toBeVisible({ timeout: 5000 });
+
+    // Session detail should show "Location Radius" label
+    await expect(page.locator('text=Location Radius:')).toBeVisible({ timeout: 5000 });
+
+    // Ensure old terminology is NOT present
+    await expect(page.locator('text=Classroom Radius:')).not.toBeVisible();
   });
 });
 

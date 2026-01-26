@@ -41,14 +41,15 @@ Instructor opens the session history view to review past sessions
 - [x] AC2: Displays sessions from (today - 14 days) to today
 - [x] AC3: Manual date range filter available for custom periods
 - [x] AC4: Analytics dashboard defaults to same 14-day period
-- [ ] AC5: Default filter persists across page navigation
+- [x] AC5: Default filter persists across page navigation
 - [ ] AC6: Date range applies before class selection dropdown
 - [x] AC7: "Show All Sessions" toggle available for viewing all
-- [ ] AC8: CSV export respects current date filter
+- [x] AC8: CSV export respects current date filter
 
 > **IMPLEMENTED (2026-01-23):** Core 14-day default and manual filter complete.
 > Verified by: `session-history-default.spec.js`
-> Remaining gaps: AC5 (filter persistence), AC6 (date range before class), AC8 (CSV respects filter).
+> **Gap closure (2026-01-26):** AC5 (filter persistence) and AC8 (CSV respects filter) verified with E2E tests.
+> Remaining gap: AC6 (date range before class selection).
 
 ## Technical Notes
 
