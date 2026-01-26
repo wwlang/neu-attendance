@@ -186,7 +186,7 @@
 
 <!-- P2-14: QR Fullscreen Modal for Projection -->
 <div id="qr-fullscreen-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center" data-modal="qr-fullscreen" onclick="if(event.target === this) closeQRFullscreenModal()">
-  <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-lg text-center" style="margin: 5vh 5vw; max-width: calc(100vw - 10vw);" onclick="event.stopPropagation()">
+  <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-lg text-center" style="margin: 5vh 5vw; max-width: calc(100vw - 10vw); max-height: calc(100vh - 10vh); overflow: auto;" onclick="event.stopPropagation()">
     <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Scan to Check In</h2>
     <div id="qr-fullscreen" class="bg-white p-4 rounded-lg inline-block mb-4"></div>
     <p class="text-gray-500 dark:text-gray-400 mb-2">Current Code</p>

@@ -197,8 +197,9 @@ test.describe('Course Setup Feature', () => {
     test('should show Today\'s Scheduled Sessions section', async ({ page }) => {
       await authenticateAsInstructor(page);
 
-      // Should show the "Today's Sessions" heading (always displayed now)
-      await expect(page.getByRole('heading', { name: "Today's Sessions" })).toBeVisible();
+      // Should show the "Today's Sessions" heading (always displayed)
+      // Matches either "Today's Sessions" (no scheduled) or "Today's Scheduled Sessions" (with scheduled)
+      await expect(page.getByRole('heading', { name: /Today's (Scheduled )?Sessions/ })).toBeVisible({ timeout: 10000 });
     });
 
     test('should activate scheduled session', async ({ page }) => {

@@ -342,11 +342,11 @@ test.describe('Full Session Lifecycle with History', () => {
     await page.click('button:has-text("View History")');
     await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
 
-    // Should see our session in history (may need to wait for data load)
-    await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
+    // Should see our session in history (use h3 heading to avoid matching dropdown option)
+    await expect(page.locator(`h3:has-text("${className}")`)).toBeVisible({ timeout: 10000 });
 
-    // Click on the session
-    await page.locator(`text=${className}`).click();
+    // Click on the session (click the h3 heading in the session card)
+    await page.locator(`h3:has-text("${className}")`).click();
     await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
     // Should see session details
@@ -384,10 +384,10 @@ test.describe('Full Session Lifecycle with History', () => {
     await page.click('button:has-text("End Session")');
     await expect(page.locator('button:has-text("View History")')).toBeVisible({ timeout: 15000 });
 
-    // Go to history and click on session
+    // Go to history and click on session (use h3 heading to avoid matching dropdown option)
     await page.click('button:has-text("View History")');
-    await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
-    await page.locator(`text=${className}`).click();
+    await expect(page.locator(`h3:has-text("${className}")`)).toBeVisible({ timeout: 10000 });
+    await page.locator(`h3:has-text("${className}")`).click();
     await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
     // Add manual student
@@ -458,7 +458,8 @@ test.describe('Reopen Session from History (P7-02)', () => {
     // Go to history
     await page.click('button:has-text("View History")');
     await expect(page.locator('text=Session History')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
+    // Use h3 heading to avoid matching dropdown option
+    await expect(page.locator(`h3:has-text("${className}")`)).toBeVisible({ timeout: 10000 });
 
     // Find and click "Reopen for Late" button
     const sessionCard = page.locator(`.border.rounded-lg:has-text("${className}")`);
@@ -520,10 +521,10 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await page.click('button:has-text("End Session")');
     await expect(page.locator('button:has-text("View History")')).toBeVisible({ timeout: 15000 });
 
-    // Go to history and click on the session to view details
+    // Go to history and click on the session to view details (use h3 heading)
     await page.click('button:has-text("View History")');
-    await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
-    await page.locator(`text=${className}`).click();
+    await expect(page.locator(`h3:has-text("${className}")`)).toBeVisible({ timeout: 10000 });
+    await page.locator(`h3:has-text("${className}")`).click();
     await expect(page.locator('button:has-text("Back to History")')).toBeVisible({ timeout: 5000 });
 
     // Click "Reopen for Late" from detail view
@@ -581,9 +582,9 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await page.click('button:has-text("End Session")');
     await expect(page.locator('button:has-text("View History")')).toBeVisible({ timeout: 15000 });
 
-    // Go to history
+    // Go to history (use h3 heading to avoid matching dropdown option)
     await page.click('button:has-text("View History")');
-    await expect(page.locator(`text=${className}`)).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(`h3:has-text("${className}")`)).toBeVisible({ timeout: 10000 });
 
     // Reopen session
     const sessionCard = page.locator(`.border.rounded-lg:has-text("${className}")`);

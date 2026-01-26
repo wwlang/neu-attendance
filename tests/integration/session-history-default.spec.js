@@ -154,11 +154,11 @@ test.describe('P2-11.2: CSV Export Respects Date Filter', () => {
     // End session and go to history
     await endSessionAndGoToHistory(page);
 
-    // Verify we see the session in history
-    await expect(page.locator('text=CSV Filter Test Class')).toBeVisible({ timeout: 10000 });
+    // Verify we see the session in history (use h3 heading to avoid matching dropdown option)
+    await expect(page.locator('h3:has-text("CSV Filter Test Class")')).toBeVisible({ timeout: 10000 });
 
     // Click on the session to view details
-    await page.locator('text=CSV Filter Test Class').click();
+    await page.locator('h3:has-text("CSV Filter Test Class")').click();
     await expect(page.locator('text=Back to History')).toBeVisible({ timeout: 5000 });
 
     // Export CSV button should be visible
