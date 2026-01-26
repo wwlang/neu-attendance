@@ -837,15 +837,15 @@ Use studentId as the key with write-once security rule:
 **Acceptance Criteria:**
 - [x] AC1: Course record stores `radius` and `lateThreshold` as defaults
 - [x] AC2: Scheduled session activation uses course defaults without additional input
-- [ ] AC3: Collapsible "Session Settings" panel on activation for optional override
-- [ ] AC4: Override sliders pre-filled with course default values
-- [ ] AC5: Override values stored on session record only (not course)
-- [ ] AC6: "Reset to Course Defaults" button in override panel
+- [x] AC3: Collapsible "Session Settings" panel on activation for optional override
+- [x] AC4: Override sliders pre-filled with course default values
+- [x] AC5: Override values stored on session record only (not course)
+- [x] AC6: "Reset to Course Defaults" button in override panel
 - [x] AC7: Quick session flow unchanged (settings configured at session start)
 - [x] AC8: Backward compatibility: existing courses use defaults (300m, 10 min)
-- [ ] AC9: Session history shows actual values used (default or override)
+- [x] AC9: Session history shows actual values used (default or override)
 - [x] AC10: E2E test: activate session with defaults only
-- [ ] AC11: E2E test: activate session with override values
+- [x] AC11: E2E test: activate session with override values
 
 **Technical Notes:**
 - Override UI should be collapsible/optional (not required interaction)
@@ -865,7 +865,7 @@ Use studentId as the key with write-once security rule:
 - [ ] AC1.3: Session history/details display "Location Radius"
 - [ ] AC1.4: Tooltips and help text updated
 - [x] AC1.5: No changes to database field names (remains `radius`)
-- [ ] AC1.6: Update consistency matrix and journey documentation
+- [x] AC1.6: Update consistency matrix and journey documentation
 
 **Technical Notes:**
 - UI-only change, no database migration
@@ -912,6 +912,82 @@ Use studentId as the key with write-once security rule:
 **Results:**
 - 164 tests passing (all tests)
 - 0 flaky tests
+
+## Phase 2 Gaps (Audit 2026-01-26)
+
+Gaps identified during systematic journey-vs-implementation audit.
+
+| Task ID | Description | Journey | Status |
+|---------|-------------|---------|--------|
+| P2-11.1 | Session history filter persistence across navigation | session-history-default | Pending |
+| P2-11.2 | CSV export respects current date filter | session-history-default | Pending |
+| P2-12.1 | Hide greeting in emulator PIN mode | instructor-greeting | Pending |
+| P2-12.2 | Greeting updates on logout/re-login | instructor-greeting | Pending |
+| P2-14.1 | Dark mode QR code test coverage | larger-qr-codes | Pending |
+| P8-04.1 | Session history displays "Location Radius" label | course-defaults | Pending |
+
+### P2-11.1: Session History Filter Persistence
+
+**Description:** Date range filter should persist across page navigation (e.g., switching between history and analytics views).
+
+**Journey Reference:** `docs/journeys/session-history-default.md` (AC5)
+
+**Acceptance Criteria:**
+- [ ] AC1: Selected date range persists when navigating between History and Analytics views
+- [ ] AC2: Filter resets on page refresh (no localStorage persistence required)
+
+### P2-11.2: CSV Export Respects Date Filter
+
+**Description:** When a date filter is active, CSV export should only include sessions within the filtered date range.
+
+**Journey Reference:** `docs/journeys/session-history-default.md` (AC8)
+
+**Acceptance Criteria:**
+- [ ] AC1: CSV export from history view only includes sessions in current date filter range
+- [ ] AC2: "Show All" mode exports all sessions regardless of date filter
+- [ ] AC3: E2E test verifying filtered CSV export
+
+### P2-12.1: Hide Greeting in Emulator PIN Mode
+
+**Description:** The instructor greeting should not display when using emulator PIN mode (no Google displayName available).
+
+**Journey Reference:** `docs/journeys/instructor-greeting.md` (AC1.2)
+
+**Acceptance Criteria:**
+- [ ] AC1: Greeting element hidden when auth user has no displayName (PIN mode)
+- [ ] AC2: No visual artifacts or layout shift when greeting is hidden
+- [ ] AC3: E2E test verifying greeting hidden in emulator mode
+
+### P2-12.2: Greeting Updates on Logout/Re-Login
+
+**Description:** When an instructor logs out and a different user logs in, the greeting should update to reflect the new user's name.
+
+**Journey Reference:** `docs/journeys/instructor-greeting.md` (AC7)
+
+**Acceptance Criteria:**
+- [ ] AC1: Greeting updates immediately after re-authentication
+- [ ] AC2: No stale name shown during transition
+
+### P2-14.1: Dark Mode QR Code Test
+
+**Description:** Add E2E test verifying QR code is readable in dark mode.
+
+**Journey Reference:** `docs/journeys/larger-qr-codes.md` (AC4.2)
+
+**Acceptance Criteria:**
+- [ ] AC1: E2E test toggles dark mode and verifies QR code container has appropriate styling
+- [ ] AC2: QR code background remains white/light in dark mode for scan reliability
+
+### P8-04.1: Session History Location Radius Label
+
+**Description:** Session history and session detail views should display "Location Radius" instead of "Classroom Radius".
+
+**Journey Reference:** `docs/journeys/course-defaults.md` (AC1.3), roadmap P8-04 AC1.3
+
+**Acceptance Criteria:**
+- [ ] AC1: Session detail view shows "Location Radius: Xm"
+- [ ] AC2: No remaining instances of "Classroom Radius" in any UI view
+- [ ] AC3: E2E test verifying label in session detail
 
 ## Phase 10: Operations
 

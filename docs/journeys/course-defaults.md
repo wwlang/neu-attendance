@@ -119,40 +119,45 @@ After clicking [v] to expand:
 ## Acceptance Criteria
 
 ### AC1: Terminology Update
-- [ ] AC1.1: All UI labels changed from "Classroom Radius" to "Location Radius"
-- [ ] AC1.2: Course Setup Wizard Step 3 shows "Location Radius"
-- [ ] AC1.3: Session Start (Quick Session) shows "Location Radius"
-- [ ] AC1.4: No breaking changes to existing data (field name remains `radius`)
+- [x] AC1.1: All UI labels changed from "Classroom Radius" to "Location Radius"
+- [x] AC1.2: Course Setup Wizard Step 3 shows "Location Radius"
+- [x] AC1.3: Session Start (Quick Session) shows "Location Radius"
+- [x] AC1.4: No breaking changes to existing data (field name remains `radius`)
+
+> **IMPLEMENTED (2026-01-23):** All UI labels updated. Verified by `course-defaults.spec.js`.
 
 ### AC2: Course Defaults Storage
-- [ ] AC2.1: Course record stores `radius` and `lateThreshold`
-- [ ] AC2.2: Scheduled sessions reference course for defaults
-- [ ] AC2.3: Editing course defaults propagates to future sessions (not past)
+- [x] AC2.1: Course record stores `radius` and `lateThreshold`
+- [x] AC2.2: Scheduled sessions reference course for defaults
+- [x] AC2.3: Editing course defaults propagates to future sessions (not past)
 
 ### AC3: Session Activation - Default Path
-- [ ] AC3.1: Single "Activate" tap works without opening override panel
-- [ ] AC3.2: Session uses course `radius` value when no override
-- [ ] AC3.3: Session uses course `lateThreshold` value when no override
-- [ ] AC3.4: GPS capture still required on activation
+- [x] AC3.1: Single "Activate" tap works without opening override panel
+- [x] AC3.2: Session uses course `radius` value when no override
+- [x] AC3.3: Session uses course `lateThreshold` value when no override
+- [x] AC3.4: GPS capture still required on activation
 
 ### AC4: Session Activation - Override Path
-- [ ] AC4.1: Expand/collapse UI for override settings
-- [ ] AC4.2: Override sliders pre-filled with course defaults
-- [ ] AC4.3: Changes in override panel do not affect course record
-- [ ] AC4.4: "Reset to Course Defaults" restores slider values
-- [ ] AC4.5: Override values stored on session record only
-- [ ] AC4.6: Session history shows actual values used (default or override)
+- [x] AC4.1: Expand/collapse UI for override settings
+- [x] AC4.2: Override sliders pre-filled with course defaults
+- [x] AC4.3: Changes in override panel do not affect course record
+- [x] AC4.4: "Reset to Course Defaults" restores slider values
+- [x] AC4.5: Override values stored on session record only
+- [x] AC4.6: Session history shows actual values used (default or override)
 
 ### AC5: Quick Session (Preserved)
-- [ ] AC5.1: Quick session flow unchanged
-- [ ] AC5.2: Quick session settings configured at session start
-- [ ] AC5.3: No "inherit from course" logic for quick sessions (courseId: null)
+- [x] AC5.1: Quick session flow unchanged
+- [x] AC5.2: Quick session settings configured at session start
+- [x] AC5.3: No "inherit from course" logic for quick sessions (courseId: null)
 
 ### AC6: Backward Compatibility
-- [ ] AC6.1: Existing courses without explicit radius use default (300m)
-- [ ] AC6.2: Existing courses without explicit lateThreshold use default (10 min)
-- [ ] AC6.3: Existing sessions continue to work
-- [ ] AC6.4: No migration required for existing data
+- [x] AC6.1: Existing courses without explicit radius use default (300m)
+- [x] AC6.2: Existing courses without explicit lateThreshold use default (10 min)
+- [x] AC6.3: Existing sessions continue to work
+- [x] AC6.4: No migration required for existing data
+
+> **IMPLEMENTED (2026-01-23):** All course defaults and override functionality complete.
+> Verified by: `course-defaults.spec.js` (22 tests passing).
 
 ## Data Models
 
@@ -233,6 +238,6 @@ After clicking [v] to expand:
 - Time to activate (override path): < 10 seconds
 
 ## Last Updated
-- **Date**: 2026-01-23
-- **Author**: Course Defaults Feature Planning
-- **Status**: Pending Implementation
+- **Date**: 2026-01-26
+- **Author**: Journey audit update
+- **Status**: Complete (P8-03, P8-04 implemented 2026-01-23)

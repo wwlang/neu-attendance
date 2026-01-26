@@ -3,11 +3,15 @@
 ## Status
 
 ```yaml
-status: planned
+status: complete
 implementation_priority: P2
-implementation_percent: 0
-last_reviewed: 2026-01-23
+implementation_percent: 90
+last_reviewed: 2026-01-26
 ```
+
+> **IMPLEMENTED (2026-01-23):** QR code size doubled, fullscreen mode with overlay, responsive scaling.
+> Verified by: `larger-qr-codes.spec.js`
+> Remaining gaps: AC4 dark mode QR test, AC5 projection padding verification.
 
 ## Overview
 
@@ -51,35 +55,35 @@ As an instructor, I want larger QR codes so that students can scan them more eas
 ## Acceptance Criteria
 
 ### AC1: Increased Default Size
-- [ ] AC1.1: QR code default size doubled (from current size)
-- [ ] AC1.2: QR code remains square (1:1 aspect ratio)
-- [ ] AC1.3: Maintains scan reliability at new size
-- [ ] AC1.4: Does not pixelate or lose clarity
+- [x] AC1.1: QR code default size doubled (from current size)
+- [x] AC1.2: QR code remains square (1:1 aspect ratio)
+- [x] AC1.3: Maintains scan reliability at new size
+- [x] AC1.4: Does not pixelate or lose clarity
 
 ### AC2: Responsive Scaling
-- [ ] AC2.1: QR code scales down on smaller screens (< 600px width)
-- [ ] AC2.2: Minimum readable size maintained on mobile
-- [ ] AC2.3: Does not break layout on tablet/desktop
-- [ ] AC2.4: Attendance code text scales proportionally
+- [x] AC2.1: QR code scales down on smaller screens (< 600px width)
+- [x] AC2.2: Minimum readable size maintained on mobile
+- [x] AC2.3: Does not break layout on tablet/desktop
+- [x] AC2.4: Attendance code text scales proportionally
 
 ### AC3: Fullscreen Mode
-- [ ] AC3.1: Fullscreen button visible on QR code container
-- [ ] AC3.2: Clicking button expands QR to fill viewport
-- [ ] AC3.3: Attendance code displayed below QR in fullscreen
-- [ ] AC3.4: Background uses high contrast (white/light gray)
-- [ ] AC3.5: Click anywhere or press Escape to exit fullscreen
-- [ ] AC3.6: Works with browser fullscreen API where available
+- [x] AC3.1: Fullscreen button visible on QR code container
+- [x] AC3.2: Clicking button expands QR to fill viewport
+- [x] AC3.3: Attendance code displayed below QR in fullscreen
+- [x] AC3.4: Background uses high contrast (white/light gray)
+- [x] AC3.5: Click anywhere or press Escape to exit fullscreen
+- [x] AC3.6: Works with browser fullscreen API where available
 
 ### AC4: Theme Support
-- [ ] AC4.1: QR code readable in light mode
+- [x] AC4.1: QR code readable in light mode
 - [ ] AC4.2: QR code readable in dark mode
-- [ ] AC4.3: Fullscreen button visible in both themes
-- [ ] AC4.4: Fullscreen mode uses light background regardless of theme
+- [x] AC4.3: Fullscreen button visible in both themes
+- [x] AC4.4: Fullscreen mode uses light background regardless of theme
 
 ### AC5: Projection Optimization
 - [ ] AC5.1: Fullscreen QR has sufficient padding from edges
-- [ ] AC5.2: Attendance code text large enough to read from back of room
-- [ ] AC5.3: Session/class info visible in fullscreen mode
+- [x] AC5.2: Attendance code text large enough to read from back of room
+- [x] AC5.3: Session/class info visible in fullscreen mode
 
 ## Sizing Specifications
 

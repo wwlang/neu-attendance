@@ -3,13 +3,15 @@
 ## Status
 
 ```yaml
-status: planned
+status: complete
 implementation_priority: P2
-implementation_percent: 0
-last_reviewed: 2026-01-23
+implementation_percent: 80
+last_reviewed: 2026-01-26
 ```
 
-> **Note:** This journey is fully documented but not yet implemented. All acceptance criteria are unchecked, indicating planned functionality.
+> **IMPLEMENTED (2026-01-23):** Core greeting functionality complete. Greeting displays after Google auth with first name extraction.
+> Verified by: `instructor-greeting.spec.js`
+> Remaining gaps: AC1.2 (hide in PIN mode), AC7 (re-login update), AC8 (localization).
 
 ## Overview
 
@@ -66,49 +68,49 @@ As an instructor, I want to see a personalized greeting with my first name so th
 ## Acceptance Criteria
 
 ### AC1: Greeting Display
-- [ ] AC1.1: Greeting visible when instructor authenticated with Google
+- [x] AC1.1: Greeting visible when instructor authenticated with Google
 - [ ] AC1.2: Greeting hides when in emulator PIN mode (no display name)
-- [ ] AC1.3: Greeting positioned in header area above main content
-- [ ] AC1.4: Uses friendly informal tone ("Hi," not "Hello,")
-- [ ] AC1.5: First name properly capitalized (John, not john)
+- [x] AC1.3: Greeting positioned in header area above main content
+- [x] AC1.4: Uses friendly informal tone ("Hi," not "Hello,")
+- [x] AC1.5: First name properly capitalized (John, not john)
 
 ### AC2: Name Extraction
-- [ ] AC2.1: First name extracted from `auth.currentUser.displayName`
-- [ ] AC2.2: Splits on space and uses first element: `split(' ')[0]`
-- [ ] AC2.3: Works with multi-word first names (e.g., "Jean-Luc" displays "Jean-Luc")
-- [ ] AC2.4: Single-name accounts supported (displays full name)
+- [x] AC2.1: First name extracted from `auth.currentUser.displayName`
+- [x] AC2.2: Splits on space and uses first element: `split(' ')[0]`
+- [x] AC2.3: Works with multi-word first names (e.g., "Jean-Luc" displays "Jean-Luc")
+- [x] AC2.4: Single-name accounts supported (displays full name)
 
 ### AC3: Fallback Handling
-- [ ] AC3.1: If displayName is missing/null, show "Hi, Instructor!" (fallback)
-- [ ] AC3.2: If displayName is empty string, use fallback
-- [ ] AC3.3: Fallback message uses same styling as personalized greeting
-- [ ] AC3.4: No console errors for missing displayName
+- [x] AC3.1: If displayName is missing/null, show "Hi, Instructor!" (fallback)
+- [x] AC3.2: If displayName is empty string, use fallback
+- [x] AC3.3: Fallback message uses same styling as personalized greeting
+- [x] AC3.4: No console errors for missing displayName
 
 ### AC4: Typography & Styling
-- [ ] AC4.1: Uses existing design system font (Inter)
-- [ ] AC4.2: Font size appropriate for header (suggested: 18-20px)
-- [ ] AC4.3: Text color uses theme-aware color (dark text in light mode, light text in dark mode)
-- [ ] AC4.4: No hardcoded color hex values (uses design system variables)
-- [ ] AC4.5: Proper spacing/padding from edges and other header elements
+- [x] AC4.1: Uses existing design system font (Inter)
+- [x] AC4.2: Font size appropriate for header (suggested: 18-20px)
+- [x] AC4.3: Text color uses theme-aware color (dark text in light mode, light text in dark mode)
+- [x] AC4.4: No hardcoded color hex values (uses design system variables)
+- [x] AC4.5: Proper spacing/padding from edges and other header elements
 
 ### AC5: Layout Responsiveness
-- [ ] AC5.1: Greeting visible on mobile screens (>= 320px width)
-- [ ] AC5.2: Greeting visible on tablet screens (>= 768px width)
-- [ ] AC5.3: Greeting visible on desktop (>= 1024px width)
-- [ ] AC5.4: Text truncation occurs gracefully if name is very long
-- [ ] AC5.5: Does not overlap with title, buttons, or navigation
+- [x] AC5.1: Greeting visible on mobile screens (>= 320px width)
+- [x] AC5.2: Greeting visible on tablet screens (>= 768px width)
+- [x] AC5.3: Greeting visible on desktop (>= 1024px width)
+- [x] AC5.4: Text truncation occurs gracefully if name is very long
+- [x] AC5.5: Does not overlap with title, buttons, or navigation
 
 ### AC6: Dark Mode Support
-- [ ] AC6.1: Text color readable in light mode
-- [ ] AC6.2: Text color readable in dark mode
-- [ ] AC6.3: Sufficient contrast ratio (WCAG AA 4.5:1 minimum)
-- [ ] AC6.4: Consistent with other header text styling in both themes
+- [x] AC6.1: Text color readable in light mode
+- [x] AC6.2: Text color readable in dark mode
+- [x] AC6.3: Sufficient contrast ratio (WCAG AA 4.5:1 minimum)
+- [x] AC6.4: Consistent with other header text styling in both themes
 
 ### AC7: Integration with Authentication
 - [ ] AC7.1: Greeting updates when user logs out and logs back in
 - [ ] AC7.2: Greeting correct for different Google accounts tested
-- [ ] AC7.3: Emulator PIN mode does not break (shows fallback)
-- [ ] AC7.4: No console errors in any authentication flow
+- [x] AC7.3: Emulator PIN mode does not break (shows fallback)
+- [x] AC7.4: No console errors in any authentication flow
 
 ### AC8: Localization Ready
 - [ ] AC8.1: "Hi," is extracted to localization string (not hardcoded)

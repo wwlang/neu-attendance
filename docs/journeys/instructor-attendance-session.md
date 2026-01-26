@@ -27,7 +27,7 @@ Instructor needs to take attendance for a class session
 - When selecting a previous class, **config auto-loads** from last session (radius, late threshold)
 - Can override auto-loaded settings if needed
 - Set classroom radius (20-500m, **default 300m**)
-- Set late threshold (5-30 minutes, default 10 minutes)
+- Set late threshold (0-60 minutes, default 10 minutes)
 
 ### 3. Start Session
 - Click "Start Session"
@@ -79,7 +79,7 @@ Instructor needs to take attendance for a class session
 
 ### 10. View & Manage Session History
 - Click "View History" from instructor dashboard
-- Toggle "Show All" to see sessions older than 7 days
+- Toggle "Show All" to see sessions older than 14 days
 - Click any session to view full attendance details
 - Session detail shows: student list, timestamps, late badges, device IDs, **participation counts**
 - Export attendance CSV from any historical session
@@ -113,8 +113,8 @@ Instructor needs to take attendance for a class session
 
 | Setting | Range | Default | Description |
 |---------|-------|---------|-------------|
-| Classroom Radius | 20-500m | **300m** | Maximum distance from instructor for valid check-in |
-| Late Threshold | 5-30 min | 10 min | Time after session start before check-ins marked late |
+| Location Radius | 20-500m | **300m** | Maximum distance from instructor for valid check-in |
+| Late Threshold | **0-60 min** | 10 min | Time after session start before check-ins marked late |
 | Code Rotation | Fixed | 120s | New attendance code generated every 2 minutes |
 | Code Grace Period | Fixed | **180s** | Previous code remains valid for 3 minutes after rotation |
 | Recently Expired Window | Fixed | **30s** | Codes that just expired are accepted within 30 seconds |
@@ -134,7 +134,7 @@ Instructor needs to take attendance for a class session
 ### AC1: Session Creation
 - [x] Can enter descriptive class name (max 100 characters)
 - [x] Can adjust radius from 20m to **500m** (default **300m**)
-- [x] Can adjust late threshold from 5 to 30 minutes
+- [x] Can adjust late threshold from **0 to 60** minutes
 - [x] System captures GPS coordinates on session start
 - [x] Session is marked as active in Firebase
 
@@ -208,7 +208,7 @@ Instructor needs to take attendance for a class session
 
 - [x] Click any session in history to view full attendance list
 - [x] Session detail view shows: all students, timestamps, late status, device IDs, **participation counts**
-- [x] "Show All Sessions" toggle to view sessions older than 7 days
+- [x] "Show All Sessions" toggle to view sessions older than 14 days
 - [x] Search/filter sessions by class name or date
 - [x] Export CSV from any historical session (not just active)
 

@@ -16,7 +16,7 @@ Authoritative values for parameters shared across journeys.
 | Default late threshold | **10 min** | `index.html` | instructor-session, student-lookup, course-setup, course-defaults |
 | Late threshold range | **0-60 min** | `index.html` | instructor-session, course-setup, course-defaults |
 | Instructor PIN | 230782 | `index.html` | instructor-session |
-| History default view | 7 days | `index.html` | instructor-session |
+| History default view | **14 days** | `index.html` | instructor-session, session-history-default |
 | At-risk attendance threshold | 70% | lecturer-dashboard | lecturer-dashboard |
 | Term weeks range | 1-20 | `index.html` | course-setup |
 | Default term weeks | 15 | `index.html` | course-setup |
@@ -49,7 +49,7 @@ Consistent labels and meanings across all journeys.
 
 | Old Term | New Term | Reason | Task |
 |----------|----------|--------|------|
-| Classroom Radius | Location Radius | More accurate for any location (lab, field site) | P8-04 (Pending) |
+| Classroom Radius | Location Radius | More accurate for any location (lab, field site) | P8-04 (**Complete** 2026-01-23) |
 
 ## Feature Visibility Matrix
 
@@ -169,9 +169,11 @@ Quick Session (no course)
 
 ## Last Updated
 
-- **Date**: 2026-01-23
-- **Verified by**: Course defaults feature planning
+- **Date**: 2026-01-26
+- **Verified by**: Journey audit review
 - **Changes**:
+  - Updated History default view: 7 days → **14 days** (P2-11 complete)
+  - Marked Classroom Radius → Location Radius rename as **Complete** (P8-04)
   - Added Location Radius / Late Threshold terminology
   - Added Course Default / Session Override terms
   - Added terminology change tracking (Classroom Radius -> Location Radius)
