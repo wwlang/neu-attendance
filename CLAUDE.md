@@ -85,12 +85,15 @@ npm run test:all           # All tests
 
 ## Production Database Scripts
 
+**Service account available:** `scripts/service-account.json` (not committed to git)
+
 For production operations (backup, cleanup):
 
 ```bash
-node scripts/backup-firebase.js     # Generates backup script for browser console
-node scripts/archive-test-data.js   # Generates cleanup script
-node scripts/admin-cleanup.js       # Direct cleanup via Admin SDK (requires service account)
+node scripts/backup-admin.js                      # Create backup via Admin SDK
+node scripts/verify-restore.js <backup-file>      # Verify backup on emulator
+node scripts/production-cleanup-2026-01-23.js     # Cleanup script (list/delete/update/verify)
+node scripts/admin-cleanup.js                     # Generic test data cleanup
 ```
 
 ## Architecture

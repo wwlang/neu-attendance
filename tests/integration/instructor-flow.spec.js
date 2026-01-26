@@ -92,7 +92,7 @@ test.describe('Instructor Flow', () => {
     await startInstructorSession(page, 'Test Class - Integration');
 
     // Verify code display
-    const codeDisplay = page.locator('.code-display').first();
+    const codeDisplay = page.locator('div.code-display').first();
     await expect(codeDisplay).toBeVisible();
     const code = await codeDisplay.textContent();
     expect(code).toHaveLength(6);
@@ -154,6 +154,6 @@ test.describe('Instructor Flow', () => {
 
     // Check for QR container
     await expect(page.locator('#qr-student-checkin')).toBeVisible();
-    await expect(page.locator('text=Scan to Check In')).toBeVisible();
+    await expect(page.locator('text=Scan to Check In (includes code)')).toBeVisible();
   });
 });

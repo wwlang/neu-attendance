@@ -169,7 +169,8 @@ async function startInstructorSession(page, className) {
   await startBtn.click();
 
   // Wait for session to start - code display appears
-  await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+  // Use div.code-display to avoid matching the hidden fullscreen modal's <p> element
+  await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 }
 
 /**
@@ -197,7 +198,7 @@ async function checkInStudent(context, mainPage, studentId, studentName, student
   } = options;
 
   // Get the current code from instructor page
-  const codeElement = mainPage.locator('.code-display').first();
+  const codeElement = mainPage.locator('div.code-display').first();
   const code = await codeElement.textContent();
 
   // Open a new page for student check-in

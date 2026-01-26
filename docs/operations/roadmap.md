@@ -14,6 +14,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - **Analytics dashboard with class-based filtering**
 - **Course setup wizard with scheduled sessions**
 - **Remote location selection via interactive map (Leaflet + Nominatim)**
+- **Student location map showing position relative to class radius during check-in**
 - **Zero-minute late threshold support (0-60 min range)**
 - **E2E tests with Firebase emulator isolation**
 - **Test stability improvements (serial execution, retries, data reset)**
@@ -45,6 +46,7 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 | P2-12 | Personalized greeting on instructor dashboard | instructor-greeting | **Complete** (2026-01-23) |
 | P2-13 | Personalized greeting for returning students | student-greeting | Pending |
 | P2-14 | Larger QR codes for easier scanning | larger-qr-codes | **Complete** (2026-01-23) |
+| P2-15 | Student location map during check-in | student-check-in | **Complete** (2026-01-26) |
 
 ### P2-11: Session History Default View - 14 Days
 
@@ -224,6 +226,34 @@ Single-page HTML application with Firebase backend. Core functionality complete 
 - CSS - Update `.qr-container` styles, add fullscreen overlay styles
 - JavaScript - Add `toggleQRFullscreen()` function, keyboard handler
 - Tests - E2E tests for QR sizing and fullscreen toggle
+
+**Effort Estimate:** ~2-3 hours including tests
+
+### P2-15: Student Location Map During Check-In
+
+**Description:** Display a small interactive Leaflet map on the student check-in form showing the student's GPS location, the class location, and the allowed radius circle. Helps students understand whether they are within range before submitting attendance.
+
+**Journey Reference:** `docs/journeys/student-check-in.md` (AC9: Student Location Map)
+
+**Acceptance Criteria:**
+- [x] AC1: Map appears after GPS acquisition on student check-in form
+- [x] AC2: Student position shown with blue dot marker
+- [x] AC3: Class/instructor location shown with standard Leaflet marker
+- [x] AC4: Radius circle shows allowed check-in area
+- [x] AC5: Map is read-only (no click/zoom/drag interaction)
+- [x] AC6: Map auto-fits bounds to show both student and class location
+- [x] AC7: Dark mode support via Leaflet container background styling
+
+**Implementation Notes (2026-01-26):**
+- Added `#studentLocationMap` div in `renderStudentView()` (conditional on `state.studentLocation`)
+- Created `initStudentLocationMap()` and `destroyStudentLocationMap()` functions
+- Created `initStudentLocationMapFromSession()` to async-fetch session data
+- Map initialized after GPS acquisition via `acquireStudentLocation()`
+- Student marker uses custom `L.divIcon` with blue dot styling
+- Class marker uses default Leaflet marker icon
+- Map uses `fitBounds()` with padding to show both markers
+- All interactions disabled (dragging, zoom, scroll, keyboard)
+- 4 new E2E tests: `tests/integration/student-location-map.spec.js`
 
 **Effort Estimate:** ~2-3 hours including tests
 
@@ -762,13 +792,15 @@ Use studentId as the key with write-once security rule:
 - [x] AC6: Switching tabs preserves entered location
 - [x] AC7: Map-selected location allows proceeding to Step 4
 
-**Implementation Notes (2026-01-23):**
-- Added Leaflet CDN (CSS + JS) to index.html
-- Updated CSP: unpkg.com, nominatim.openstreetmap.org, *.tile.openstreetmap.org
-- Added `locationMethod` state field ('gps' | 'map')
-- Created map functions: initCourseSetupMap(), destroyCourseSetupMap(), onMapClick(), updateMapMarker(), updateMapRadius(), searchAddress(), debounceAddressSearch(), selectSearchResult(), setLocationMethod()
-- Map properly destroyed on tab switch and step navigation
-- 8 new E2E tests covering all map functionality
+**Implementation Notes (2026-01-26):**
+- Leaflet CDN (CSS + JS) already loaded in index.html
+- CSP already configured for: unpkg.com, nominatim.openstreetmap.org, *.tile.openstreetmap.org
+- Added `locationMethod: 'gps'` state field ('gps' | 'map') to `courseSetup` state
+- Replaced Step 3 HTML with tabbed interface (Use GPS / Select on Map)
+- Created map functions: setLocationMethod(), initCourseSetupMap(), destroyCourseSetupMap(), onCourseSetupMapClick(), updateCourseSetupMapMarker(), updateLocationStatusDisplay(), debounceAddressSearch(), searchAddress(), selectSearchResult()
+- Map properly destroyed on tab switch, step navigation, and wizard close
+- Radius slider updates map circle in real-time for both GPS and map modes
+- 7 Remote Location Selection tests + 11 existing course setup tests = 18 total passing
 
 **Validation Status:** PASSED (2026-01-23)
 **Evidence:** `.claude/evidence/remote-location-selection-2026-01-23.yaml`
@@ -940,12 +972,13 @@ Use studentId as the key with write-once security rule:
 | P2-14 | Larger QR codes for easier scanning | 2026-01-23 |
 | P8-03 | Course defaults with session override | 2026-01-23 |
 | P8-04 | Rename Classroom Radius to Location Radius | 2026-01-23 |
+| P2-15 | Student location map during check-in | 2026-01-26 |
 
 ## Evidence
 
 - PRD validation: `.claude/evidence/prd-validation-2026-01-13.yaml`
 - Remote location selection: `.claude/evidence/remote-location-selection-2026-01-23.yaml`
 - Firebase rules: `docs/firebase-security-rules.md`
-- Test coverage: `tests/` directory with 164 E2E tests (Playwright)
+- Test coverage: `tests/` directory with 201 E2E tests (Playwright)
 - Development setup: `CLAUDE.md` (emulator mode, local dev instructions)
-- Test stability: 164/164 tests passing, 0 flaky (2026-01-23)
+- Test stability: 200/201 tests passing, 1 pre-existing flake (2026-01-26)

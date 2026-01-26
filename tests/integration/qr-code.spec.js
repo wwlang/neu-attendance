@@ -45,7 +45,7 @@ test.describe('QR Code Generation', () => {
 
     // Check for session QR code
     await expect(page.locator('#qr-student-checkin')).toBeVisible();
-    await expect(page.locator('text=Scan to Check In')).toBeVisible();
+    await expect(page.locator('text=Scan to Check In (includes code)')).toBeVisible();
   });
 });
 

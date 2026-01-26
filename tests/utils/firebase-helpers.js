@@ -43,28 +43,48 @@ async function checkEmulatorHealth() {
 
 /**
  * Delete all data from the Firebase emulator
- * @param {string} projectId - Firebase project ID (default: 'demo-neu-attendance')
+ *
+ * According to Firebase documentation, the correct way to clear Realtime Database
+ * is to write `null` to the root reference using PUT, not DELETE.
+ * @see https://firebase.google.com/docs/emulator-suite/connect_rtdb
+ *
+ * IMPORTANT: The databaseName must match the Firebase database URL format,
+ * e.g., 'neu-attendance-default-rtdb' (not just 'neu-attendance')
+ *
+ * @param {string} databaseName - Database name from databaseURL (default: 'neu-attendance-default-rtdb')
  * @returns {Promise<void>}
  */
-async function resetEmulatorData(projectId = 'demo-neu-attendance') {
+async function resetEmulatorData(databaseName = 'neu-attendance-default-rtdb') {
+  console.log(`[Reset] Clearing all data from emulator (PUT null to ns=${databaseName})...`);
   return new Promise((resolve, reject) => {
+    // Firebase RTDB: Clear data by writing null to root (not DELETE)
+    // Note: databaseName must match the database URL, e.g., 'neu-attendance-default-rtdb'
+    // not just the project ID
+    const body = JSON.stringify(null);
     const options = {
       hostname: EMULATOR_HOST,
       port: DATABASE_EMULATOR_PORT,
-      path: `/.json?ns=${projectId}`,
-      method: 'DELETE',
+      path: `/.json?ns=${databaseName}`,
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
       },
       timeout: 10000,
     };
 
     const req = http.request(options, (res) => {
-      if (res.statusCode === 200 || res.statusCode === 204) {
-        resolve();
-      } else {
-        reject(new Error(`Failed to reset emulator data: ${res.statusCode}`));
-      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          console.log(`[Reset] SUCCESS - emulator data cleared (status: ${res.statusCode})`);
+          resolve();
+        } else {
+          console.error(`[Reset] FAILED - status: ${res.statusCode}, response: ${data}`);
+          reject(new Error(`Failed to reset emulator data: ${res.statusCode}`));
+        }
+      });
     });
 
     req.on('error', (err) => {
@@ -82,6 +102,7 @@ async function resetEmulatorData(projectId = 'demo-neu-attendance') {
       reject(new Error('Emulator reset request timed out'));
     });
 
+    req.write(body);
     req.end();
   });
 }

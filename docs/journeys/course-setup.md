@@ -37,9 +37,22 @@ Instructor wants to set up recurring class sessions for a term
 - Click "Next" to proceed
 
 ### 4. Course Setup Wizard - Step 3: Location
+Location can be set using one of two methods:
+
+**Option A: GPS Capture (default)**
 - Click "Capture Location" to get current GPS coordinates
+- Requires being physically present at the classroom
 - System shows captured latitude/longitude with success confirmation
+
+**Option B: Select on Map (remote setup)**
+- Click "Select on Map" tab to switch methods
+- Use address search to find building/location
+- Or click directly on the interactive map to place marker
+- System shows selected coordinates with radius circle preview
+
+**Common for both methods:**
 - Configure classroom radius (20-500m, default 300m)
+- Radius updates in real-time on map preview
 - Click "Next" to proceed
 
 ### 5. Course Setup Wizard - Step 4: Confirm
@@ -95,7 +108,11 @@ Instructor wants to set up recurring class sessions for a term
 - [x] Step 2: Time pickers for start and end times
 - [x] Step 2: Weeks slider (1-20, default 15)
 - [x] Step 2: Start date picker
-- [x] Step 3: GPS capture button
+- [x] Step 3: Location method tabs (Use GPS / Select on Map)
+- [x] Step 3: GPS capture button (in GPS tab)
+- [x] Step 3: Interactive map with click-to-place marker (in Map tab)
+- [x] Step 3: Address search with geocoding (Nominatim)
+- [x] Step 3: Radius circle preview on map
 - [x] Step 3: Radius slider (20-500m, default 300m)
 - [x] Step 4: Late threshold slider (0-60 min, default 10 min)
 - [x] Step 4: Summary review before creation
@@ -176,7 +193,10 @@ Instructor wants to set up recurring class sessions for a term
 |----------|-------------------|
 | No days selected | Error message, prevent proceeding from Step 2 |
 | Start time after end time | Error message, prevent proceeding from Step 2 |
-| Location denied | Show error, prevent proceeding from Step 3 |
+| GPS location denied | Show error, prevent proceeding from Step 3 (use map instead) |
+| Address search no results | Show "No results found" message |
+| Address search API error | Show "Search failed" message |
+| No location selected | Alert "Please select your location first", prevent proceeding |
 | No sessions generated | Error if weeks + days produce 0 sessions |
 | Activation location denied | Show error, cannot activate session |
 
@@ -198,7 +218,7 @@ Instructor wants to set up recurring class sessions for a term
 | Input effort | 2 | Multiple inputs required but organized logically |
 | Wait time | 1 | GPS capture is only wait |
 | Error risk | 1 | Validation at each step prevents errors |
-| Permission ask | 1 | Location required once during setup |
+| Permission ask | 0-1 | Location: GPS requires permission, Map does not |
 | **Total** | **7** | Acceptable (5-7) |
 
 ## Metrics

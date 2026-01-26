@@ -383,7 +383,7 @@ test.describe('Analytics with Session Data', () => {
     const className2 = `Filter Test B ${Date.now()}`;
     await page.fill('input#className', className2);
     await page.click('button:has-text("Start Session")');
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
     page.once('dialog', d => d.accept());
     await page.click('button:has-text("End Session")');

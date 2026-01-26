@@ -21,6 +21,7 @@ module.exports = defineConfig({
 
   /* Global setup to verify emulator is running and reset data */
   globalSetup: './tests/global-setup.js',
+  globalTeardown: './tests/global-teardown.js',
 
   /* Run tests sequentially to prevent database race conditions */
   fullyParallel: false,

@@ -44,7 +44,7 @@ test.describe('P2-14: Larger QR Codes for Easier Scanning', () => {
     await startInstructorSession(page, 'QR Fullscreen Test');
 
     // Wait for session to start
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 10000 });
 
     // Should have a fullscreen/enlarge button
     const enlargeButton = page.locator('button:has-text("Enlarge QR"), button[data-action="enlarge-qr"], button:has-text("Fullscreen")');
@@ -55,7 +55,7 @@ test.describe('P2-14: Larger QR Codes for Easier Scanning', () => {
     await startInstructorSession(page, 'QR Modal Test');
 
     // Wait for session to start
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 10000 });
 
     // Click the enlarge button
     const enlargeButton = page.locator('button:has-text("Enlarge QR"), button[data-action="enlarge-qr"], button:has-text("Fullscreen")').first();
@@ -69,7 +69,7 @@ test.describe('P2-14: Larger QR Codes for Easier Scanning', () => {
     await startInstructorSession(page, 'QR Visible Test');
 
     // Wait for session to start
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 10000 });
 
     // Click the enlarge button
     const enlargeButton = page.locator('button:has-text("Enlarge QR"), button[data-action="enlarge-qr"], button:has-text("Fullscreen")').first();
@@ -84,7 +84,7 @@ test.describe('P2-14: Larger QR Codes for Easier Scanning', () => {
     await startInstructorSession(page, 'QR Close Test');
 
     // Wait for session to start
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 10000 });
 
     // Click the enlarge button
     const enlargeButton = page.locator('button:has-text("Enlarge QR"), button[data-action="enlarge-qr"], button:has-text("Fullscreen")').first();
@@ -111,7 +111,7 @@ test.describe('P2-14: Larger QR Codes for Easier Scanning', () => {
     await startInstructorSession(page, 'QR Code Display Test');
 
     // Wait for session to start and get the code
-    const codeDisplay = page.locator('.code-display').first();
+    const codeDisplay = page.locator('div.code-display').first();
     await expect(codeDisplay).toBeVisible({ timeout: 10000 });
     const code = await codeDisplay.textContent();
 

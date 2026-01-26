@@ -27,7 +27,7 @@ test.describe('Participation Counter in Active Session', () => {
 
     // Start instructor session
     await startInstructorSession(page, className);
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // Get session ID from Firebase's activeSession path
     const sessionId = await page.evaluate(async () => {

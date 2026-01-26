@@ -156,6 +156,19 @@ Instructor displays QR code and asks students to check in
 - [x] Includes failure reason
 - [x] Available for instructor to manually approve
 
+### AC9: Student Location Map
+- [x] After GPS acquisition, show a small Leaflet map below the location status area
+- [x] Map displays student's GPS location with a blue dot marker
+- [x] Map displays the instructor/class location with a standard Leaflet marker
+- [x] Map displays a radius circle showing the allowed check-in area
+- [x] Map is read-only (no click interaction, no zoom controls)
+- [x] Map auto-fits bounds to show both student and class location
+- [x] Map supports dark mode via Leaflet container background styling
+
+> **IMPLEMENTED (2026-01-26):** Student location map shows after GPS acquisition.
+> Helps students understand whether they are within range before submitting.
+> Verified by integration tests: `student-location-map.spec.js` (4 tests).
+
 ## Error Scenarios
 
 | Scenario | Expected Behavior |

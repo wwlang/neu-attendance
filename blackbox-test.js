@@ -89,7 +89,7 @@ async function runTests() {
     await screenshot(page, '01_home_page');
 
     const title = await page.title();
-    recordTest('Page title is correct', title.includes('Quick Attendance'), `Title: ${title}`);
+    recordTest('Page title is correct', title.includes('University Attendance System'), `Title: ${title}`);
 
     const instructorBtn = await page.locator('button:has-text("I\'m the Instructor")');
     const studentBtn = await page.locator('button:has-text("I\'m a Student")');

@@ -20,7 +20,8 @@ test.describe('P2-11: Session History Default View - 14 Days', () => {
     await goToHistoryView(page);
 
     // Check that the default message shows 14 days (not 7)
-    await expect(page.locator('text=Sessions from the last 14 days')).toBeVisible({ timeout: 5000 });
+    // Text is: "Sessions from the last 14 days. Click a session to view details."
+    await expect(page.locator('text=/Sessions from the last 14 days/')).toBeVisible({ timeout: 5000 });
   });
 
   test('AC2: Displays sessions from (today - 14 days) to today', async ({ page }) => {
@@ -28,7 +29,7 @@ test.describe('P2-11: Session History Default View - 14 Days', () => {
     await goToHistoryView(page);
 
     // Verify the text indicates 14-day range
-    await expect(page.locator('text=Sessions from the last 14 days')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=/Sessions from the last 14 days/')).toBeVisible({ timeout: 5000 });
 
     // The "Show All Sessions" checkbox should be unchecked by default
     const showAllCheckbox = page.locator('label:has-text("Show All Sessions") input[type="checkbox"]');
@@ -56,12 +57,12 @@ test.describe('P2-11: Session History Default View - 14 Days', () => {
     await expect(page.locator('text=Show All Sessions')).toBeVisible();
 
     // Initially should show 14-day message
-    await expect(page.locator('text=Sessions from the last 14 days')).toBeVisible();
+    await expect(page.locator('text=/Sessions from the last 14 days/')).toBeVisible();
 
     // Toggle to show all
     await page.locator('label:has-text("Show All Sessions") input[type="checkbox"]').check();
 
-    // Now should show "All sessions" message
-    await expect(page.locator('text=All sessions.')).toBeVisible();
+    // Now should show "All sessions" message (text is "All sessions. Click a session...")
+    await expect(page.locator('text=/All sessions\\./')).toBeVisible();
   });
 });

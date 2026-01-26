@@ -101,7 +101,7 @@ test.describe('Course Setup Feature', () => {
       await page.click('button:has-text("Start Session")');
 
       // Wait for session to start
-      await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
       // End session
       page.once('dialog', dialog => dialog.accept());
@@ -214,8 +214,203 @@ test.describe('Course Setup Feature', () => {
         await activateBtn.click();
 
         // Should show session with code display
-        await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
       }
+    });
+  });
+
+  test.describe('Remote Location Selection (Map)', () => {
+    test('should show location method tabs on Step 3', async ({ page }) => {
+      await authenticateAsInstructor(page);
+      await page.click('button:has-text("Setup New Course")');
+
+      // Fill Step 1 and proceed
+      await page.locator('input#courseCode').fill('CS101');
+      await page.locator('input#section').fill('A');
+      await page.click('button:has-text("Next")');
+
+      // Fill Step 2 and proceed
+      await page.locator('label:has-text("Mon")').click();
+      await page.locator('input#startTime').fill('09:00');
+      await page.locator('input#endTime').fill('10:30');
+      await page.click('button:has-text("Next")');
+
+      // Verify location method tabs are visible
+      await expect(page.getByRole('heading', { name: 'Location' })).toBeVisible();
+      await expect(page.locator('button:has-text("Use GPS")')).toBeVisible();
+      await expect(page.locator('button:has-text("Select on Map")')).toBeVisible();
+    });
+
+    test('should switch to map method and show map container', async ({ page }) => {
+      await authenticateAsInstructor(page);
+      await page.click('button:has-text("Setup New Course")');
+
+      // Fill Step 1 and proceed
+      await page.locator('input#courseCode').fill('CS101');
+      await page.locator('input#section').fill('A');
+      await page.click('button:has-text("Next")');
+
+      // Fill Step 2 and proceed
+      await page.locator('label:has-text("Mon")').click();
+      await page.click('button:has-text("Next")');
+
+      // Switch to map method
+      await page.click('button:has-text("Select on Map")');
+
+      // Verify map container appears
+      await expect(page.locator('#courseSetupMap')).toBeVisible();
+      await expect(page.locator('#addressSearchInput')).toBeVisible();
+
+      // Verify GPS capture button is hidden
+      await expect(page.locator('#captureLocationBtn')).not.toBeVisible();
+    });
+
+    test('should set location by clicking on map', async ({ page }) => {
+      await authenticateAsInstructor(page);
+      await page.click('button:has-text("Setup New Course")');
+
+      // Navigate to Step 3
+      await page.locator('input#courseCode').fill('CS101');
+      await page.locator('input#section').fill('A');
+      await page.click('button:has-text("Next")');
+      await page.locator('label:has-text("Mon")').click();
+      await page.click('button:has-text("Next")');
+
+      // Switch to map method
+      await page.click('button:has-text("Select on Map")');
+
+      // Wait for map to initialize
+      await page.waitForSelector('.leaflet-container', { timeout: 5000 });
+
+      // Click on the map to set location
+      const mapContainer = page.locator('#courseSetupMap');
+      await mapContainer.click({ position: { x: 150, y: 150 } });
+
+      // Verify location is set (marker should exist and status should update)
+      await expect(page.locator('.leaflet-marker-icon')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator('text=Location selected')).toBeVisible();
+    });
+
+    test('should show address search input and results container', async ({ page }) => {
+      await authenticateAsInstructor(page);
+      await page.click('button:has-text("Setup New Course")');
+
+      // Navigate to Step 3
+      await page.locator('input#courseCode').fill('CS101');
+      await page.locator('input#section').fill('A');
+      await page.click('button:has-text("Next")');
+      await page.locator('label:has-text("Mon")').click();
+      await page.click('button:has-text("Next")');
+
+      // Switch to map method
+      await page.click('button:has-text("Select on Map")');
+
+      // Verify search input exists
+      await expect(page.locator('#addressSearchInput')).toBeVisible();
+      await expect(page.locator('#addressSearchInput')).toHaveAttribute('placeholder', /Search address/);
+
+      // Verify results container exists (hidden by default)
+      await expect(page.locator('#addressSearchResults')).toHaveClass(/hidden/);
+
+      // Type in address search to trigger showing results container
+      await page.locator('#addressSearchInput').fill('Hanoi');
+
+      // Wait for search to start (shows "Searching..." or results)
+      // Using longer timeout since this depends on external API
+      try {
+        await expect(page.locator('#addressSearchResults')).not.toHaveClass(/hidden/, { timeout: 10000 });
+      } catch {
+        // If API is slow/unavailable, at least verify the input was accepted
+        await expect(page.locator('#addressSearchInput')).toHaveValue('Hanoi');
+      }
+    });
+
+    test('should update radius display when slider is moved', async ({ page }) => {
+      await authenticateAsInstructor(page);
+      await page.click('button:has-text("Setup New Course")');
+
+      // Navigate to Step 3
+      await page.locator('input#courseCode').fill('CS101');
+      await page.locator('input#section').fill('A');
+      await page.click('button:has-text("Next")');
+      await page.locator('label:has-text("Mon")').click();
+      await page.click('button:has-text("Next")');
+
+      // Switch to map method and set a location
+      await page.click('button:has-text("Select on Map")');
+      await page.waitForSelector('.leaflet-container', { timeout: 5000 });
+      const mapContainer = page.locator('#courseSetupMap');
+      await mapContainer.click({ position: { x: 150, y: 150 } });
+      await expect(page.locator('.leaflet-marker-icon')).toBeVisible();
+
+      // Verify radius display exists with default value
+      await expect(page.locator('#courseRadiusValue')).toBeVisible();
+      const initialRadius = await page.locator('#courseRadiusValue').textContent();
+      expect(initialRadius).toBe('300'); // default value
+
+      // Find the radius slider within the course setup wizard
+      const radiusSlider = page.locator('.space-y-4 input[type="range"][min="20"][max="500"]');
+      await radiusSlider.fill('400');
+
+      // Verify display updates
+      await expect(page.locator('#courseRadiusValue')).toHaveText('400');
+    });
+
+    test('should preserve location when switching tabs back to GPS', async ({ page }) => {
+      await authenticateAsInstructor(page);
+      await page.click('button:has-text("Setup New Course")');
+
+      // Navigate to Step 3
+      await page.locator('input#courseCode').fill('CS101');
+      await page.locator('input#section').fill('A');
+      await page.click('button:has-text("Next")');
+      await page.locator('label:has-text("Mon")').click();
+      await page.click('button:has-text("Next")');
+
+      // Switch to map method and set a location
+      await page.click('button:has-text("Select on Map")');
+      await page.waitForSelector('.leaflet-container', { timeout: 5000 });
+      await page.locator('#courseSetupMap').click({ position: { x: 150, y: 150 } });
+      await expect(page.locator('text=Location selected')).toBeVisible();
+
+      // Get the coordinates shown
+      const coordsText = await page.locator('#locationStatus').textContent();
+      expect(coordsText).toContain('Lat:');
+
+      // Switch back to GPS tab
+      await page.click('button:has-text("Use GPS")');
+
+      // Location heading should still be visible
+      await expect(page.getByRole('heading', { name: 'Location' })).toBeVisible();
+
+      // Coordinates should still be visible (text changes from "selected" to "captured" but coords persist)
+      const newCoordsText = await page.locator('#locationStatus').textContent();
+      expect(newCoordsText).toContain('Lat:');
+    });
+
+    test('should proceed to Step 4 with map-selected location', async ({ page }) => {
+      await authenticateAsInstructor(page);
+      await page.click('button:has-text("Setup New Course")');
+
+      // Navigate to Step 3
+      await page.locator('input#courseCode').fill('CS101');
+      await page.locator('input#section').fill('A');
+      await page.click('button:has-text("Next")');
+      await page.locator('label:has-text("Mon")').click();
+      await page.click('button:has-text("Next")');
+
+      // Set location via map
+      await page.click('button:has-text("Select on Map")');
+      await page.waitForSelector('.leaflet-container');
+      await page.locator('#courseSetupMap').click({ position: { x: 150, y: 150 } });
+      await expect(page.locator('.leaflet-marker-icon')).toBeVisible();
+
+      // Proceed to Step 4
+      await page.click('button:has-text("Next")');
+
+      // Should be on confirmation step
+      await expect(page.getByRole('heading', { name: 'Confirm Course Setup' })).toBeVisible();
+      await expect(page.locator('text=CS101-A')).toBeVisible();
     });
   });
 });

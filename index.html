@@ -6,11 +6,11 @@
   <!-- Content Security Policy - restricts resource loading sources -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://apis.google.com https://accounts.google.com https://*.firebasedatabase.app http://localhost:*;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://accounts.google.com;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://apis.google.com https://accounts.google.com https://*.firebasedatabase.app https://unpkg.com http://localhost:*;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://accounts.google.com https://unpkg.com;
     font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com ws://localhost:* http://localhost:*;
-    img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com;
+    connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://nominatim.openstreetmap.org ws://localhost:* http://localhost:*;
+    img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://*.tile.openstreetmap.org;
     frame-src https://accounts.google.com https://*.firebaseapp.com;
     frame-ancestors 'none';
   ">
@@ -29,6 +29,9 @@
   </script>
   <!-- Chart.js for Analytics Dashboard with SRI -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+  <!-- Leaflet for location map preview -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -163,6 +166,12 @@
     .qr-fallback { background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; text-align: center; }
     .qr-fallback-text { color: #6b7280; font-size: 0.875rem; }
     .modal-backdrop { background: rgba(0,0,0,0.5); }
+    /* Leaflet map styles */
+    #locationPreviewMap { z-index: 0; }
+    #courseSetupMap { z-index: 0; }
+    #studentLocationMap { z-index: 0; }
+    .leaflet-container { background: #e5e7eb; }
+    .dark .leaflet-container { background: #374151; }
   </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
@@ -232,6 +241,9 @@ async function setupTestAuth() {
   try {
     const userCredential = await auth.signInAnonymously();
     const uid = userCredential.user.uid;
+
+    // Set displayName on the Firebase user so handleAuthStateChange picks it up
+    await userCredential.user.updateProfile({ displayName: 'Test Instructor' });
 
     if (testAuthMode === 'instructor') {
       // Register as instructor for tests
@@ -348,11 +360,16 @@ let state = {
     weeks: 15,
     startDate: "",
     location: null,
+    locationAddress: null,  // Human-readable address from reverse geocoding
     radius: 300,
-    lateThreshold: 10
+    lateThreshold: 10,
+    locationMethod: 'gps'  // 'gps' | 'map'
   },
   courses: [],
   todaysSessions: [],
+  // P8-03: Session Override UI State
+  expandedSessionId: null,  // Which session card has settings expanded
+  sessionOverrides: {},     // { sessionId: { radius: number, lateThreshold: number } }
 
   // Admin Panel
   isAdmin: false,
@@ -1255,7 +1272,7 @@ async function handleAuthStateChange(user) {
       debugLog('[Auth Debug] User is instructor in teacher mode, recovering session...');
       tryRecoverSession();
       loadPreviousClasses(); // AC14: Load class dropdown options
-      loadTodaysSessions(); // Load scheduled sessions for today
+      await loadTodaysSessions(); // Load scheduled sessions for today
     }
   } else {
     console.log('[Auth Debug] No user, clearing state');
@@ -1830,6 +1847,11 @@ function renderStudentView() {
             </div>
             ${state.studentLocation ? '' : `<button onclick="acquireStudentLocation()" class="w-full py-2 px-3 bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 rounded text-sm font-medium">Retry Location</button>`}
           </div>
+
+          <!-- Student Location Map (shows after GPS acquisition) -->
+          ${state.studentLocation ? `
+          <div id="studentLocationMap" class="h-40 rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden"></div>
+          ` : ''}
 
           <button onclick="submitAttendance()" id="submitBtn" class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Submit Attendance</button>
           <div class="flex justify-between items-center">
@@ -2553,6 +2575,7 @@ function closeQRFullscreenModal() {
 async function acquireStudentLocation() {
   state.locationError = null;
   state.studentLocation = null;
+  destroyStudentLocationMap();
   render();
   try {
     state.studentLocation = await getLocation();
@@ -2563,6 +2586,31 @@ async function acquireStudentLocation() {
     state.studentLocation = null;
   }
   render();
+  // Initialize student location map after GPS acquisition
+  if (state.studentLocation) {
+    setTimeout(() => initStudentLocationMapFromSession(), 100);
+  }
+}
+
+async function initStudentLocationMapFromSession() {
+  if (!state.studentLocation) return;
+  try {
+    const activeSnapshot = await db.ref('activeSession').once('value');
+    const sessionId = activeSnapshot.val();
+    if (!sessionId) return;
+    const sessionSnapshot = await db.ref('sessions/' + sessionId).once('value');
+    const session = sessionSnapshot.val();
+    if (session) {
+      initStudentLocationMap(
+        state.studentLocation.lat,
+        state.studentLocation.lng,
+        session
+      );
+    }
+  } catch (err) {
+    // Non-critical: map is informational only
+    console.warn('Could not load session for student map:', err);
+  }
 }
 
 
@@ -2658,8 +2706,10 @@ function openCourseSetup() {
     weeks: 15,
     startDate: getDefaultStartDate(),
     location: null,
+    locationAddress: null,
     radius: 300,
-    lateThreshold: 10
+    lateThreshold: 10,
+    locationMethod: 'gps'  // 'gps' | 'map'
   };
   render();
 }
@@ -2673,8 +2723,11 @@ function getDefaultStartDate() {
 }
 
 function closeCourseSetup() {
+  destroyLocationPreviewMap();
+  destroyCourseSetupMap();
   state.showCourseSetup = false;
   state.courseSetupStep = 1;
+  state.courseSetup.locationMethod = 'gps';
   render();
 }
 
@@ -2701,22 +2754,75 @@ function nextCourseSetupStep() {
     }
   } else if (step === 3) {
     if (!state.courseSetup.location) {
-      alert('Please capture your location first');
+      alert('Please select your location first');
       return;
     }
+    // Cleanup maps when leaving Step 3
+    destroyLocationPreviewMap();
+    destroyCourseSetupMap();
   }
   state.courseSetupStep = Math.min(4, step + 1);
   render();
 }
 
 function prevCourseSetupStep() {
-  state.courseSetupStep = Math.max(1, state.courseSetupStep - 1);
+  const prevStep = state.courseSetupStep;
+  // Cleanup maps when leaving Step 3
+  if (prevStep === 3) {
+    destroyLocationPreviewMap();
+    destroyCourseSetupMap();
+  }
+  state.courseSetupStep = Math.max(1, prevStep - 1);
   render();
+  // Re-initialize appropriate map if returning to Step 3 with location
+  if (state.courseSetupStep === 3) {
+    if (state.courseSetup.locationMethod === 'map') {
+      setTimeout(() => initCourseSetupMap(), 100);
+    } else if (state.courseSetup.location) {
+      setTimeout(() => initLocationPreviewMap(), 50);
+    }
+  }
 }
 
 function updateCourseSetupField(field, value) {
   state.courseSetup[field] = value;
+  // Skip render for radius on Step 3 - update map circle directly instead
+  if (field === 'radius' && state.courseSetupStep === 3) {
+    updateLocationPreviewMapRadius(value);
+    // Also update course setup map circle if in map mode
+    if (courseSetupMapCircle && state.courseSetup.location) {
+      courseSetupMapCircle.setRadius(value);
+    }
+    return;
+  }
   render();
+}
+
+// Update the radius circle on the location preview map
+function updateLocationPreviewMapRadius(radius) {
+  if (!locationPreviewMap || !state.courseSetup.location) return;
+  // Remove existing layers and re-add with new radius
+  locationPreviewMap.eachLayer(layer => {
+    if (layer instanceof L.Circle) {
+      layer.setRadius(radius);
+    }
+  });
+}
+
+// Update text input fields without re-rendering (prevents focus loss)
+function updateCourseSetupTextInput(field, value) {
+  state.courseSetup[field] = value;
+  // Update class name preview inline without re-rendering
+  const previewEl = document.getElementById('classNamePreview');
+  if (previewEl && (field === 'code' || field === 'section')) {
+    const className = combineCourseClassName(state.courseSetup.code, state.courseSetup.section);
+    previewEl.textContent = className;
+    // Show/hide preview container
+    const previewContainer = document.getElementById('classNamePreviewContainer');
+    if (previewContainer) {
+      previewContainer.style.display = (state.courseSetup.code || state.courseSetup.section) ? 'block' : 'none';
+    }
+  }
 }
 
 function toggleCourseDay(day) {
@@ -2727,6 +2833,39 @@ function toggleCourseDay(day) {
   render();
 }
 
+// Reverse geocode coordinates to human-readable address
+async function reverseGeocode(lat, lng) {
+  // In emulator mode, return mock address immediately for faster tests
+  if (isEmulatorMode()) {
+    return `Test Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+  }
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await response.json();
+    if (data && data.display_name) {
+      // Get a shorter, more useful address
+      const addr = data.address || {};
+      const parts = [];
+      if (addr.building || addr.amenity || addr.shop) parts.push(addr.building || addr.amenity || addr.shop);
+      if (addr.road) parts.push(addr.road);
+      if (addr.suburb || addr.neighbourhood) parts.push(addr.suburb || addr.neighbourhood);
+      if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+      return parts.length > 0 ? parts.join(', ') : data.display_name.split(',').slice(0, 3).join(',');
+    }
+    return null;
+  } catch (error) {
+    console.error('Reverse geocoding failed:', error);
+    return null;
+  }
+}
+
+// Global reference for location preview map
+let locationPreviewMap = null;
+
 async function captureCourseLocation() {
   const btn = document.getElementById('captureLocationBtn');
   if (btn) {
@@ -2736,13 +2875,331 @@ async function captureCourseLocation() {
   try {
     const location = await getLocation();
     state.courseSetup.location = location;
+
+    // Get human-readable address
+    if (btn) btn.textContent = 'Getting address...';
+    const address = await reverseGeocode(location.lat, location.lng);
+    state.courseSetup.locationAddress = address;
+
     render();
+    // Initialize map after render
+    setTimeout(() => initLocationPreviewMap(), 50);
   } catch (err) {
     alert('Error: ' + err.message + '\\n\\nPlease enable location access.');
   }
   if (btn) {
     btn.disabled = false;
-    btn.textContent = 'Capture Location';
+    btn.textContent = state.courseSetup.location ? 'Recapture Location' : 'Capture Location';
+  }
+}
+
+function initLocationPreviewMap() {
+  const mapContainer = document.getElementById('locationPreviewMap');
+  if (!mapContainer || !state.courseSetup.location) return;
+
+  // Destroy existing map if any
+  if (locationPreviewMap) {
+    locationPreviewMap.remove();
+    locationPreviewMap = null;
+  }
+
+  const { lat, lng } = state.courseSetup.location;
+  const radius = state.courseSetup.radius;
+
+  locationPreviewMap = L.map('locationPreviewMap', {
+    zoomControl: false,
+    attributionControl: false
+  }).setView([lat, lng], 17);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(locationPreviewMap);
+
+  // Add marker
+  L.marker([lat, lng]).addTo(locationPreviewMap);
+
+  // Add radius circle
+  L.circle([lat, lng], {
+    radius: radius,
+    color: '#1e40af',
+    fillColor: '#3b82f6',
+    fillOpacity: 0.2,
+    weight: 2
+  }).addTo(locationPreviewMap);
+}
+
+function destroyLocationPreviewMap() {
+  if (locationPreviewMap) {
+    locationPreviewMap.remove();
+    locationPreviewMap = null;
+  }
+}
+
+// ============================================================================
+// Course Setup Map Functions (P8-01.1: Remote Location Selection)
+// ============================================================================
+
+let courseSetupMapInstance = null;
+let courseSetupMapMarker = null;
+let courseSetupMapCircle = null;
+let addressSearchTimeout = null;
+
+function setLocationMethod(method) {
+  state.courseSetup.locationMethod = method;
+  // Destroy maps when switching
+  destroyCourseSetupMap();
+  destroyLocationPreviewMap();
+  render();
+  // Initialize the appropriate map after render
+  if (method === 'map') {
+    setTimeout(() => initCourseSetupMap(), 100);
+  } else if (method === 'gps' && state.courseSetup.location) {
+    setTimeout(() => initLocationPreviewMap(), 100);
+  }
+}
+
+function initCourseSetupMap() {
+  const mapContainer = document.getElementById('courseSetupMap');
+  if (!mapContainer) return;
+
+  // Destroy existing instance
+  destroyCourseSetupMap();
+
+  const defaultLat = state.courseSetup.location ? state.courseSetup.location.lat : 21.0285;
+  const defaultLng = state.courseSetup.location ? state.courseSetup.location.lng : 105.8542;
+  const defaultZoom = state.courseSetup.location ? 17 : 13;
+
+  courseSetupMapInstance = L.map('courseSetupMap', {
+    attributionControl: false
+  }).setView([defaultLat, defaultLng], defaultZoom);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(courseSetupMapInstance);
+
+  // Add click handler for placing marker
+  courseSetupMapInstance.on('click', function(e) {
+    onCourseSetupMapClick(e.latlng.lat, e.latlng.lng);
+  });
+
+  // If location already set, add marker and circle
+  if (state.courseSetup.location) {
+    updateCourseSetupMapMarker(
+      state.courseSetup.location.lat,
+      state.courseSetup.location.lng
+    );
+  }
+}
+
+function destroyCourseSetupMap() {
+  if (courseSetupMapInstance) {
+    courseSetupMapInstance.remove();
+    courseSetupMapInstance = null;
+    courseSetupMapMarker = null;
+    courseSetupMapCircle = null;
+  }
+}
+
+function onCourseSetupMapClick(lat, lng) {
+  state.courseSetup.location = { lat, lng, accuracy: 0 };
+  updateCourseSetupMapMarker(lat, lng);
+  updateLocationStatusDisplay(lat, lng, 'Location selected');
+
+  // Reverse geocode in background (non-blocking)
+  reverseGeocode(lat, lng).then(address => {
+    if (address) {
+      state.courseSetup.locationAddress = address;
+      const statusEl = document.getElementById('locationStatus');
+      if (statusEl) {
+        const addrLine = statusEl.querySelector('.location-address');
+        if (addrLine) {
+          addrLine.textContent = address;
+        } else {
+          const p = document.createElement('p');
+          p.className = 'text-sm font-medium text-gray-800 dark:text-gray-200 mt-1 location-address';
+          p.textContent = address;
+          statusEl.appendChild(p);
+        }
+      }
+    }
+  });
+}
+
+function updateCourseSetupMapMarker(lat, lng) {
+  if (!courseSetupMapInstance) return;
+
+  // Remove existing marker and circle
+  if (courseSetupMapMarker) {
+    courseSetupMapInstance.removeLayer(courseSetupMapMarker);
+  }
+  if (courseSetupMapCircle) {
+    courseSetupMapInstance.removeLayer(courseSetupMapCircle);
+  }
+
+  // Add new marker
+  courseSetupMapMarker = L.marker([lat, lng]).addTo(courseSetupMapInstance);
+
+  // Add radius circle
+  courseSetupMapCircle = L.circle([lat, lng], {
+    radius: state.courseSetup.radius,
+    color: '#1e40af',
+    fillColor: '#3b82f6',
+    fillOpacity: 0.2,
+    weight: 2
+  }).addTo(courseSetupMapInstance);
+
+  // Pan to marker
+  courseSetupMapInstance.setView([lat, lng], 17);
+}
+
+function updateLocationStatusDisplay(lat, lng, statusText) {
+  const statusEl = document.getElementById('locationStatus');
+  if (!statusEl) return;
+
+  statusEl.className = 'p-3 bg-green-50 dark:bg-green-900/30 rounded-lg';
+  statusEl.innerHTML = `
+    <p class="text-sm text-green-700 dark:text-green-400">&#10003; ${statusText}</p>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}</p>
+  `;
+}
+
+function debounceAddressSearch(query) {
+  if (addressSearchTimeout) {
+    clearTimeout(addressSearchTimeout);
+  }
+  if (!query || query.length < 3) {
+    const resultsEl = document.getElementById('addressSearchResults');
+    if (resultsEl) resultsEl.classList.add('hidden');
+    return;
+  }
+  addressSearchTimeout = setTimeout(() => searchAddress(query), 500);
+}
+
+async function searchAddress(query) {
+  const resultsEl = document.getElementById('addressSearchResults');
+  if (!resultsEl) return;
+
+  resultsEl.classList.remove('hidden');
+  resultsEl.innerHTML = '<div class="p-3 text-sm text-gray-500 dark:text-gray-400">Searching...</div>';
+
+  // In emulator mode, return mock results for faster tests
+  if (isEmulatorMode()) {
+    resultsEl.innerHTML = `
+      <div class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-300"
+        onclick="selectSearchResult(21.0285, 105.8542, 'Mock: ${query}')">
+        Mock result: ${query}
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query) + '&limit=5',
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await response.json();
+
+    if (!data || data.length === 0) {
+      resultsEl.innerHTML = '<div class="p-3 text-sm text-gray-500 dark:text-gray-400">No results found</div>';
+      return;
+    }
+
+    resultsEl.innerHTML = data.map(r => `
+      <div class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700 last:border-0"
+        onclick="selectSearchResult(${r.lat}, ${r.lon}, '${escapeHtml(r.display_name.replace(/'/g, "\\'"))}')">
+        ${escapeHtml(r.display_name)}
+      </div>
+    `).join('');
+  } catch (error) {
+    resultsEl.innerHTML = '<div class="p-3 text-sm text-red-500 dark:text-red-400">Search failed. Try again.</div>';
+  }
+}
+
+function selectSearchResult(lat, lng, displayName) {
+  lat = parseFloat(lat);
+  lng = parseFloat(lng);
+
+  state.courseSetup.location = { lat, lng, accuracy: 0 };
+  state.courseSetup.locationAddress = displayName;
+
+  // Hide search results
+  const resultsEl = document.getElementById('addressSearchResults');
+  if (resultsEl) resultsEl.classList.add('hidden');
+
+  // Update map marker
+  updateCourseSetupMapMarker(lat, lng);
+  updateLocationStatusDisplay(lat, lng, 'Location selected');
+}
+
+// ============================================================================
+// Student Location Map (Feature 2: Show student position during check-in)
+// ============================================================================
+
+let studentLocationMapInstance = null;
+
+function initStudentLocationMap(studentLat, studentLng, sessionData) {
+  const mapContainer = document.getElementById('studentLocationMap');
+  if (!mapContainer) return;
+
+  destroyStudentLocationMap();
+
+  studentLocationMapInstance = L.map('studentLocationMap', {
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    touchZoom: false,
+    doubleClickZoom: false,
+    scrollWheelZoom: false,
+    boxZoom: false,
+    keyboard: false
+  }).setView([studentLat, studentLng], 16);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(studentLocationMapInstance);
+
+  // Student marker (blue)
+  const studentIcon = L.divIcon({
+    className: 'student-location-marker',
+    html: '<div style="width:14px;height:14px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.3)"></div>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7]
+  });
+  L.marker([studentLat, studentLng], { icon: studentIcon })
+    .addTo(studentLocationMapInstance);
+
+  // Class/instructor location marker and radius circle
+  if (sessionData && sessionData.location) {
+    const classLat = sessionData.location.lat;
+    const classLng = sessionData.location.lng;
+    const radius = sessionData.radius || 300;
+
+    // Class location marker (default Leaflet marker)
+    L.marker([classLat, classLng]).addTo(studentLocationMapInstance);
+
+    // Radius circle
+    L.circle([classLat, classLng], {
+      radius: radius,
+      color: '#1e40af',
+      fillColor: '#3b82f6',
+      fillOpacity: 0.15,
+      weight: 2
+    }).addTo(studentLocationMapInstance);
+
+    // Fit bounds to show both markers
+    const bounds = L.latLngBounds(
+      [studentLat, studentLng],
+      [classLat, classLng]
+    ).pad(0.3);
+    studentLocationMapInstance.fitBounds(bounds);
+  }
+}
+
+function destroyStudentLocationMap() {
+  if (studentLocationMapInstance) {
+    studentLocationMapInstance.remove();
+    studentLocationMapInstance = null;
   }
 }
 
@@ -2797,7 +3254,8 @@ async function saveCourseAndSessions() {
     alert(`Course created successfully!\\n\\n${sessions.length} sessions have been scheduled.`);
     closeCourseSetup();
     await loadTodaysSessions();
-    
+    render(); // Re-render to show the new sessions
+
   } catch (err) {
     console.error('[saveCourseAndSessions] Error:', err);
     alert('Error creating course: ' + err.message);
@@ -2861,6 +3319,15 @@ async function activateScheduledSession(sessionId) {
     // Generate attendance code
     const code = generateCode();
     
+    // Check for override values
+    const overrides = state.sessionOverrides[sessionId];
+    const effectiveRadius = overrides?.radius ?? sessionData.radius ?? 300;
+    const effectiveLateThreshold = overrides?.lateThreshold ?? sessionData.lateThreshold ?? 10;
+    
+    // Determine if overrides were applied
+    const hasRadiusOverride = overrides?.radius !== undefined && overrides.radius !== (sessionData.radius ?? 300);
+    const hasLateOverride = overrides?.lateThreshold !== undefined && overrides.lateThreshold !== (sessionData.lateThreshold ?? 10);
+    
     // Update session to active
     const updates = {
       location: location, // Use fresh location
@@ -2869,8 +3336,19 @@ async function activateScheduledSession(sessionId) {
       active: true,
       status: 'active',
       activatedAt: new Date().toISOString(),
-      activatedBy: state.user?.uid || 'unknown'
+      activatedBy: state.user?.uid || 'unknown',
+      // Store effective values
+      radius: effectiveRadius,
+      lateThreshold: effectiveLateThreshold
     };
+    
+    // Add override fields only if overridden
+    if (hasRadiusOverride) {
+      updates.radiusOverride = overrides.radius;
+    }
+    if (hasLateOverride) {
+      updates.lateThresholdOverride = overrides.lateThreshold;
+    }
     
     await db.ref('sessions/' + sessionId).update(updates);
     await db.ref('activeSession').set(sessionId);
@@ -2879,8 +3357,12 @@ async function activateScheduledSession(sessionId) {
     state.session = { ...sessionData, ...updates, id: sessionId };
     state.currentCode = code;
     state.timeLeft = CODE_REFRESH_SECONDS;
-    state.lateThreshold = sessionData.lateThreshold || DEFAULT_LATE_THRESHOLD_MINUTES;
+    state.lateThreshold = effectiveLateThreshold;
     state.isReopenedSession = false;
+    
+    // Clear override state
+    state.expandedSessionId = null;
+    delete state.sessionOverrides[sessionId];
     
     saveSessionToStorage(sessionId);
     setupCodeRotation();
@@ -2939,22 +3421,20 @@ function renderCourseSetupWizard() {
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Course Code</label>
           <input type="text" id="courseCode" maxlength="20" placeholder="e.g., CS101, MATH200"
             value="${escapeHtml(setup.code)}"
-            oninput="updateCourseSetupField('code', this.value)"
+            oninput="updateCourseSetupTextInput('code', this.value)"
             class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Section</label>
           <input type="text" id="section" maxlength="10" placeholder="e.g., A, B, Morning"
             value="${escapeHtml(setup.section)}"
-            oninput="updateCourseSetupField('section', this.value)"
+            oninput="updateCourseSetupTextInput('section', this.value)"
             class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-600 dark:bg-gray-700 dark:text-white">
         </div>
-        ${setup.code || setup.section ? `
-        <div class="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+        <div id="classNamePreviewContainer" class="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg" style="display: ${setup.code || setup.section ? 'block' : 'none'}">
           <p class="text-sm text-gray-600 dark:text-gray-300">Class Name Preview:</p>
-          <p class="text-lg font-semibold text-blue-700 dark:text-blue-400">${escapeHtml(className)}</p>
+          <p id="classNamePreview" class="text-lg font-semibold text-blue-700 dark:text-blue-400">${escapeHtml(className)}</p>
         </div>
-        ` : ''}
       </div>
     `;
   } else if (step === 2) {
@@ -2991,7 +3471,7 @@ function renderCourseSetupWizard() {
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Number of Weeks: <span id="weeksValue">${setup.weeks}</span></label>
-          <input type="range" min="1" max="20" value="${setup.weeks}"
+          <input type="range" id="weeks" min="1" max="20" value="${setup.weeks}"
             oninput="document.getElementById('weeksValue').textContent=this.value; updateCourseSetupField('weeks', parseInt(this.value))"
             class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
         </div>
@@ -3007,20 +3487,68 @@ function renderCourseSetupWizard() {
       </div>
     `;
   } else if (step === 3) {
+    const isGpsMode = setup.locationMethod === 'gps';
+    const isMapMode = setup.locationMethod === 'map';
+    const locationStatusText = setup.location
+      ? (isMapMode ? 'Location selected' : 'Location captured')
+      : 'Your location will be captured';
+    const locationCoordsText = setup.location
+      ? `Lat: ${setup.location.lat.toFixed(6)}, Lng: ${setup.location.lng.toFixed(6)}`
+      : '';
+
     stepContent = `
       <div class="space-y-4">
         <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Location</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400">Capture your classroom location. Students will need to be within the configured radius to check in.</p>
-        <button id="captureLocationBtn" onclick="captureCourseLocation()"
-          class="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
-          ${setup.location ? 'Recapture Location' : 'Capture Location'}
-        </button>
-        ${setup.location ? `
-        <div class="p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
-          <p class="text-sm text-green-700 dark:text-green-400">&#10003; Location captured</p>
-          <p class="text-xs text-gray-600 dark:text-gray-400">Lat: ${setup.location.lat.toFixed(6)}, Lng: ${setup.location.lng.toFixed(6)}</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Set your classroom location. Students will need to be within the configured radius to check in.</p>
+
+        <!-- Location Method Tabs -->
+        <div class="flex gap-2">
+          <button onclick="setLocationMethod('gps')"
+            class="flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-colors ${isGpsMode
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+            Use GPS
+          </button>
+          <button onclick="setLocationMethod('map')"
+            class="flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-colors ${isMapMode
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+            Select on Map
+          </button>
         </div>
-        ` : ''}
+
+        <!-- GPS Mode Content -->
+        <div id="gpsMethodContent" class="${isMapMode ? 'hidden' : ''}">
+          <button id="captureLocationBtn" onclick="captureCourseLocation()"
+            class="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+            ${setup.location ? 'Recapture Location' : 'Capture Location'}
+          </button>
+        </div>
+
+        <!-- Map Mode Content -->
+        <div id="mapMethodContent" class="${isGpsMode ? 'hidden' : ''}">
+          <div class="relative">
+            <input type="text" id="addressSearchInput" placeholder="Search address..."
+              oninput="debounceAddressSearch(this.value)"
+              class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white pr-10">
+            <div id="addressSearchResults" class="hidden absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto"></div>
+          </div>
+          <div id="courseSetupMap" class="h-64 rounded-lg border border-gray-300 dark:border-gray-600 mt-3"></div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Click on the map to place a marker at your classroom location</p>
+        </div>
+
+        <!-- Location Status (shared between modes) -->
+        <div id="locationStatus" class="p-3 ${setup.location ? 'bg-green-50 dark:bg-green-900/30' : 'bg-gray-50 dark:bg-gray-700'} rounded-lg">
+          <p class="text-sm ${setup.location ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-300'}">
+            ${setup.location ? '&#10003; ' : ''}${locationStatusText}
+          </p>
+          ${setup.locationAddress ? '<p class="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">' + escapeHtml(setup.locationAddress) + '</p>' : ''}
+          ${locationCoordsText ? '<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">' + locationCoordsText + '</p>' : ''}
+        </div>
+
+        ${setup.location && isGpsMode ? '<div id="locationPreviewMap" class="h-48 rounded-lg border border-gray-300 dark:border-gray-600"></div>' : ''}
+
+        <!-- Radius Slider -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location Radius: <span id="courseRadiusValue">${setup.radius}</span>m</label>
           <input type="range" min="20" max="500" value="${setup.radius}"
@@ -3093,6 +3621,86 @@ function renderCourseSetupWizard() {
   `;
 }
 
+// P8-03: Session Override Panel Helper Functions
+function toggleSessionSettings(sessionId) {
+  if (state.expandedSessionId === sessionId) {
+    state.expandedSessionId = null;
+  } else {
+    state.expandedSessionId = sessionId;
+    // Initialize overrides with session defaults if not already set
+    if (!state.sessionOverrides[sessionId]) {
+      const session = state.todaysSessions.find(s => s.id === sessionId);
+      if (session) {
+        state.sessionOverrides[sessionId] = {
+          radius: session.radius || 300,
+          lateThreshold: session.lateThreshold || 10
+        };
+      }
+    }
+  }
+  render();
+}
+
+function updateSessionOverride(sessionId, field, value) {
+  if (!state.sessionOverrides[sessionId]) {
+    const session = state.todaysSessions.find(s => s.id === sessionId);
+    state.sessionOverrides[sessionId] = {
+      radius: session?.radius || 300,
+      lateThreshold: session?.lateThreshold || 10
+    };
+  }
+  state.sessionOverrides[sessionId][field] = parseInt(value);
+  
+  // Update the displayed value
+  const valueEl = document.getElementById(`session${field.charAt(0).toUpperCase() + field.slice(1)}Value`);
+  if (valueEl) {
+    valueEl.textContent = value;
+  }
+  
+  // Update badge without full re-render
+  updateSessionBadge(sessionId);
+}
+
+function updateSessionBadge(sessionId) {
+  const session = state.todaysSessions.find(s => s.id === sessionId);
+  const overrides = state.sessionOverrides[sessionId];
+  if (!session || !overrides) return;
+  
+  const hasOverrides = overrides.radius !== (session.radius || 300) || 
+                       overrides.lateThreshold !== (session.lateThreshold || 10);
+  
+  const badge = document.querySelector(`[data-testid="using-defaults-badge"][data-session="${sessionId}"]`);
+  if (badge) {
+    badge.textContent = hasOverrides ? 'Custom settings' : 'Course defaults';
+    badge.className = hasOverrides 
+      ? 'px-2 py-1 text-xs rounded-full font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+      : 'px-2 py-1 text-xs rounded-full font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+  }
+}
+
+function resetSessionToDefaults(sessionId) {
+  const session = state.todaysSessions.find(s => s.id === sessionId);
+  if (!session) return;
+  
+  state.sessionOverrides[sessionId] = {
+    radius: session.radius || 300,
+    lateThreshold: session.lateThreshold || 10
+  };
+  
+  // Update slider values
+  const radiusSlider = document.getElementById('sessionRadius');
+  const lateSlider = document.getElementById('sessionLateThreshold');
+  const radiusValue = document.getElementById('sessionRadiusValue');
+  const lateValue = document.getElementById('sessionLateThresholdValue');
+  
+  if (radiusSlider) radiusSlider.value = state.sessionOverrides[sessionId].radius;
+  if (lateSlider) lateSlider.value = state.sessionOverrides[sessionId].lateThreshold;
+  if (radiusValue) radiusValue.textContent = state.sessionOverrides[sessionId].radius;
+  if (lateValue) lateValue.textContent = state.sessionOverrides[sessionId].lateThreshold;
+  
+  updateSessionBadge(sessionId);
+}
+
 function renderTodaysSessions() {
   if (state.todaysSessions.length === 0) {
     return `
@@ -3106,30 +3714,94 @@ function renderTodaysSessions() {
   return `
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
       <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Today's Scheduled Sessions</h3>
-      <div class="space-y-3">
+      <div class="space-y-4">
         ${state.todaysSessions.map(session => {
           const time = new Date(session.scheduledFor);
           const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const isActive = session.status === 'active';
+          const isExpanded = state.expandedSessionId === session.id;
+          const overrides = state.sessionOverrides[session.id] || {
+            radius: session.radius || 300,
+            lateThreshold: session.lateThreshold || 10
+          };
+          const hasOverrides = overrides.radius !== (session.radius || 300) || 
+                               overrides.lateThreshold !== (session.lateThreshold || 10);
+          
           return `
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div>
-                <p class="font-medium text-gray-800 dark:text-white">${escapeHtml(session.className)}</p>
-                <p class="text-sm text-gray-500 dark:text-gray-400">${timeStr}</p>
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden" data-testid="session-card">
+              <div class="flex items-center justify-between p-3">
+                <div class="flex-1">
+                  <p class="font-medium text-gray-800 dark:text-white">${escapeHtml(session.className)}</p>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">${timeStr}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-1 text-xs rounded-full font-medium
+                    ${isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 
+                      'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'}">
+                    ${isActive ? 'Active' : 'Scheduled'}
+                  </span>
+                  ${!isActive && session.courseId ? `
+                  <span data-testid="using-defaults-badge" data-session="${session.id}"
+                    class="px-2 py-1 text-xs rounded-full font-medium ${hasOverrides 
+                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' 
+                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'}">
+                    ${hasOverrides ? 'Custom settings' : 'Course defaults'}
+                  </span>
+                  ` : ''}
+                  ${!isActive ? `
+                  <button data-testid="expand-session-settings" 
+                    onclick="toggleSessionSettings('${session.id}')"
+                    class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    aria-label="Expand settings">
+                    <svg class="w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </button>
+                  <button data-session-id="${session.id}" onclick="activateScheduledSession('${session.id}')"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm">
+                    Activate
+                  </button>
+                  ` : ''}
+                </div>
               </div>
-              <div class="flex items-center gap-3">
-                <span class="px-2 py-1 text-xs rounded-full font-medium
-                  ${isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 
-                    'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'}">
-                  ${isActive ? 'Active' : 'Scheduled'}
-                </span>
-                ${!isActive ? `
-                <button data-session-id="${session.id}" onclick="activateScheduledSession('${session.id}')"
-                  class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm">
-                  Activate
-                </button>
-                ` : ''}
+              ${!isActive ? `
+              <div data-testid="session-settings-panel" 
+                class="px-3 pb-3 ${isExpanded ? '' : 'hidden'}">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                  <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Override Session Settings</h4>
+                  <div class="space-y-4">
+                    <div>
+                      <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        Location Radius: <span id="sessionRadiusValue">${overrides.radius}</span>m
+                      </label>
+                      <input type="range" id="sessionRadius" min="20" max="500" value="${overrides.radius}"
+                        oninput="updateSessionOverride('${session.id}', 'radius', this.value)"
+                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                      <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>20m</span>
+                        <span>500m</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        Late Threshold: <span id="sessionLateThresholdValue">${overrides.lateThreshold}</span> min
+                      </label>
+                      <input type="range" id="sessionLateThreshold" min="0" max="60" value="${overrides.lateThreshold}"
+                        oninput="updateSessionOverride('${session.id}', 'lateThreshold', this.value)"
+                        class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                      <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>0 min</span>
+                        <span>60 min</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button onclick="resetSessionToDefaults('${session.id}')"
+                    class="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+                    Reset to Course Defaults
+                  </button>
+                </div>
               </div>
+              ` : ''}
             </div>
           `;
         }).join('')}

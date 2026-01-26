@@ -329,7 +329,7 @@ test.describe('Full Session Lifecycle with History', () => {
     await page.click('button:has-text("Start Session")');
 
     // Verify session started
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // End session
     page.once('dialog', async dialog => {
@@ -375,7 +375,7 @@ test.describe('Full Session Lifecycle with History', () => {
     }
     await page.fill('input#className', className);
     await page.click('button:has-text("Start Session")');
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // End session
     page.once('dialog', async dialog => {
@@ -442,11 +442,11 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await page.click('button:has-text("Start Session")');
 
     // Verify session started with QR code
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#qr-student-checkin')).toBeVisible({ timeout: 5000 });
 
     // Record the original code
-    const originalCode = await page.locator('.code-display').first().textContent();
+    const originalCode = await page.locator('div.code-display').first().textContent();
 
     // End the session
     page.once('dialog', async dialog => {
@@ -472,7 +472,7 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await reopenButton.click();
 
     // Verify session is reopened with QR code visible
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#qr-student-checkin')).toBeVisible({ timeout: 5000 });
 
     // Wait for QR code content to render (img inside the container)
@@ -484,7 +484,7 @@ test.describe('Reopen Session from History (P7-02)', () => {
     }).toPass({ timeout: 10000 });
 
     // Verify new code is different from original
-    const newCode = await page.locator('.code-display').first().textContent();
+    const newCode = await page.locator('div.code-display').first().textContent();
     expect(newCode).not.toBe(originalCode);
 
     // Verify "Reopened for Late Check-ins" badge is visible
@@ -511,7 +511,7 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await page.click('button:has-text("Start Session")');
 
     // Verify session started
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // End the session
     page.once('dialog', async dialog => {
@@ -537,7 +537,7 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await reopenButton.click();
 
     // Verify session is reopened with QR code visible
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#qr-student-checkin')).toBeVisible({ timeout: 5000 });
 
     // Wait for QR code content to render (img inside the container)
@@ -572,7 +572,7 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await page.click('button:has-text("Start Session")');
 
     // Verify session started
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // End the session
     page.once('dialog', async dialog => {
@@ -595,7 +595,7 @@ test.describe('Reopen Session from History (P7-02)', () => {
     await reopenButton.click();
 
     // Wait for session to reopen and stabilize
-    await expect(page.locator('.code-display').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('div.code-display').first()).toBeVisible({ timeout: 15000 });
 
     // Wait for the UI to fully render and listeners to be set up
     await page.waitForLoadState('networkidle');
